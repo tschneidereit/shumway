@@ -100,6 +100,7 @@ var MovieClipPrototype = function(obj, dictionary) {
                 parent.$addChild(entry.name, character); // HACK parent assignment
               }
               character.parent = parent;
+              character.root = parent.root || parent;
               if (character.variableName)
                 parent.$bindVariable(character);
               frame[depth] = character;
@@ -144,6 +145,7 @@ var MovieClipPrototype = function(obj, dictionary) {
     var currentFrame = 0;
     var paused = false;
     var rotation = 0;
+    var width, height;
 
     function dispatchEvent(eventName, args) {
       var as2Object = instance.$as2Object;
@@ -263,6 +265,7 @@ var MovieClipPrototype = function(obj, dictionary) {
     };
     proto.$dispatchEvent = dispatchEvent;
     proto.$addFrameScript = addFrameScript;
+    proto.$createAS2Script = createAS2Script;
     proto.$addChild = function(name, child) {
       children[name] = child;
     };
@@ -365,30 +368,37 @@ var MovieClipPrototype = function(obj, dictionary) {
         enumerable: false
       },
       getBounds: {
-        value: function getBounds() {
+        value: function getBounds(bounds) {
           // TODO move the getBounds into utility/core classes
           var frame = timeline[currentFrame - 1];
           var xMin = 0, yMin = 0, xMax = 0, yMax = 0;
           for (var i in frame) {
             if (!+i) continue;
             var character = frame[i];
-            var b = character.bounds;
-            if (!b) {
-              b = character.getBounds();
-              var m = this.matrix;
-              var x1 = m.scaleX * b.xMin + m.skew0 * b.yMin + m.translateX;
-              var y1 = m.skew1 * b.xMin + m.scaleY * b.yMin + m.translateY;
-              var x2 = m.scaleX * b.xMax + m.skew0 * b.yMax + m.translateX;
-              var y2 = m.skew1 * b.xMax + m.scaleY * b.yMax + m.translateY;
-              b.xMin = Math.min(x1, x2); b.xMax = Math.max(x1, x2);
-              b.yMin = Math.min(y1, y2); b.yMax = Math.max(y1, y2);
-            }
+            var b = character.bounds || character.getBounds(this);
             xMin = Math.min(xMin, b.xMin);
             yMin = Math.min(yMin, b.yMin);
             xMax = Math.max(xMax, b.xMax);
             yMax = Math.max(yMax, b.yMax);
           }
-          return { xMin: xMin, yMin: yMin, xMax: xMax, yMax: yMax };
+          if (!bounds || bounds === this)
+            return {xMin: xMin, yMin: yMin, xMax: xMax, yMax: yMax};
+
+          var pt1 = bounds.globalToLocal(
+            this.localToGlobal({x: xMin, y: yMin}));
+          var pt2 = bounds.globalToLocal(
+            this.localToGlobal({x: xMax, y: yMin}));
+          var pt3 = bounds.globalToLocal(
+            this.localToGlobal({x: xMax, y: yMax}));
+          var pt4 = bounds.globalToLocal(
+            this.localToGlobal({x: xMin, y: yMax}));
+
+          return {
+            xMin: Math.min(pt1.x, pt2.x, pt3.x, pt4.x),
+            yMin: Math.min(pt1.y, pt2.y, pt3.y, pt4.y),
+            xMax: Math.max(pt1.x, pt2.x, pt3.x, pt4.x),
+            yMax: Math.max(pt1.y, pt2.y, pt3.y, pt4.y)
+          };
         },
         enumerable: false
       },
@@ -413,8 +423,9 @@ var MovieClipPrototype = function(obj, dictionary) {
       },
       globalToLocal: {
         value: function globalToLocal(pt) {
-          var result = this.parent ? this.parent.localToGlobal(pt) : pt;
-          var m = this.matrix, k = 1 / (m.scaleX * m.scaleY - m.skew0 * m.skew1);
+          var result = this.parent ? this.parent.globalToLocal(pt) : pt;
+          var m = this.matrix;
+          var k = m ? 1 / (m.scaleX * m.scaleY - m.skew0 * m.skew1) : 0;
           var result = !m ? result : {
             x: m.scaleY * k * result.x - m.skew0 * k * result.y +
                (m.translateY * m.skew0 - m.translateX * m.scaleY) * k / 20,
@@ -435,10 +446,10 @@ var MovieClipPrototype = function(obj, dictionary) {
       },
       hitTest: {
         value: function hitTest() {
-          var bounds = this.getBounds();
+          var bounds = this.getBounds(this.root);
           if (typeof arguments[0] === 'object') {
             var target = arguments[0];
-            var targetBounds = target.getBounds();
+            var targetBounds = target.getBounds(this.root);
             var x1 = this.x;
             var y1 = this.y;
             var x2 = target.x;
@@ -464,7 +475,8 @@ var MovieClipPrototype = function(obj, dictionary) {
                 this.hitTestCache = {};
                 renderShadowCanvas(this);
               }
-              return this.hitTestCache.isPixelPainted(x, y);
+              var pt = this.globalToLocal({x: x, y: y});
+              return this.hitTestCache.isPixelPainted(pt.x, pt.y);
             } else {
               return x > bounds.xMin / 20 && x < bounds.xMax / 20 &&
                      y > bounds.yMin / 20 && y < bounds.yMax / 20;
@@ -493,21 +505,25 @@ var MovieClipPrototype = function(obj, dictionary) {
       },
       width: {
         get: function get$width() {
+          if (typeof width !== 'undefined')
+            return width;
           var bounds = this.getBounds();
-          return (bounds.xMax - bounds.xMin) / 20;
+          return bounds.xMax / 20;
         },
         set: function set$width(value) {
-          throw 'Not implemented: width';
+          width = value;
         },
         enumerable: true
       },
       height: {
         get: function get$height() {
+          if (typeof height !== 'undefined')
+            return height;
           var bounds = this.getBounds();
-          return (bounds.yMax - bounds.yMin) / 20;
+          return bounds.yMax / 20;
         },
         set: function set$height(value) {
-          throw 'Not implemented: height';
+          height = value;
         },
         enumerable: true
       },
@@ -570,6 +586,13 @@ var ButtonPrototype = function(obj, dictionary) {
   obj.pframes = [obj.states.up,obj.states.over,obj.states.down,obj.states.hitTest];
   var instance;
 
+  var AS2ButtonConditions = [
+    [null, 'idleToOverUp', 'idleToOverDown', null],
+    ['overUpToIdle', null, 'overUpToOverDown', null],
+    ['overDownToIdle', 'overDownToOverUp', null, 'overDownToOutDown'],
+    ['outDownToIdle', null, 'outDownToOverDown', null]
+  ];
+
   function ButtonEvents(instance) {
     this.instance = instance;
     this.buttonPressed = false;
@@ -618,13 +641,39 @@ var ButtonPrototype = function(obj, dictionary) {
         this.instance.$dispatchEvent('onPress');
       else if (lastState == 2 && state != 2)
         this.instance.$dispatchEvent('onRelease');
+
+      this.dispatchAS2Events(lastState, state);
       this.lastState = state;
+    },
+    dispatchAS2Events: function(lastState, state) {
+      var buttonActions = this.instance.buttonActions;
+      if (!buttonActions)
+        return;
+      var buttonCondition = AS2ButtonConditions[lastState][state];
+      if (!buttonCondition)
+        return;
+      if (!this.as2ActionsCache)
+        this.as2ActionsCache = {};
+      var buttonActionsCache = this.as2ActionsCache[buttonCondition];
+      if (!buttonActionsCache) {
+        buttonActionsCache = [];
+        for (var i = 0; i < buttonActions.length; i++) {
+          if (!buttonActions[i][buttonCondition])
+            continue;
+          var actionsData = buttonActions[i].actionsData;
+          buttonActionsCache.push(this.instance.$createAS2Script(actionsData));
+        }
+        this.as2ActionsCache[buttonCondition] = buttonActionsCache;
+      }
+      for (var i = 0; i < buttonActionsCache.length; i++)
+        buttonActionsCache[i].call(this.instance);
     },
     onMouseWheel: function () {}
   };
 
   var proto = MovieClipPrototype.apply(this, arguments) || this;
   proto.nativeObjectContructor = AS2Button;
+  proto.buttonActions = obj.buttonActions;
   proto.constructor = (function(oldContructor) {
     return (function() {
       var result = oldContructor.apply(this, arguments);
