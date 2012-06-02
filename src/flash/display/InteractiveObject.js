@@ -1,40 +1,81 @@
 function InteractiveObject() {
-  this.tabEnabled = false;
-  this.tabIndex = 0;
-  this.focusRect = null;
-  this.mouseEnabled = false;
-  this.doubleClickEnabled = false;
-  this.accessibilityImplementation = null;
-  this.needsSoftKeyboard = false;
-  this.contextMenu = null;
 }
 
-InteractiveObject.prototype = new DisplayObject;
-InteractiveObject.prototype.requestSoftKeyboard = function () { notImplemented(); };
+InteractiveObject.prototype = Object.create(new DisplayObject, {
+  tabEnabled: descAccessor(
+    function () {
+      return false;
+    },
+    function (val) {
+      notImplemented();
+    }
+  ),
+  tabIndex: descAccessor(
+    function () {
+      return -1;
+    },
+    function (val) {
+      notImplemented();
+    }
+  ),
+  focusRect: descAccessor(
+    function () {
+      return null;
+    },
+    function (val) {
+      notImplemented();
+    }
+  ),
+  mouseEnabled: descAccessor(
+    function () {
+      return true;
+    },
+    function (val) {
+      notImplemented();
+    }
+  ),
+  doubleClickEnabled: descAccessor(
+    function () {
+      return false;
+    },
+    function (val) {
+      notImplemented();
+    }
+  ),
+  contextMenu: descAccessor(
+    function () {
+      return null;
+    },
+    function (val) {
+      notImplemented();
+    }
+  ),
+  accessibilityImplementation: descAccessor(
+    function () {
+      return -1;
+    },
+    function (val) {
+      notImplemented();
+    }
+  ),
+  softKeyboardInputAreaOfInterest: descAccessor(
+    function () {
+      return null;
+    },
+    function (val) {
+      notImplemented();
+    }
+  ),
+  needsSoftKeyboard: descAccessor(
+    function () {
+      return false;
+    },
+    function (val) {
+      notImplemented();
+    }
+  ),
 
-natives.InteractiveObjectClass = function (scope, instance, baseClass) {
-  var c = new Class(
-    "InteractiveObject",
-    InteractiveObject,
-    Class.passthroughCallable(InteractiveObject)
-  );
-  c.baseClass = baseClass;
-  c.nativeMethods = InteractiveObject.prototype;
-  c.makeSimpleNativeAccessors("get", ["tabEnabled",
-                                      "tabIndex",
-                                      "focusRect",
-                                      "mouseEnabled",
-                                      "doubleClickEnabled",
-                                      "accessibilityImplementation",
-                                      "needsSoftKeyboard",
-                                      "contextMenu"]);
-  c.makeSimpleNativeAccessors("set", ["tabEnabled",
-                                      "tabIndex",
-                                      "focusRect",
-                                      "mouseEnabled",
-                                      "doubleClickEnabled",
-                                      "accessibilityImplementation",
-                                      "needsSoftKeyboard",
-                                      "contextMenu"]);
-  return c;
-};
+  requestSoftKeyboard: descMethod(function () {
+    notImplemented();
+  })
+});
