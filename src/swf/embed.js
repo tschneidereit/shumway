@@ -171,7 +171,7 @@ SWF.embed = function(file, doc, container, options) {
     stage._color = bgcolor;
 
     ctx.fillStyle = toStringRgba(bgcolor);
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+//    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     var root = loader._content;
     stage._children[0] = root;

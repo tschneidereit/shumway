@@ -59,53 +59,27 @@ function renderDisplayObject(child, ctx, transform, cxform, clip) {
     ctx.globalAlpha *= child._alpha;
   }
 
-  if (child._graphics) {
-    var graphics = child._graphics;
+  var control = child._control;
+  release || assert(control, "All display object must have _controls");
 
-    if (graphics._bitmap) {
-      ctx.translate(child._bbox.left, child._bbox.top);
-      ctx.drawImage(graphics._bitmap, 0, 0);
-    } else {
-      var scale = graphics._scale;
-      if (scale !== 1)
-        ctx.scale(scale, scale);
+  var transform = 'matrix('+m.a+','+m.c+','+m.b+','+m.d+','+m.tx+','+m.ty+')';
+  control.style.transform = transform;
+  control.style.WebkitTransform = transform;
 
-      var subpaths = graphics._subpaths;
-      for (var j = 0, o = subpaths.length; j < o; j++) {
-        var path = subpaths[j];
-
-        ctx.currentPath = path;
-
-        if (clip) {
-          ctx.closePath();
-        } else {
-          if (path.fillStyle) {
-            ctx.fillStyle = path.fillStyle;
-
-            var m = path.fillStyle.currentTransform;
-            if (m) {
-              ctx.save();
-              ctx.transform(m.a, m.b, m.c, m.d, m.e, m.f);
-              ctx.fill();
-              ctx.restore();
-            } else {
-              ctx.fill();
-            }
-          }
-          if (path.strokeStyle) {
-            ctx.strokeStyle = path.strokeStyle;
-            var drawingStyles = path.drawingStyles;
-            for (var prop in drawingStyles)
-              ctx[prop] = drawingStyles[prop];
-            ctx.stroke();
-          }
-        }
+  var graphics = child._graphics;
+  if (graphics) {
+    graphics.draw(ctx, clip);
+    var canvas = graphics._canvas;
+    if (canvas && canvas.parentNode !== control) {
+      if (control.firstChild) {
+        control.insertBefore(canvas, control.firstChild);
+      } else {
+        control.appendChild(canvas);
       }
     }
   }
 
-  if (child.draw)
-    child.draw(ctx, child.ratio);
+  child.draw && child.draw(ctx, child.ratio);
 }
 
 var renderingTerminated = false;
@@ -561,7 +535,6 @@ function renderStage(stage, ctx, events) {
 
   (function draw() {
     var now = Date.now();
-    var renderFrame;
     var renderFrame = now >= nextRenderAt;
     if (renderFrame && events.onBeforeFrame) {
       var e = { cancel: false };

@@ -901,8 +901,10 @@ var LoaderDefinition = (function () {
             return graphicsFactory[ratio];
 
           var graphics = new flash.display.Graphics();
+          //all coordinates are given in Twips
           graphics._scale = 0.05;
           graphics._subpaths = createGraphicsSubPaths(graphics, dictionary, ratio);
+          graphics._revision = 1;
 
           graphicsFactory[ratio] = graphics;
 
