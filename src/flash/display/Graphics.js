@@ -67,6 +67,7 @@ var GraphicsDefinition = (function () {
         var canvas = this._canvas;
         if (!canvas) {
           canvas = this._canvas = document.createElement('canvas');
+          this._context = canvas.getContext('kanvas-2d');
           var style = canvas.style;
           style.position = 'absolute';
           style.left = '0';
@@ -74,7 +75,7 @@ var GraphicsDefinition = (function () {
           style.transformOrigin = '0 0';
           style.WebkitTransformOrigin = '0 0';
         }
-        var context = canvas.getContext('kanvas-2d');
+        var context = this._context;
         var bounds = this._getBounds(true);
         if (bounds === 0) {
           return;

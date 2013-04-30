@@ -98,7 +98,7 @@ SWF.embed = function(file, doc, container, options) {
 
     container.setAttribute("style", "position: relative");
 
-    canvas.addEventListener('click', function () {
+    stage._control.addEventListener('click', function () {
       ShumwayKeyboardListener.focus = stage;
 
       if (stage._clickTarget) {

@@ -62,7 +62,7 @@ function renderDisplayObject(child, ctx, transform, cxform, clip) {
   var control = child._control;
   release || assert(control, "All display object must have _controls");
 
-  var transform = 'matrix('+m.a+','+m.c+','+m.b+','+m.d+','+m.tx+','+m.ty+')';
+  var transform = 'matrix('+m.a+','+m.b+','+m.c+','+m.d+','+m.tx+','+m.ty+')';
   control.style.transform = transform;
   control.style.WebkitTransform = transform;
 
