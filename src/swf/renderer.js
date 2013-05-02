@@ -39,36 +39,25 @@ var CanvasCache = {
 };
 
 function renderDisplayObject(child, ctx, transform, cxform, clip) {
-  if (transform) {
-    var m = transform;
-    if (m.a * m.d == m.b * m.c) {
-      // Workaround for bug 844184 -- the object is invisible
-      ctx.closePath();
-      ctx.rect(0, 0, 0, 0);
-      ctx.clip();
-    } else {
-      ctx.transform(m.a, m.b, m.c, m.d, m.tx, m.ty);
-    }
-  }
-
-  if (cxform) {
-    // We only support alpha channel transformation for now
-    ctx.globalAlpha = (ctx.globalAlpha * cxform.alphaMultiplier + cxform.alphaOffset) / 256;
-  }
-  if (child._alpha !== 1) {
-    ctx.globalAlpha *= child._alpha;
-  }
-
   var control = child._control;
   release || assert(control, "All display object must have _controls");
+  var style = control.style;
 
-  var transform = 'matrix('+m.a+','+m.b+','+m.c+','+m.d+','+m.tx+','+m.ty+')';
-  control.style.transform = transform;
-  control.style.WebkitTransform = transform;
+  var m = transform;
+  var cssTransform = 'matrix('+m.a+','+m.b+','+m.c+','+m.d+','+m.tx+','+m.ty+')';
+  style.transform = cssTransform;
+  style.WebkitTransform = cssTransform;
+
+  var opacity = child._alpha || 1;
+  if (cxform) {
+    // We only support alpha channel transformation for now
+    opacity *= (cxform.alphaMultiplier + cxform.alphaOffset) / 256;
+  }
+  style.opacity = opacity;
 
   var graphics = child._graphics;
   if (graphics) {
-    graphics.draw(ctx, clip);
+    graphics.draw(clip);
     var canvas = graphics._canvas;
     if (canvas && canvas.parentNode !== control) {
       if (control.firstChild) {

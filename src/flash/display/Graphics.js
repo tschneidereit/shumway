@@ -54,11 +54,11 @@ var GraphicsDefinition = (function () {
       this._drawnRevision = 0;
     },
 
-    draw: function(ctx, clip) {
+    draw: function(clip) {
       if (this._bitmap) {
         console.error("broken: graphics with _bitmap");
-        ctx.translate(child._bbox.left, child._bbox.top);
-        ctx.drawImage(this._bitmap, 0, 0);
+//        ctx.translate(child._bbox.left, child._bbox.top);
+//        ctx.drawImage(this._bitmap, 0, 0);
       } else {
 //        this._drawToCtx(ctx, clip);
         if (this._drawnRevision === this._revision) {
