@@ -22,11 +22,15 @@ var StaticTextDefinition = (function () {
 
     initialize: function () {
       var s = this.symbol;
-      if (s) {
-        this.draw = s.draw || null;
-      }
+      this._html = s ? s.html : '';
     },
-
+    draw : function() {
+      if (this._valid) {
+        return;
+      }
+      this._control.innerHTML = this._html;
+      this._valid = true;
+    },
     get text() {
       return this._text;
     },

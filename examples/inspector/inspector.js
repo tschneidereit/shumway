@@ -301,7 +301,6 @@ function stageInitialized(stage) {
 //    var traceSymbolsInfo = document.getElementById('traceSymbolsInfo');
 //    traceSymbolsInfo.removeAttribute('hidden');
   }
-  document.body.appendChild(stage._control);
 }
 
 function terminate() {}

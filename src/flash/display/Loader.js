@@ -167,7 +167,7 @@ var LoaderDefinition = (function () {
             break;
           case SWF_TAG_CODE_SOUND_STREAM_HEAD:
             try {
-              soundStream = createSoundStream(tag);
+              var soundStream = createSoundStream(tag);
               frame.soundStream = soundStream.info;
             } catch (e) {
               // ignoring if sound stream codec is not supported
@@ -875,22 +875,20 @@ var LoaderDefinition = (function () {
         props.height = symbol.height;
         break;
       case 'label':
-        var drawFn = new Function('d,c,r', symbol.data);
-        className = 'flash.text.StaticText';
-        props.bbox = symbol.bbox;
-        props.draw = function (c, r) {
-          return drawFn.call(this, dictionary, c, r);
-        };
-        break;
       case 'text':
-        var drawFn = new Function('d,c,r', symbol.data);
-        className = 'flash.text.TextField';
         props.bbox = symbol.bbox;
-        props.draw = function (c, r) {
-          return drawFn.call(this, dictionary, c, r);
-        };
-        props.text = symbol.value;
-        props.variableName = symbol.variableName;
+        props.html = symbol.html;
+        if (symbol.type === 'label') {
+          className = 'flash.text.StaticText';
+        } else {
+          className = 'flash.text.TextField';
+          var drawFn = new Function('d,c,r', symbol.data);
+          props.draw = function (c, r) {
+            return drawFn.call(this, dictionary, c, r);
+          };
+          props.text = symbol.value;
+          props.variableName = symbol.variableName;
+        }
         break;
       case 'shape':
         var createGraphicsSubPaths = new Function('c,d,r', 'return ' + symbol.data);

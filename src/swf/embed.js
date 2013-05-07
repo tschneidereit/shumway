@@ -168,6 +168,9 @@ SWF.embed = function(file, doc, container, options) {
         bgcolor = {red: 0, green: 0, blue: 0, alpha: 0};
       }
     }
+
+    doc.body.appendChild(stage._control);
+
     stage._color = bgcolor;
 
     ctx.fillStyle = toStringRgba(bgcolor);

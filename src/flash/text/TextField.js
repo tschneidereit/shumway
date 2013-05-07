@@ -53,6 +53,8 @@ var TextFieldDefinition = (function () {
     },
 
     draw: function (c) {
+      this._control.textContent = this._text;
+      return;
       // TODO
       var bbox = this._bbox;
       if (!bbox) {
@@ -70,10 +72,11 @@ var TextFieldDefinition = (function () {
       return this._text;
     },
     set text(val) {
-      if (this._text !== val) {
-        this._text = val;
-        this._markAsDirty();
+      if (this._text === val) {
+        return;
       }
+      this._text = val;
+      this._markAsDirty();
     },
 
     get defaultTextFormat() {
