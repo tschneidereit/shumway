@@ -143,7 +143,7 @@ function defineFont(tag, dictionary) {
     '\x00\x00' + // language
     toString16(segCount * 2) + // segCountX2
     toString16(searchRange) +
-    toString16(log(segCount) / log(2)) + // entrySelector
+    toString16(logE(segCount) / logE(2)) + // entrySelector
     toString16(rangeShift) +
     endCount +
     '\x00\x00' + // reservedPad
@@ -348,7 +348,7 @@ function defineFont(tag, dictionary) {
       '\x00\x01' + // coverage
       toString16(nPairs) +
       toString16(searchRange) +
-      toString16(log(nPairs) / log(2)) + // entrySelector
+      toString16(logE(nPairs) / logE(2)) + // entrySelector
       toString16((2 * nPairs) - searchRange) // rangeShift
     ;
     var i = 0;
