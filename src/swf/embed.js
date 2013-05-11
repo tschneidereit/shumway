@@ -18,6 +18,9 @@
 /*global SWF, renderStage, toStringRgba, ShumwayKeyboardListener */
 
 SWF.embed = function(file, doc, container, options) {
+  if (!SWF.stylesInitialized) {
+    SWF.initStyles(doc);
+  }
   var canvas = doc.createElement('canvas');
   var ctx = canvas.getContext('kanvas-2d');
   var loader = new flash.display.Loader();
@@ -202,3 +205,23 @@ SWF.embed = function(file, doc, container, options) {
 
   loader._load(typeof file === 'string' ? new flash.net.URLRequest(file) : file);
 };
+
+
+SWF.styles = [
+  ".shumway-static-text span {" +
+  "  position: absolute;" +
+  "  top: 0;" +
+  "  left: 0;" +
+  "}"
+];
+
+SWF.initStyles = function(doc) {
+  var style = doc.createElement('style');
+  doc.getElementsByTagName('head')[0].appendChild(style);
+  var s = doc.styleSheets[doc.styleSheets.length - 1];
+  for (var i = 0; i < SWF.styles.length; i++) {
+    s.insertRule(SWF.styles[i], s.cssRules.length);
+  }
+  SWF.stylesInitialized = true;
+  console.log("styles initialized");
+}
