@@ -291,7 +291,6 @@ function renderStage(stage, events) {
   };
 
   function RenderVisitor(refreshStage) {
-    this.ctx = ctx;
     this.depth = 0;
     this.refreshStage = refreshStage;
 
@@ -303,9 +302,9 @@ function renderStage(stage, events) {
     childrenStart: function(parent) {
       if (this.depth === 0) {
 
-		// TODO: find out what to do with this
-        if (refreshStage) {
-          refreshStage = false;
+        // TODO: find out what to do with this
+        if (this.refreshStage) {
+          this.refreshStage = false;
         }
 
         var bgcolor = stage._color;
