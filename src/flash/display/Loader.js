@@ -882,11 +882,7 @@ var LoaderDefinition = (function () {
           className = 'flash.text.StaticText';
         } else {
           className = 'flash.text.TextField';
-          var drawFn = new Function('d,c,r', symbol.data);
-          props.draw = function (c, r) {
-            return drawFn.call(this, dictionary, c, r);
-          };
-          props.text = symbol.value;
+          props.tag = symbol.tag;
           props.variableName = symbol.variableName;
         }
         break;
