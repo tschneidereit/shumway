@@ -202,11 +202,9 @@ SWF.embed = function(file, doc, container, options) {
 SWF.styles = [
   ".shumway-static-text span {" +
   "  position: absolute;" +
-  "  top: 0;" +
-  "  left: 0;" +
-  "  font-family: sans-serif;" +
   "  font-size: 12px;" +
   "  color: black;" +
+  "  top: 0;" +
   "}"
 ];
 
