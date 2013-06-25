@@ -1,3 +1,21 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 "use strict";
 
 var verifierOptions = systemOptions.register(new OptionSet("Verifier Options"));
@@ -45,7 +63,7 @@ var Type = (function () {
       return new TraitsType(x.classInfo, domain);
     } else if (x instanceof MethodInfo) {
       return new MethodType(x);
-    } else if (domain && (x instanceof (domain.system.Class))) {
+    } else if (domain && (x instanceof (Class))) {
       return type.from(x.classInfo, domain);
     }
     return Type.Any;
@@ -59,10 +77,12 @@ var Type = (function () {
     if (mn === undefined) {
       return Type.Undefined;
     } else {
-      var qn = Multiname.getFullQualifiedName(mn);
-      var ty = type.cache.name[qn];
-      if (ty) {
-        return ty;
+      var qn = Multiname.isQName(mn) ? Multiname.getFullQualifiedName(mn) : undefined;
+      if (qn) {
+        var ty = type.cache.name[qn];
+        if (ty) {
+          return ty;
+        }
       }
       if (qn === Multiname.getPublicQualifiedName("void")) {
         return Type.Void;
@@ -87,6 +107,10 @@ var Type = (function () {
 
   type.prototype.isNumeric = function () {
     return this === Type.Int || this === Type.Uint || this === Type.Number;
+  };
+
+  type.prototype.isString = function () {
+    return this === Type.String;
   };
 
   type.prototype.isDirectlyIndexable = function () {
@@ -117,11 +141,10 @@ var Type = (function () {
   };
 
   var typesInitialized = false;
-  type.initializeTypes = function (abc) {
+  type.initializeTypes = function (domain) {
     if (typesInitialized) {
       return;
     }
-    var domain = abc.domain;
     type.Any = new AtomType("Any");
     type.Null = new AtomType("Null");
     type.Undefined = new AtomType("Undefined");
@@ -499,12 +522,10 @@ var Verifier = (function() {
   })();
 
   var Verification = (function() {
-    function verification(verifier, methodInfo, scope) {
+    function verification(methodInfo, scope) {
       this.scope = scope;
-      this.abc = verifier.abc;
-      this.domain = this.abc.domain;
-      this.verifier = verifier;
       this.methodInfo = methodInfo;
+      this.domain = methodInfo.abc.domain;
       this.writer = new IndentingWriter();
       this.returnType = Type.Undefined;
     }
@@ -519,7 +540,7 @@ var Verifier = (function() {
       });
 
       if (writer) {
-        this.methodInfo.trace(writer, this.verifier.abc);
+        this.methodInfo.trace(writer);
       }
 
       var entryState = new State();
@@ -641,8 +662,9 @@ var Verifier = (function() {
       var writer = verifierTraceLevel.value ? this.writer : null;
       var bytecodes = this.methodInfo.analysis.bytecodes;
 
-      var abc = this.verifier.abc;
-      var multinames = abc.constantPool.multinames;
+      var domain = this.methodInfo.abc.domain;
+      var multinames = this.methodInfo.abc.constantPool.multinames;
+      var mi = this.methodInfo;
 
       var bc, obj, fn, mn, l, r, val, type, returnType;
 
@@ -702,27 +724,30 @@ var Verifier = (function() {
 
         // Try the saved scope.
         if (savedScope && savedScope.object && mn instanceof Multiname) {
-          var obj = savedScope.findProperty(mn, abc.domain, strict, true);
+          var obj = savedScope.findProperty(mn, domain, strict, true);
           if (obj) {
             var savedScopeDepth = savedScope.findDepth(obj);
             release || assert(savedScopeDepth >= 0);
             ti().scopeDepth = savedScopeDepth + scope.length;
-            if (obj instanceof Global) {
+            if (obj instanceof Global || isClass(obj)) {
               ti().object = obj;
             }
-            return Type.from(obj, abc.domain);
+            return Type.from(obj, domain);
           }
         }
 
-        // Is it in some other script?
-        // !!abc.domain.base
-        obj = abc.domain.findProperty(mn, false, false);
-        if (obj) {
-          release || assert(obj instanceof Global);
-          ti().object = obj;
-          return Type.from(obj, abc.domain);
+        // var resolved = domain.findDefiningScript(mn, !mi.isInstanceInitializer);
+        var resolved = domain.findDefiningScript(mn, true);
+        if (resolved) {
+          var global = resolved.script.global;
+          if (global) {
+            release || assert(global instanceof Global);
+            ti().object = global;
+          } else if (resolved.script) {
+            ti().script = resolved.script;
+          }
+          return Type.from(resolved.script, domain);
         }
-
         return Type.Any;
       }
 
@@ -749,9 +774,9 @@ var Verifier = (function() {
           if (trait) {
             ti().trait = trait;
             if (trait.isSlot()) {
-              return Type.fromName(trait.typeName, abc.domain).instance();
+              return Type.fromName(trait.typeName, domain).instance();
             } else if (trait.isClass()) {
-              return Type.from(trait.classInfo, abc.domain);
+              return Type.from(trait.classInfo, domain);
             }
           }
         }
@@ -764,18 +789,20 @@ var Verifier = (function() {
           writer && writer.debugLn("getProperty(" + mn + ") -> " + trait);
           if (trait) {
             ti().trait = trait;
-            if (trait.isSlot()) {
-              return Type.fromName(trait.typeName, abc.domain).instance();
+            if (trait.isSlot() || trait.isConst()) {
+              return Type.fromName(trait.typeName, domain).instance();
             } else if (trait.isGetter()) {
-              return Type.fromName(trait.methodInfo.returnType, abc.domain).instance();
+              return Type.fromName(trait.methodInfo.returnType, domain).instance();
             } else if (trait.isClass()) {
-              return Type.from(trait.classInfo, abc.domain);
+              return Type.from(trait.classInfo, domain);
             } else if (trait.isMethod()) {
-              return Type.from(trait.methodInfo, abc.domain);
+              return Type.from(trait.methodInfo, domain);
             }
           } else {
             ti().propertyQName = Multiname.getPublicQualifiedName(mn.name);
           }
+        } else if (obj instanceof ParameterizedType) {
+          return obj.parameter;
         }
         return Type.Any;
       }
@@ -797,7 +824,7 @@ var Verifier = (function() {
         var op = bc.op;
 
         if (writer && verifierTraceLevel.value > 1) {
-          writer.writeLn(("stateBefore: " + state.toString()).padRight(' ', 100) + " : " + bci + ", " + bc.toString(abc));
+          writer.writeLn(("stateBefore: " + state.toString()).padRight(' ', 100) + " : " + bci + ", " + bc.toString(mi.abc));
         }
 
         switch (op) {
@@ -989,7 +1016,9 @@ var Verifier = (function() {
               break;
             }
             if (type instanceof MethodType) {
-              returnType = Type.fromName(type.methodInfo.returnType, abc.domain).instance();
+              returnType = Type.fromName(type.methodInfo.returnType, domain).instance();
+            } else if (type instanceof TraitsType && type.isClassInfo()) {
+              returnType = type.instance();
             } else {
               returnType = Type.Any;
             }
@@ -1206,9 +1235,13 @@ var Verifier = (function() {
             notImplemented(bc);
             break;
           case OP_astypelate:
+            type = pop();
             pop();
-            pop();
-            push(Type.Any);
+            if (type instanceof TraitsType) {
+              push(type.instance());
+            } else {
+              push(Type.Any);
+            }
             break;
           case OP_coerce_o:
             notImplemented(bc);
@@ -1350,16 +1383,14 @@ var Verifier = (function() {
     return verification;
   })();
 
-  function verifier(abc) {
+  function verifier() {
     this.writer = new IndentingWriter();
-    this.abc = abc;
-    Type.initializeTypes(abc);
   }
 
   verifier.prototype.verifyMethod = function(methodInfo, scope) {
     // release || assert(scope.object, "Verifier needs a scope object.");
     try {
-      new Verification(this, methodInfo, scope).verify();
+      new Verification(methodInfo, scope).verify();
       methodInfo.verified = true;
       Counter.count("Verifier: Methods");
     } catch (e) {

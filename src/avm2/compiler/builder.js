@@ -1,16 +1,41 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 var c4Options = systemOptions.register(new OptionSet("C4 Options"));
 var enableC4 = c4Options.register(new Option("c4", "c4", "boolean", false, "Enable the C4 compiler."));
 var c4TraceLevel = c4Options.register(new Option("tc4", "tc4", "number", 0, "Compiler Trace Level"));
 
 /**
- * Helper Functions
+ * Helper functions used by the compiler.
  */
 var getPublicQualifiedName = Multiname.getPublicQualifiedName;
+var createName = function createName(namespaces, name) {
+  if (isNumeric(name) || isObject(name)) {
+    return name;
+  }
+  return new Multiname(namespaces, name);
+};
 
 (function (exports) {
 
   var Node = IR.Node;
   var Start = IR.Start;
+  var Null = IR.Null;
   var Undefined = IR.Undefined;
   var This = IR.This;
   var Projection = IR.Projection;
@@ -111,7 +136,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
 
     constructor.prototype.merge = function merge(control, other) {
       assert (control);
-      assert (this.matches(other), this + " !== " + other);
+      assert (this.matches(other), this, " !== ", other);
       mergeValues(control, this.local, other.local);
       mergeValues(control, this.stack, other.stack);
       mergeValues(control, this.scope, other.scope);
@@ -158,6 +183,21 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
     return node.ty && node.ty.isNumeric();
   }
 
+  function typesAreEqual(a, b) {
+    if (hasNumericType(a) && hasNumericType(b) ||
+        hasStringType(a) && hasStringType(b)) {
+      return true;
+    }
+    return false;
+  }
+
+  function hasStringType(node) {
+    if (isStringConstant(node)) {
+      return true;
+    }
+    return node.ty && node.ty.isString();
+  }
+
   function constant(value) {
     return new Constant(value);
   }
@@ -180,17 +220,21 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
     return node;
   }
 
+  function warn(message) {
+    console.warn(message);
+  }
+
   var Builder = (function () {
-    function constructor (abc, methodInfo, scope, hasDynamicScope) {
-      assert (abc && methodInfo && scope);
-      this.abc = abc;
+    function builder(methodInfo, scope, hasDynamicScope) {
+      assert (methodInfo && methodInfo.abc && scope);
+      this.abc = methodInfo.abc;
       this.scope = scope;
       this.methodInfo = methodInfo;
       this.hasDynamicScope = hasDynamicScope;
       this.peepholeOptimizer = new IR.PeepholeOptimizer();
     }
 
-    constructor.prototype.buildStart = function (start) {
+    builder.prototype.buildStart = function (start) {
       var mi = this.methodInfo;
       var state = start.entryState = new State(0);
 
@@ -242,7 +286,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
           local = new IR.Latch(null, condition, constant(parameter.value), local);
         }
         if (parameter.type && !parameter.type.isAnyName()) {
-          var coercer = this.coercers[parameter.type.name];
+          var coercer = this.coercers[Multiname.getQualifiedName(parameter.type)];
           if (coercer) {
             local = coercer(local);
           } else {
@@ -260,7 +304,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
       return start;
     };
 
-    constructor.prototype.build = function build() {
+    builder.prototype.buildGraph = function buildGraph(callerRegion, callerState, inlineArguments) {
       var analysis = this.methodInfo.analysis;
       var blocks = analysis.blocks;
       var bytecodes = analysis.bytecodes;
@@ -275,7 +319,6 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
       var classes = this.abc.classes;
       var multinames = this.abc.constantPool.multinames;
       var domain = new Constant(this.abc.domain);
-      var runtime = new Constant(this.abc.runtime);
 
       var traceBuilder = c4TraceLevel.value > 2;
 
@@ -289,6 +332,13 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
 
       function binary(operator, left, right) {
         var node = new Binary(operator, left, right);
+        if (left.ty && left.ty === right.ty) {
+          if (operator === Operator.EQ) {
+            node.operator = Operator.SEQ;
+          } else if (operator === Operator.NE) {
+            node.operator = Operator.SNE;
+          }
+        }
         if (peepholeOptimizer) {
           node = peepholeOptimizer.tryFold(node);
         }
@@ -308,6 +358,9 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
       }
 
       function toDouble(value) {
+        if (hasNumericType(value)) {
+          return value;
+        }
         return toNumber(value);
       }
 
@@ -315,7 +368,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
         return unary(Operator.FALSE, unary(Operator.FALSE, value));
       }
 
-      function toString(value) {
+      function convertString(value) {
         return binary(Operator.ADD, constant(""), value);
       }
 
@@ -323,7 +376,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
         assert (isConstant(value));
         if (isNumericConstant(value)) {
           return value;
-        } else if (isStringConstant(value)) {
+        } else if (isStringConstant(value) || value === Null || value === Undefined) {
           return binary(Operator.ADD, constant(Multiname.PUBLIC_QUALIFIED_NAME_PREFIX), value);
         }
         unexpected();
@@ -335,13 +388,13 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
 
       assert(!this.coercers);
 
-      var coercers = this.coercers = {
-        "int": toInt32,
-        "uint": toUInt32,
-        "Number": toNumber,
-        "Boolean": toBoolean,
-        "String": coerceString
-      };
+      var coercers = this.coercers = createEmptyObject();
+
+      coercers[Multiname.Int] = toInt32;
+      coercers[Multiname.Uint] = toUInt32;
+      coercers[Multiname.Number] = toNumber;
+      coercers[Multiname.Boolean] = toBoolean;
+      coercers[Multiname.String] = coerceString;
 
       function getCoercerForType(type) {
         switch (type) {
@@ -373,11 +426,13 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
       var start = new Start();
       this.buildStart(start);
 
+      var createFunctionCallee = globalProperty("createFunction");
+
       worklist.push({region: start, block: blocks[0]});
 
       var next;
       while ((next = worklist.pop())) {
-        buildNodes(next.region, next.block, next.region.entryState.clone()).forEach(function (stop) {
+        buildBlock(next.region, next.block, next.region.entryState.clone()).forEach(function (stop) {
           var target = stop.target;
           var region = target.region;
           if (region) {
@@ -410,7 +465,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
 
       traceBuilder && writer.writeLn("Done");
 
-      function buildNodes(region, block, state) {
+      function buildBlock(region, block, state) {
         assert (region && block && state);
         state.optimize();
         var typeState = block.entryState;
@@ -456,10 +511,10 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
           return savedScope();
         }
 
-        var object, receiver, index, callee, value, multiname, type, args, pristine;
+        var object, receiver, index, callee, value, multiname, type, args, pristine, left, right, operator;
 
         function push(x) {
-          assert (x);
+          assert (x instanceof IR.Node);
           if (bc.ti) {
             if (x.ty) {
               // assert (x.ty == bc.ti.type);
@@ -534,9 +589,10 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
           var slowPath = new IR.AVM2FindProperty(null, state.store, topScope(), name, domain, strict);
           if (ti) {
             if (ti.object) {
-              if (ti.object instanceof Global && !ti.object.isExecuted()) {
-                // If we found the property in a global that hasn't been executed yet then
-                // we have to emit the slow path so it gets executed lazily.
+              if (ti.object instanceof Global && !ti.object.isExecuting()) {
+                // If we find the property in a global whose script hasn't been executed yet
+                // we have to emit the slow path so it gets executed.
+                warn("Can't optimize findProperty " + name + ", global object is not yet executed or executing.");
                 return slowPath;
               }
               return constant(ti.object);
@@ -544,6 +600,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
               return getScopeObject(topScope(ti.scopeDepth));
             }
           }
+          warn("Can't optimize findProperty " + name);
           return slowPath;
         }
 
@@ -561,17 +618,22 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
           return getProperty(findProperty(name, true), name);
         }
 
-        function coerceValue(value, type) {
-          if (isConstant(value) && isConstant(type)) {
-            return constant(coerce(value.value, type.value));
-          } else if (isConstant(type)) {
-            var coercer = coercers[type.name];
+        function coerceValue(value, multiname) {
+          var type = domain.value.getProperty(multiname, true, true);
+          if (!type) {
+            warn("This is because the type is not available yet, we need to fix this by using ClassInfo's for types.");
+            return value;
+          }
+          if (isConstant(value)) {
+            return constant(coerce(value.value, type));
+          } else {
+            var coercer = coercers[Multiname.getQualifiedName(multiname)];
             if (coercer) {
               return coercer(value);
             }
           }
           if (compatibility) {
-            return call(globalProperty("coerce"), null, [value, type]);
+            return call(globalProperty("coerce"), null, [value, constant(type)]);
           }
           return value;
         }
@@ -582,62 +644,6 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
           }
           return getJSProperty(scope, "object");
         }
-
-        function callProperty(object, name, args, isLex, ti) {
-          name = simplifyName(name);
-          if (ti) {
-            if (ti.trait && ti.trait.isMethod()) {
-              var openQn;
-              if (ti.trait.holder instanceof InstanceInfo &&
-                  ti.trait.holder.isInterface()) {
-                openQn = Multiname.getPublicQualifiedName(Multiname.getName(ti.trait.name))
-              } else {
-                openQn = Multiname.getQualifiedName(ti.trait.name);
-              }
-              openQn = VM_OPEN_METHOD_PREFIX + openQn;
-              return store(new IR.CallProperty(region, state.store, object, constant(openQn), args, true));
-            }
-          } else {
-            console.warn("Really nothing we can do " + name.value);
-          }
-          return store(new IR.AVM2CallProperty(region, state.store, object, name, isLex, args, true));
-        }
-
-        function getProperty(object, name, ti, getOpenMethod) {
-          name = simplifyName(name);
-          if (ti && ti.type && !(ti.type === Type.Any || ti.type === Type.XML || ti.type === Type.XMLList)) {
-            var propertyQName = ti.trait ? Multiname.getQualifiedName(ti.trait.name) : ti.propertyQName;
-            if (propertyQName) {
-              if (getOpenMethod && ti.trait && ti.trait.isMethod()) {
-                if (!(ti.trait.holder instanceof InstanceInfo && ti.trait.holder.isInterface())) {
-                  propertyQName = VM_OPEN_METHOD_PREFIX + propertyQName;
-                  return load(new IR.GetProperty(region, state.store, object, constant(propertyQName)));
-                }
-              }
-              return load(new IR.GetProperty(region, state.store, object, constant(propertyQName)));
-            }
-          }
-          if (hasNumericType(name) || isStringConstant(name)) {
-            var get = load(new IR.GetProperty(region, state.store, object, name));
-            if (!hasNumericType(name)) {
-              return get;
-            }
-            if (object.ty && object.ty.isParameterizedType()) {
-              return get;
-            }
-            if (object.ty && object.ty.isDirectlyIndexable()) {
-              return get;
-            }
-            return load(new IR.AVM2GetProperty(region, state.store, object, name, true, !!getOpenMethod));
-          }
-          return load(new IR.AVM2GetProperty(region, state.store, object, name, false, !!getOpenMethod));
-        }
-
-        function getDescendants(object, name, ti) {
-          name = simplifyName(name);
-          return new IR.AVM2GetDescendants(region, state.store, object, name);
-        }
-
 
         /**
          * Marks the |node| as the active store node, with dependencies on all loads appearing after the
@@ -658,6 +664,75 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
           return node;
         }
 
+        function callProperty(object, name, args, isLex, ti) {
+          name = simplifyName(name);
+          if (ti && ti.trait) {
+            if (ti.trait.isMethod()) {
+              var openQn;
+              if (ti.trait.holder instanceof InstanceInfo &&
+                  ti.trait.holder.isInterface()) {
+                openQn = Multiname.getPublicQualifiedName(Multiname.getName(ti.trait.name))
+              } else {
+                openQn = Multiname.getQualifiedName(ti.trait.name);
+              }
+              openQn = VM_OPEN_METHOD_PREFIX + openQn;
+              return store(new IR.CallProperty(region, state.store, object, constant(openQn), args, true));
+            } else if (ti.trait.isClass()) {
+              var qn = Multiname.getQualifiedName(ti.trait.name);
+              switch (qn) {
+                case Multiname.Int:
+                  return toInt32(args[0]);
+                case Multiname.Uint:
+                  return toUInt32(args[0]);
+                case Multiname.Boolean:
+                  return toBoolean(args[0]);
+                case Multiname.Number:
+                  return toNumber(args[0]);
+                case Multiname.String:
+                  return convertString(args[0]);
+              }
+              return store(new IR.CallProperty(region, state.store, object, constant(qn), args, false));
+            }
+          } else if (ti && ti.propertyQName) {
+            return store(new IR.CallProperty(region, state.store, object, constant(ti.propertyQName), args, true));
+          }
+          warn("Can't optimize call to " + name.value);
+          return store(new IR.AVM2CallProperty(region, state.store, object, name, isLex, args, true));
+        }
+
+        function getProperty(object, name, ti, getOpenMethod) {
+          var get;
+          name = simplifyName(name);
+          if (ti && ti.trait && object.ty &&
+              !(object.ty === Type.Any || object.ty === Type.XML || object.ty === Type.XMLList)) {
+            if (ti.trait.isConst() && ti.trait.hasDefaultValue) {
+              return constant(ti.trait.value);
+            }
+            get = new IR.GetProperty(region, state.store, object, constant(Multiname.getQualifiedName(ti.trait.name)));
+            return ti.trait.isGetter() ? store(get) : load(get);
+          }
+          if (hasNumericType(name) || isStringConstant(name)) {
+            get = store(new IR.GetProperty(region, state.store, object, name));
+            if (!hasNumericType(name)) {
+              return get;
+            }
+            if (object.ty && object.ty.isParameterizedType()) {
+              return get;
+            }
+            if (object.ty && object.ty.isDirectlyIndexable()) {
+              return get;
+            }
+            return store(new IR.AVM2GetProperty(region, state.store, object, name, false, !!getOpenMethod));
+          }
+          warn("Can't optimize getProperty to " + name);
+          return store(new IR.AVM2GetProperty(region, state.store, object, name, false, !!getOpenMethod));
+        }
+
+        function getDescendants(object, name, ti) {
+          name = simplifyName(name);
+          return new IR.AVM2GetDescendants(region, state.store, object, name);
+        }
+
         function setProperty(object, name, value, ti) {
           name = simplifyName(name);
           if (hasNumericType(name) || isStringConstant(name)) {
@@ -666,25 +741,28 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
               return store(set);
             }
             if (object.ty && object.ty.isParameterizedType()) {
-              var coercer = getCoercerForType(object.ty.parameter);
-              if (coercer) {
-                value = coercer(value);
-                return store(new IR.SetProperty(region, state.store, object, name, value));
+              if (object.ty.parameter.isSubtypeOf(value.ty)) {
+                return store(set);
+              } else {
+                var coercer = getCoercerForType(object.ty.parameter);
+                if (coercer) {
+                  value = coercer(value);
+                  return store(new IR.SetProperty(region, state.store, object, name, value));
+                }
+              }
+              if (object.ty && object.ty.isDirectlyIndexable()) {
+                return store(set);
               }
             }
-            if (object.ty && object.ty.isDirectlyIndexable()) {
-              return store(set);
-            }
-            store(new IR.AVM2SetProperty(region, state.store, object, name, value, true));
+            store(new IR.AVM2SetProperty(region, state.store, object, name, value, false));
             return;
           }
-          if (ti) {
-            var propertyQName = ti.trait ? Multiname.getQualifiedName(ti.trait.name) : ti.propertyQName;
-            if (propertyQName) {
-              store(new IR.SetProperty(region, state.store, object, constant(propertyQName), value));
-              return;
-            }
+          if (ti && ti.trait && object.ty &&
+              !(object.ty === Type.Any || object.ty === Type.XML || object.ty === Type.XMLList)) {
+            store(new IR.SetProperty(region, state.store, object, constant(Multiname.getQualifiedName(ti.trait.name)), value));
+            return;
           }
+          warn("Can't optimize setProperty to " + name);
           store(new IR.AVM2SetProperty(region, state.store, object, name, value, false));
         }
 
@@ -695,19 +773,19 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
               if (trait.isConst()) {
                 return constant(trait.value);
               }
-              var slotQName = Multiname.getQualifiedName(trait.name);
-              return load(new IR.GetProperty(region, state.store, object, constant(slotQName)));
+              var slotQn = Multiname.getQualifiedName(trait.name);
+              return store(new IR.GetProperty(region, state.store, object, constant(slotQn)));
             }
           }
-          return load(new IR.AVM2GetSlot(null, state.store, object, index));
+          return store(new IR.AVM2GetSlot(null, state.store, object, index));
         }
 
         function setSlot(object, index, value, ti) {
           if (ti) {
             var trait = ti.trait;
             if (trait) {
-              var slotQName = Multiname.getQualifiedName(trait.name);
-              store(new IR.SetProperty(region, state.store, object, constant(slotQName), value));
+              var slotQn = Multiname.getQualifiedName(trait.name);
+              store(new IR.SetProperty(region, state.store, object, constant(slotQn), value));
               return;
             }
           }
@@ -715,7 +793,11 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
         }
 
         function call(callee, object, args) {
-          return callCall(callee, object, args, true);
+          return store(new Call(region, state.store, callee, object, args, true));
+        }
+
+        function callPure(callee, object, args) {
+          return new Call(null, null, callee, object, args, true);
         }
 
         function callCall(callee, object, args, pristine) {
@@ -903,7 +985,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
               break;
             case OP_getlex:
               multiname = buildMultiname(bc.index);
-              push(getProperty(findProperty(multiname, true, bc.ti), multiname));
+              push(getProperty(findProperty(multiname, true, bc.ti), multiname, bc.ti));
               break;
             case OP_initproperty:
             case OP_setproperty:
@@ -941,8 +1023,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
             case OP_debugline:
               break;
             case OP_newfunction:
-              callee = getJSProperty(runtime, "createFunction");
-              push(call(callee, runtime, [constant(methods[bc.index]), topScope(), constant(true)]));
+              push(callPure(createFunctionCallee, null, [constant(methods[bc.index]), topScope(), constant(true)]));
               break;
             case OP_call:
               args = popMany(bc.argCount);
@@ -981,7 +1062,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
               args = popMany(bc.argCount);
               object = pop();
               if (!(bc.ti && bc.ti.noCallSuperNeeded)) {
-                callee = getJSProperty(savedScope(), "object.baseClass.instanceNoInitialize");
+                callee = getJSProperty(savedScope(), "object.baseClass.instanceConstructorNoInitialize");
                 call(callee, object, args);
               }
               break;
@@ -1002,8 +1083,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
               value = pop();
               multiname = buildMultiname(bc.index);
               assert (isMultinameConstant(multiname));
-              type = getDomainProperty(multiname);
-              push(coerceValue(value, type));
+              push(coerceValue(value, multiname.value));
               break;
             case OP_coerce_i: case OP_convert_i:
               push(toInt32(pop()));
@@ -1025,7 +1105,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
               push(coerceString(pop()));
               break;
             case OP_convert_s:
-              push(toString(pop()));
+              push(convertString(pop()));
               break;
             case OP_astypelate:
               type = pop();
@@ -1053,7 +1133,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
               local[bc.object] = getJSProperty(temp, "object");
               push(local[bc.index] = getJSProperty(temp, "index"));
               break;
-            case OP_pushnull:       push(constant(null)); break;
+            case OP_pushnull:       push(Null); break;
             case OP_pushundefined:  push(Undefined); break;
             case OP_pushfloat:      notImplemented(); break;
             case OP_pushbyte:       push(constant(bc.value)); break;
@@ -1090,7 +1170,18 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
             case OP_lookupswitch:   buildSwitchStops(pop()); break;
             case OP_not:            pushExpression(Operator.FALSE); break;
             case OP_bitnot:         pushExpression(Operator.BITWISE_NOT); break;
-            case OP_add:            pushExpression(Operator.ADD); break;
+            case OP_add:
+              right = pop();
+              left = pop();
+              if (typesAreEqual(left, right)) {
+                operator = Operator.ADD;
+              } else if (compatibility) {
+                operator = Operator.AVM2ADD;
+              } else {
+                operator = Operator.ADD;
+              }
+              push(binary(operator, left, right));
+              break;
             case OP_add_i:          pushExpression(Operator.ADD, true); break;
             case OP_subtract:       pushExpression(Operator.SUB); break;
             case OP_subtract_i:     pushExpression(Operator.SUB, true); break;
@@ -1177,12 +1268,12 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
             case OP_applytype:
               args = popMany(bc.argCount);
               type = pop();
-              callee = getJSProperty(runtime, "applyType");
-              push(call(callee, runtime, [type, new NewArray(args)]));
+              callee = globalProperty("applyType");
+              push(call(callee, null, [domain, type, new NewArray(region, args)]));
               break;
             case OP_newarray:
               args = popMany(bc.argCount);
-              push(new NewArray(args));
+              push(new NewArray(region, args));
               break;
             case OP_newobject:
               var properties = [];
@@ -1193,14 +1284,14 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
                 key = constant(Multiname.getPublicQualifiedName(key.value));
                 properties.push(new KeyValuePair(key, value));
               }
-              push(new NewObject(properties));
+              push(new NewObject(region, properties));
               break;
             case OP_newactivation:
               push(new IR.AVM2NewActivation(constant(methodInfo)));
               break;
             case OP_newclass:
-              callee = getJSProperty(runtime, "createClass");
-              push(call(callee, runtime, [constant(classes[bc.index]), pop(), topScope()]));
+              callee = globalProperty("createClass");
+              push(call(callee, null, [constant(classes[bc.index]), pop(), topScope()]));
               break;
             default:
               unexpected("Not Implemented: " + bc);
@@ -1248,12 +1339,12 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
 
       return new DFG(stop);
     }
-    return constructor;
+    return builder;
   })();
 
-  function build(abc, verifier, methodInfo, scope, hasDynamicScope) {
-    release || assert(scope);
-    release || assert(methodInfo.analysis);
+  function buildMethod(verifier, methodInfo, scope, hasDynamicScope) {
+    release || assert (scope);
+    release || assert (methodInfo.analysis);
     release || assert (!methodInfo.hasExceptions());
 
     Counter.count("Compiler: Compiled Methods");
@@ -1274,7 +1365,7 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
 
     Timer.start("IR Builder");
     Node.startNumbering();
-    var dfg = new Builder(abc, methodInfo, scope, hasDynamicScope).build();
+    var dfg = new Builder(methodInfo, scope, hasDynamicScope).buildGraph();
     Timer.stop();
 
     traceIR && dfg.trace(writer);
@@ -1309,17 +1400,19 @@ var getPublicQualifiedName = Multiname.getPublicQualifiedName;
     return src;
   }
 
-  exports.build = build;
+  exports.buildMethod = buildMethod;
 
 })(typeof exports === "undefined" ? (Builder = {}) : exports);
 
-var C4Compiler = (function () {
-  function constructor(abc) {
-    this.abc = abc;
-    this.verifier = new Verifier(abc);
+/**
+ * The compiler is a singleton.
+ */
+var Compiler = new ((function () {
+  function constructor() {
+    this.verifier = new Verifier();
   }
-  constructor.prototype.compileMethod = function (methodInfo, hasDefaults, scope, hasDynamicScope) {
-    return Builder.build(this.abc, this.verifier, methodInfo, scope, hasDynamicScope);
+  constructor.prototype.compileMethod = function (methodInfo, scope, hasDynamicScope) {
+    return Builder.buildMethod(this.verifier, methodInfo, scope, hasDynamicScope);
   };
   return constructor;
-})();
+})());

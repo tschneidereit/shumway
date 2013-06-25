@@ -1,3 +1,21 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 var DisplayObjectContainerDefinition = (function () {
   var def = {
     get mouseChildren() {
@@ -49,9 +67,9 @@ var DisplayObjectContainerDefinition = (function () {
 
       this._control.appendChild(child._control);
 
-      child.dispatchEvent(new flash.events.Event("added"));
+      child._dispatchEvent(new flash.events.Event("added"));
       if (child.stage)
-        child._addedToStage();
+        child._addedToStage(new flash.events.Event("addedToStage"));
 
       this._markAsDirty();
 
@@ -108,9 +126,9 @@ var DisplayObjectContainerDefinition = (function () {
 
       var child = children[index];
 
-      child.dispatchEvent(new flash.events.Event("removed"));
+      child._dispatchEvent(new flash.events.Event("removed"));
       if (child.stage)
-        child._removedFromStage();
+        child._removedFromStage(new flash.events.Event("removedFromStage"));
 
       children.splice(index, 1);
       child._parent = null;
@@ -175,6 +193,16 @@ var DisplayObjectContainerDefinition = (function () {
       child2._owned = false;
 
       this._markAsDirty();
+    },
+    destroy: function () {
+      if (this._destroyed) {
+        return;
+      }
+      this._destroyed = true;
+      this._children.forEach(function (child) {
+        child.destroy();
+      });
+      avm2.systemDomain.onMessage.unregister(this._onBroadcastMessage);
     }
   };
 

@@ -98,6 +98,7 @@
 })();
 
 (function () {
+  trace("--- Test 8 ---");
   var str1:String = "abc12 def34";
   var pattern:RegExp = /([a-z]+)([0-9]+)/;
   var str2:String = str1.replace(pattern, replFN);
@@ -107,6 +108,17 @@
   }
   var actual  = str2;
   var expect = '12abc def34';
+  trace(actual + " " + expect);
+})();
+
+(function () {
+  trace("--- Test 9 ---");
+  var str1:String = "test";
+  var pattern:RegExp = /(es)/;
+  var str2:String = str1.replace(pattern, "$M$1$$");
+
+  var actual  = str2;
+  var expect = 't$Mes$t';
   trace(actual + " " + expect);
 })();
 

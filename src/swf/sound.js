@@ -1,4 +1,20 @@
-/* -*- mode: javascript; tab-width: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 var SOUND_SIZE_8_BIT  = 0;
 var SOUND_SIZE_16_BIT = 1;
@@ -100,7 +116,6 @@ function defineSound(tag, dictionary) {
     break;
   default:
     throw new Error('Unsupported audio format: ' + tag.soundFormat);
-    break;
   }
 
   var sound = {
@@ -148,11 +163,11 @@ function decodeACPCMSoundData(data, pcm16, channels) {
   var codeSize = readBits(2);
   var indexTable = ACPCMIndexTables[codeSize];
   while (pcmPosition < pcm16.length) {
-    var x = pcm16[pcmPosition++] = (readBits(16) << 16) >> 16;
-    var stepIndex = readBits(6);
+    var x = pcm16[pcmPosition++] = (readBits(16) << 16) >> 16, x2;
+    var stepIndex = readBits(6), stepIndex2;
     if (channels > 1) {
-      var x2 = pcm16[pcmPosition++] = (readBits(16) << 16) >> 16;
-      var stepIndex2 = readBits(6);
+      x2 = pcm16[pcmPosition++] = (readBits(16) << 16) >> 16;
+      stepIndex2 = readBits(6);
     }
     var signMask = 1 << (codeSize + 1);
     for (var i = 0; i < 4095; i++) {
@@ -284,9 +299,7 @@ function createSoundStream(tag) {
     stream.decode = SwfSoundStream_decode_MP3;
     break;
   default:
-    debugger;
     throw new Error('Unsupported audio format: ' + tag.soundFormat);
-    break;
   }
 
   return stream;

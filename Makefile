@@ -1,6 +1,21 @@
+# Copyright 2013 Mozilla Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 default:
 	@echo "run: make [check-system|install-utils|install-libs|build-tamarin-tests|"
 	@echo "           build-playerglobal|build-extension|build-web|"
+	@echo "           run-tamarin-tests|run-tamarin-sanity-tests|check-extension|"
 	@echo "           test|push-test|build-bot|start-build-bot|update-flash-refs]"
 
 check-system:
@@ -22,7 +37,7 @@ install-libs:
 	git submodule update
 
 install-utils: check-system
-	make -C utils/ install-asc install-closure install-tamarin install-js install-node-modules
+	make -C utils/ install-asc install-closure install-tamarin install-js install-node-modules install-flex-sdk
 
 BASE ?= $(error ERROR: Specify BASE that points to the Shumway folder with installed utils)
 
@@ -41,42 +56,48 @@ build-playerglobal:
 build-extension:
 	make -C extension/firefox/ build
 
+FIREFOX_PATH ?= $(error ERROR: Specify FIREFOX_PATH)
+
+check-extension: build-extension
+	cd test/extension; python check.py -b "$(FIREFOX_PATH)"
+
 build-web:
 	make -C web/ build
+
+MXMLC_FLAGS ?= -static-link-runtime-shared-libraries
+MXMLC = ./utils/flex_sdk/bin/mxmlc $(MXMLC_FLAGS)
+%.swf: %.as
+	$(MXMLC) $<
 
 update-flash-refs:
 	node utils/update-flash-refs.js examples/inspector/inspector.html src/flash
 	node utils/update-flash-refs.js examples/racing/index.html src/flash
 	node utils/update-flash-refs.js test/harness/slave.html src/flash
 
-test:
+test: test-avm1 test-avm2
+
+test-avm1:
 	make -C src/avm1/tests/ test
+
+test-avm2:
 	make -C src/avm2/bin/ test-regress
 
-BROWSER_MANIFEST ?= resources/browser_manifests/browser_manifest.json
+reftest:
+	make -C test/ reftest
 
-check-browser-manifest:
-	@ls test/$(BROWSER_MANIFEST) || { echo "ERROR: Browser manifest file is not found at test/$(BROWSER_MANIFEST). Create one using the examples at test/resources/browser_manifests/."; exit 1; }
+makeref:
+	make -C test/ makeref
 
-reftest: check-browser-manifest
-	cd test; python test.py --reftest --browserManifestFile=$(BROWSER_MANIFEST) $(TEST_FLAGS)
+reftest-swfdec:
+	make -C test/ reftest-swfdec
 
-makeref: check-browser-manifest
-	cd test; python test.py --masterMode --browserManifestFile=$(BROWSER_MANIFEST) $(TEST_FLAGS)
-
-reftest-swfdec: check-browser-manifest
-	cd test; python test.py --reftest --browserManifestFile=$(BROWSER_MANIFEST) --manifestFile=swfdec_test_manifest.json
+lint:
+	make -C test/ lint
 
 hello-world:
 	make -C src/avm2/bin/ hello-world
 
 IRC_ROOM = shumway-build-bot
-
-lint:
-	make -C utils/ -f lint.mk lint
-
-lint-all:
-	make -C utils/ -f lint.mk lint-all
 
 server:
 	python -m SimpleHTTPServer
@@ -119,5 +140,6 @@ start-build-bot:
 
 .PHONY: check-system install-libs install-utils build-tamarin-tests \
         build-playerglobal build-extension build-web test default \
-        reftest reftest-swfdec makeref check-browser-manifest
+        reftest reftest-swfdec makeref check-browser-manifest \
+        test-avm1 test-avm2
 

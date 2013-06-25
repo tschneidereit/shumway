@@ -77,6 +77,13 @@
     operator.TRUE = new operator("!!", function (a) { return !!a; }, false);
     operator.FALSE = new operator("!", function (a) { return !a; }, false);
 
+    operator.AVM2ADD = new operator("+", function (l, r) {
+      if (typeof l === "string" || typeof r === "string") {
+        return String(l) + String(r);
+      }
+      return l + r;
+    }, true);
+
     function linkOpposites(a, b) {
       a.not = b;
       b.not = a;
@@ -687,9 +694,11 @@
   })();
 
   var NewArray = (function () {
-    function newArray(elements) {
+    function newArray(control, elements) {
       Node.call(this);
+      assert (isControlOrNull(control));
       assert (isArray(elements));
+      this.control = control;
       this.elements = elements;
     }
     newArray.prototype = extend(Value, "NewArray");
@@ -710,9 +719,11 @@
   })();
 
   var NewObject = (function () {
-    function newObject(properties) {
+    function newObject(control, properties) {
       Node.call(this);
+      assert (isControlOrNull(control));
       assert (isArray(properties));
+      this.control = control;
       this.properties = properties;
     }
     newObject.prototype = extend(Value, "NewObject");
@@ -823,6 +834,7 @@
     return store;
   })();
 
+  var Null = new Constant(null);
   var Undefined = new Constant(undefined);
 
   Undefined.toString = function () {
@@ -1237,7 +1249,7 @@
     };
 
     constructor.prototype.computeDominators = function (apply) {
-      assert (this.root.predecessors.length === 0, "Root node " + this.root + " must not have predecessors.");
+      assert (this.root.predecessors.length === 0, "Root node ", this.root, " must not have predecessors.");
 
       var dom = new Int32Array(this.blocks.length);
       for (var i = 0; i < dom.length; i++) {
@@ -1978,6 +1990,7 @@
   exports.Block = Block;
   exports.Node = Node;
   exports.Start = Start;
+  exports.Null = Null;
   exports.Undefined = Undefined;
   exports.This = This;
   exports.Throw = Throw;

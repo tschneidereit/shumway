@@ -1,8 +1,38 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global wrapJSObject */
+
 var NetConnectionDefinition = (function () {
   return {
     // ()
     __class__: "flash.net.NetConnection",
     initialize: function () {
+    },
+    _invoke: function (index, args) {
+      var simulated = false, result;
+      switch (index) {
+      case 2: // call, e.g. with ('createStream', <Responder>)
+        simulated = true;
+        break;
+      }
+      (simulated ? somewhatImplemented : notImplemented)(
+        "NetConnection._invoke (" + index + ")");
+      return result;
     },
     __glue__: {
       native: {
@@ -18,18 +48,19 @@ var NetConnectionDefinition = (function () {
         },
         instance: {
           connect: function connect(command) { // (command:String, ...arguments) -> void
+            var NetStatusEvent = flash.events.NetStatusEvent;
+
             somewhatImplemented("NetConnection.connect");
             this._uri = command;
-            if (command == null) {
+            if (!command) {
               this._connected = true;
-              var info = {
-                level : 'status',
-                code : 'NetConnection.Connect.Success'
-              };
-              this.dispatchEvent(new flash.events.NetStatusEvent('netStatus',
-                                                                 false,
-                                                                 false,
-                                                                 info));
+              this._dispatchEvent(new NetStatusEvent(NetStatusEvent.class.NET_STATUS,
+                false, false,
+                wrapJSObject({ level : 'status', code : 'NetConnection.Connect.Success'})));
+            } else {
+              this._dispatchEvent(new NetStatusEvent(NetStatusEvent.class.NET_STATUS,
+                false, false,
+                wrapJSObject({ level : 'status', code : 'NetConnection.Connect.Failed'})));
             }
           },
           call: function call(command, responder) { // (command:String, responder:Responder, ...arguments) -> any
@@ -130,7 +161,15 @@ var NetConnectionDefinition = (function () {
               notImplemented("NetConnection.unconnectedPeerStreams");
               return this._unconnectedPeerStreams;
             }
-          }
+          },
+          invoke: function invokeWithArgsArray(index) {
+            // (index:uint, arg1:Array, ...) -> any
+            return this._invoke(index, Array.prototype.slice.call(arguments, 1));
+          },
+          invokeWithArgsArray: function invokeWithArgsArray(index, p_arguments) {
+            // (index:uint, p_arguments:Array) -> any
+            return this._invoke.call(this, index, p_arguments);
+          },
         }
       }
     }

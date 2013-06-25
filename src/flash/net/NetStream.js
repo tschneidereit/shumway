@@ -1,3 +1,22 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global Promise, FileLoadingService, MediaSource, Multiname, wrapJSObject */
+
 var USE_MEDIASOURCE_API = true;
 
 var NetStreamDefinition = (function () {
@@ -5,6 +24,84 @@ var NetStreamDefinition = (function () {
     // (connection:NetConnection, peerID:String = "connectToFMS")
     __class__: "flash.net.NetStream",
     initialize: function () {
+    },
+    _invoke: function (index, args) {
+      var simulated = false, result;
+      var videoElement = this._videoElement;
+      switch (index) {
+      case 4: // set bufferTime
+        simulated = true;
+        break;
+      case 202: // call, e.g. ('pause', null, paused, time)
+        simulated = true;
+        break;
+      case 300: // time
+        result = videoElement ? videoElement.currentTime : 0;
+        simulated = true;
+        return 0;
+      case 302: // get bufferTime
+        result = videoElement.duration;
+        simulated = true;
+        return 0;
+      case 305: // get bytesLoaded
+        result = 1000000;
+        simulated = true;
+        return 0;
+      case 306: // get bytesTotal
+        result = 1000005;
+        simulated = true;
+        return 0;
+      }
+      // (index:uint) -> any
+      (simulated ? somewhatImplemented : notImplemented)(
+        "NetStream._invoke (" + index + ")");
+      return result;
+    },
+    _createVideoElement: function (url) {
+      function notifyPlayStart(e) {
+        netStream._dispatchEvent(new NetStatusEvent(NetStatusEvent.class.NET_STATUS,
+          false, false, wrapJSObject({code: "NetStream.Play.Start", level: "status"})));
+      }
+      function notifyPlayStop(e) {
+        netStream._dispatchEvent(new NetStatusEvent(NetStatusEvent.class.NET_STATUS,
+          false, false, wrapJSObject({code: "NetStream.Play.Stop", level: "status"})));
+      }
+      function notifyBufferFull(e) {
+        netStream._dispatchEvent(new NetStatusEvent(NetStatusEvent.class.NET_STATUS,
+          false, false, wrapJSObject({code: "NetStream.Buffer.Full", level: "status"})));
+      }
+      function notifyBufferEmpty(e) {
+        netStream._dispatchEvent(new NetStatusEvent(NetStatusEvent.class.NET_STATUS,
+          false, false, wrapJSObject({code: "NetStream.Buffer.Empty", level: "status"})));
+      }
+      function notifyError(e) {
+        var code = e.target.error.code === 4 ? "NetStream.Play.NoSupportedTrackFound" :
+          e.target.error.code === 3 ? "NetStream.Play.FileStructureInvalid" : "NetStream.Play.StreamNotFound";
+        netStream._dispatchEvent(new NetStatusEvent(NetStatusEvent.class.NET_STATUS,
+          false, false, wrapJSObject({code: code, level: "error"})));
+      }
+      function notifyMetadata(e) {
+        netStream._videoMetadataReady.resolve({
+          videoWidth: element.videoWidth,
+          videoHeight: element.videoHeight
+        });
+      }
+
+      var NetStatusEvent = flash.events.NetStatusEvent;
+      var netStream = this;
+
+      var element = document.createElement('video');
+      element.src = url;
+      element.addEventListener("play", notifyPlayStart);
+      element.addEventListener("ended", notifyPlayStop);
+      element.addEventListener("loadeddata", notifyBufferFull);
+      element.addEventListener("waiting", notifyBufferEmpty);
+      element.addEventListener("loadedmetadata", notifyMetadata);
+      element.addEventListener("error", notifyError);
+      element.play();
+
+      this._videoElement = element;
+      this._videoReady.resolve(element);
     },
     __glue__: {
       script: {
@@ -20,7 +117,10 @@ var NetStreamDefinition = (function () {
             somewhatImplemented("NetStream.ctor");
             this._contentTypeHint = null;
             this._mediaSource = null;
-            this._urlReady = new Promise();
+            this._checkPolicyFile = true;
+            this._videoElement = null;
+            this._videoReady = new Promise();
+            this._videoMetadataReady = new Promise();
           },
           onResult: function onResult(streamId) {
             // (streamId:int) -> void
@@ -38,8 +138,8 @@ var NetStreamDefinition = (function () {
               isMediaSourceEnabled = false;
             }
             if (!isMediaSourceEnabled) {
-              this._urlReady.resolve(FileLoadingService.resolveUrl(url));
               somewhatImplemented("NetStream.play");
+              this._createVideoElement(FileLoadingService.resolveUrl(url));
               return;
             }
 
@@ -50,15 +150,16 @@ var NetStreamDefinition = (function () {
             mediaSource.addEventListener('sourceend', function(e) {
               this._mediaSource = null;
             }.bind(this));
-            this._urlReady.resolve(window.URL.createObjectURL(mediaSource));
+            this._createVideoElement(window.URL.createObjectURL(mediaSource));
 
             if (!url) {
               return;
             }
 
             var request = new flash.net.URLRequest(url);
+            request._checkPolicyFile = this._checkPolicyFile;
             var stream = new flash.net.URLStream();
-            stream.addEventListener('httpStatus', function (e) {
+            stream._addEventListener('httpStatus', function (e) {
               var responseHeaders = e[Multiname.getPublicQualifiedName('responseHeaders')];
               var contentTypeHeader = responseHeaders.filter(function (h) {
                 return h[Multiname.getPublicQualifiedName('name')] === 'Content-Type';
@@ -69,14 +170,14 @@ var NetStreamDefinition = (function () {
                 this._contentTypeHint = contentTypeHeader[Multiname.getPublicQualifiedName('value')];
               }
             }.bind(this));
-            stream.addEventListener('progress', function (e) {
+            stream._addEventListener('progress', function (e) {
               var available = stream.bytesAvailable;
               var ByteArrayClass = avm2.systemDomain.getClass("flash.utils.ByteArray");
               var data = ByteArrayClass.createInstance();
               stream.readBytes(data, 0, available);
               this.appendBytes(data);
             }.bind(this));
-            stream.addEventListener('complete', function (e) {
+            stream._addEventListener('complete', function (e) {
               this.appendBytesAction('endSequence'); // NetStreamAppendBytesAction.END_SEQUENCE
             }.bind(this));
             stream.load(request);
@@ -86,12 +187,12 @@ var NetStreamDefinition = (function () {
             notImplemented("NetStream.play2");
           },
           invoke: function invoke(index) {
-            // (index:uint) -> any
-            notImplemented("NetStream.invoke");
+            // (index:uint, arg1:Array, ...) -> any
+            return this._invoke(index, Array.prototype.slice.call(arguments, 1));
           },
           invokeWithArgsArray: function invokeWithArgsArray(index, p_arguments) {
             // (index:uint, p_arguments:Array) -> any
-            notImplemented("NetStream.invokeWithArgsArray");
+            return this._invoke.call(this, index, p_arguments);
           },
           appendBytes: function appendBytes(bytes) {
             if (this._mediaSource) {
@@ -126,24 +227,21 @@ var NetStreamDefinition = (function () {
           soundTransform: {
             get: function soundTransform() {
               // (void) -> SoundTransform
-              notImplemented("NetStream.soundTransform");
               return this._soundTransform;
             },
             set: function soundTransform(sndTransform) {
               // (sndTransform:SoundTransform) -> void
-              notImplemented("NetStream.soundTransform");
+              somewhatImplemented("NetStream.soundTransform");
               this._soundTransform = sndTransform;
             }
           },
           checkPolicyFile: {
             get: function checkPolicyFile() {
               // (void) -> Boolean
-              notImplemented("NetStream.checkPolicyFile");
               return this._checkPolicyFile;
             },
             set: function checkPolicyFile(state) {
               // (state:Boolean) -> void
-              notImplemented("NetStream.checkPolicyFile");
               this._checkPolicyFile = state;
             }
           },

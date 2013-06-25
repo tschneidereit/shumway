@@ -1,3 +1,21 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 var TRACE_SYMBOLS_INFO = false;
 
 var DisplayObjectDefinition = (function () {
@@ -48,6 +66,7 @@ var DisplayObjectDefinition = (function () {
       this._revision = 0;
       this._root = null;
       this._rotation = 0;
+      this._scale9Grid = null;
       this._scaleX = 1;
       this._scaleY = 1;
       this._stage = null;
@@ -56,6 +75,9 @@ var DisplayObjectDefinition = (function () {
       this._wasCachedAsBitmap = false;
       this._x = 0;
       this._y = 0;
+      this._destroyed = false;
+      this._maskedObject = null;
+      this._scrollRect = null;
 
       var s = this.symbol;
       if (s) {
@@ -71,6 +93,16 @@ var DisplayObjectDefinition = (function () {
         this._parent = s.parent || null;
         this._root = s.root || null;
         this._stage = s.stage || null;
+
+        var scale9Grid = s.scale9Grid;
+        if (scale9Grid) {
+          this._scale9Grid = new flash.geom.Rectangle(
+            scale9Grid.left,
+            scale9Grid.top,
+            (scale9Grid.right - scale9Grid.left),
+            (scale9Grid.bottom - scale9Grid.top)
+          );
+        }
 
         var matrix = s.currentTransform;
         if (matrix) {
@@ -96,6 +128,17 @@ var DisplayObjectDefinition = (function () {
       this._updateCurrentTransform();
 
       this._accessibilityProperties = null;
+
+      var that = this;
+      this._onBroadcastMessage = function (msg) {
+        var evt = msg.data;
+        var listeners = that._listeners;
+        // shortcut: checking if the listeners are exist before dispatching
+        if (listeners[evt._type]) {
+          that._dispatchEvent(evt);
+        }
+      };
+      avm2.systemDomain.onMessage.register(this._onBroadcastMessage);
     },
 
     _updateTraceSymbolInfo: function () {
@@ -112,16 +155,16 @@ var DisplayObjectDefinition = (function () {
         'class: ' + this.__class__;
       this._control.className = 'c_' + this.__class__.replace(/\./g, '_');
     },
-    _addedToStage: function () {
+    _addedToStage: function (e) {
       var children = this._children;
       for (var i = 0; i < children.length; i++) {
         var child = children[i];
-        child.dispatchEvent(new flash.events.Event("addedToStage"));
+        child._addedToStage(e);
       }
-      this.dispatchEvent(new flash.events.Event("addedToStage"));
+      this._dispatchEvent(e);
     },
-    _applyCurrentInverseTransform: function (point, targetCoordSpace) {
-      if (this._parent && this._parent !== this._stage && this._parent !== targetCoordSpace)
+    _applyCurrentInverseTransform: function (point, immediate) {
+      if (this._parent && this._parent !== this._stage && !immediate)
         this._parent._applyCurrentInverseTransform(point);
 
       var m = this._currentTransform;
@@ -139,8 +182,11 @@ var DisplayObjectDefinition = (function () {
       point.x = m.a * x + m.c * y + m.tx;
       point.y = m.d * y + m.b * x + m.ty;
 
-      if (this._parent && this._parent !== this._stage && this._parent !== targetCoordSpace)
-        this._parent._applyCurrentTransform(point, targetCoordSpace);
+      if (this._parent && this._parent !== this._stage)
+        this._parent._applyCurrentTransform(point);
+
+      if (targetCoordSpace)
+        targetCoordSpace._applyCurrentInverseTransform(point);
     },
     _hitTest: function (use_xy, x, y, useShape, hitTestObject, ignoreChildren) {
       if (use_xy) {
@@ -209,13 +255,13 @@ var DisplayObjectDefinition = (function () {
         this._dirtyArea = this.getBounds();
       this._bounds = null;
     },
-    _removedFromStage: function () {
+    _removedFromStage: function (e) {
       var children = this._children;
       for (var i = 0; i < children.length; i++) {
         var child = children[i];
-        child.dispatchEvent(new flash.events.Event("removedFromStage"));
+        child._removedFromStage(e);
       }
-      this.dispatchEvent(new flash.events.Event("removedFromStage"));
+      this._dispatchEvent(e);
     },
     _updateCurrentTransform: function () {
       var scaleX = this._scaleX;
@@ -299,22 +345,31 @@ var DisplayObjectDefinition = (function () {
       this._filters = val;
     },
     get height() {
-      var bounds = this.getBounds(this._parent);
-      return bounds.height;
+      var bounds = this._getContentBounds();
+      var t = this._currentTransform;
+      return Math.abs(t.b) * (bounds.xMax - bounds.xMin) +
+             Math.abs(t.d) * (bounds.yMax - bounds.yMin);
     },
     set height(val) {
-      if (val < 0)
-        val = 0;
-      var height = this.height;
-      if (height == 0) {
-        warning('scaleY cannot be adjusted when height = 0');
+      if (val < 0) {
         return;
       }
-      var scaleY = this.scaleY;
-      if (scaleY === 0 && val > 0) {
-        this.scaleY = scaleY = 1; // reset scale to have valid height
+
+      var rotation = this._rotation / 180 * Math.PI;
+      var u = Math.abs(Math.cos(rotation));
+      var v = Math.abs(Math.sin(rotation));
+      var bounds = this._getContentBounds();
+      var baseHeight = v * (bounds.xMax - bounds.xMin) +
+                       u * (bounds.yMax - bounds.yMin);
+      if (baseHeight === 0) {
+        return;
       }
-      this.scaleY = scaleY * val / height;
+
+      var baseWidth = u * (bounds.xMax - bounds.xMin) +
+                      v * (bounds.yMax - bounds.yMin);
+      this.scaleX = this.width / baseWidth;
+
+      this.scaleY = val / baseHeight;
     },
     get loaderInfo() {
       return (this._loader && this._loader._contentLoaderInfo) || this._parent.loaderInfo;
@@ -323,7 +378,19 @@ var DisplayObjectDefinition = (function () {
       return this._mask;
     },
     set mask(val) {
+      if (this._mask === val) {
+        return;
+      }
+
+      if (val && val._maskedObject) {
+        val._maskedObject.mask = null;
+      }
+
       this._mask = val;
+      if (val) { val._maskedObject = this;
+      }
+
+      this._markAsDirty();
     },
     get name() {
       return this._name;
@@ -399,16 +466,18 @@ var DisplayObjectDefinition = (function () {
       this._updateCurrentTransform();
     },
     get scale9Grid() {
-      return null;
+      return this._scale9Grid;
     },
     set scale9Grid(val) {
-      notImplemented();
+      somewhatImplemented('DisplayObject.scale9Grid');
+      this._scale9Grid = val;
     },
     get scrollRect() {
-      return null;
+      return this._scrollRect;
     },
     set scrollRect(val) {
-      notImplemented();
+      somewhatImplemented('DisplayObject.scrollRect');
+      this._scrollRect = val;
     },
     get transform() {
       return this._transform || new flash.geom.Transform(this);
@@ -437,22 +506,31 @@ var DisplayObjectDefinition = (function () {
       this._markAsDirty();
     },
     get width() {
-      var bounds = this.getBounds(this._parent);
-      return bounds.width;
+      var bounds = this._getContentBounds();
+      var t = this._currentTransform;
+      return Math.abs(t.a) * (bounds.xMax - bounds.xMin) +
+             Math.abs(t.c) * (bounds.yMax - bounds.yMin);
     },
     set width(val) {
-      if (val < 0)
-        val = 0;
-      var width = this.width;
-      if (width == 0) {
-        warning('scaleY cannot be adjusted when width = 0');
+      if (val < 0) {
         return;
       }
-      var scaleX = this.scaleX;
-      if (scaleX === 0 && val > 0) {
-        this.scaleX = scaleX = 1; // reset scale to have valid width
+
+      var rotation = this._rotation / 180 * Math.PI;
+      var u = Math.abs(Math.cos(rotation));
+      var v = Math.abs(Math.sin(rotation));
+      var bounds = this._getContentBounds();
+      var baseWidth = u * (bounds.xMax - bounds.xMin) +
+                      v * (bounds.yMax - bounds.yMin);
+      if (baseWidth === 0) {
+        return;
       }
-      this.scaleX = scaleX * val / width;
+
+      var baseHeight = v * (bounds.xMax - bounds.xMin) +
+                       u * (bounds.yMax - bounds.yMin);
+      this.scaleY = this.height / baseHeight;
+
+      this.scaleX = val / baseWidth;
     },
     get x() {
       return this._x;
@@ -485,7 +563,7 @@ var DisplayObjectDefinition = (function () {
       this._updateCurrentTransform();
     },
 
-    getBounds: function (targetCoordSpace) {
+    _getContentBounds: function () {
       if (!this._bounds) {
         var bbox = this._bbox;
 
@@ -548,8 +626,11 @@ var DisplayObjectDefinition = (function () {
           yMax: yMax
         };
       }
+      return this._bounds;
+    },
 
-      var b = this._bounds;
+    getBounds: function (targetCoordSpace) {
+      var b = this._getContentBounds();
       var p1 = { x: b.xMin, y: b.yMin };
       this._applyCurrentTransform(p1, targetCoordSpace);
       var p2 = { x: b.xMax, y: b.yMin };
@@ -559,10 +640,10 @@ var DisplayObjectDefinition = (function () {
       var p4 = { x: b.xMin, y: b.yMax };
       this._applyCurrentTransform(p4, targetCoordSpace);
 
-      xMin = Math.min(p1.x, p2.x, p3.x, p4.x);
-      xMax = Math.max(p1.x, p2.x, p3.x, p4.x);
-      yMin = Math.min(p1.y, p2.y, p3.y, p4.y);
-      yMax = Math.max(p1.y, p2.y, p3.y, p4.y);
+      var xMin = Math.min(p1.x, p2.x, p3.x, p4.x);
+      var xMax = Math.max(p1.x, p2.x, p3.x, p4.x);
+      var yMin = Math.min(p1.y, p2.y, p3.y, p4.y);
+      var yMax = Math.max(p1.y, p2.y, p3.y, p4.y);
 
       return new flash.geom.Rectangle(
         xMin,
@@ -589,6 +670,13 @@ var DisplayObjectDefinition = (function () {
       var result = new flash.geom.Point(pt.x, pt.y);
       this._applyCurrentTransform(result);
       return result;
+    },
+    destroy: function () {
+      if (this._destroyed) {
+        return;
+      }
+      this._destroyed = true;
+      avm2.systemDomain.onMessage.unregister(this._onBroadcastMessage);
     }
   };
 

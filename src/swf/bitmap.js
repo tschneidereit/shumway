@@ -1,4 +1,21 @@
-/* -*- mode: javascript; tab-width: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global createInflatedStream, Blob, fail */
 
 /** @const */ var FORMAT_COLORMAPPED  = 3;
 /** @const */ var FORMAT_15BPP        = 4;
@@ -144,13 +161,14 @@ function defineBitmap(tag) {
     }
     break;
   case FORMAT_24BPP:
+    var padding;
     if (hasAlpha) {
       var colorType = 0x06;
-      var padding = 0;
+      padding = 0;
       literals = new Uint8Array(width * height * 4 + height);
     } else {
       var colorType = 0x02;
-      var padding = 1;
+      padding = 1;
       literals = new Uint8Array(width * height * 3 + height);
     }
     var bytesPerLine = width * 4;

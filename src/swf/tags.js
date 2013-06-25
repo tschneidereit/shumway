@@ -1,4 +1,24 @@
-/* -*- mode: javascript; tab-width: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*globals UI8, UI16, SB, UB, FB, ALIGN, BINARY, STRING, FIXED, FLOAT, FIXED8,
+          SI16, UI32, RECT, SHAPE, MATRIX, RGBA, CXFORM, BUTTON, KERNING, RGB,
+          BUTTONCONDACTION, ANY_FILTER, TEXT_RECORD, SOUND_INFO, EVENT,
+          SHAPE_WITH_STYLE, MORPH_SHAPE_WITH_STYLE, EncodedU32 */
 
 var DEFINE_BITMAP = {
   id: UI16,
@@ -218,8 +238,8 @@ var DEFINE_BUTTON = {
   }]]
 };
 var DO_ABC = {
-  flags: UI32,
-  name: STRING(0),
+  flags: ['tagCode===82', [UI32, '0']],
+  name: ['tagCode===82', [STRING(0), '""']],
   data: BINARY(0)
 };
 var DO_ACTION = {
@@ -356,4 +376,26 @@ var SOUND_STREAM_HEAD = {
 };
 var SOUND_STREAM_BLOCK = {
   data: BINARY(0)
+};
+var DEFINE_SCENE = {
+  $$sceneCount: EncodedU32,
+  scenes: {
+    $: {
+      offset: EncodedU32,
+      name: STRING(0)
+    },
+    count: 'sceneCount'
+  },
+  $$labelCount: EncodedU32,
+  labels: {
+    $: {
+      frame: EncodedU32,
+      name: STRING(0)
+    },
+    count: 'labelCount'
+  }
+};
+var DEFINE_SCALING_GRID = {
+  symbolId: UI16,
+  splitter: RECT
 };

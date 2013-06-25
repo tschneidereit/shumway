@@ -1,4 +1,23 @@
-/* -*- mode: javascript; tab-width: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global SWF, MOVIE_HEADER, SWF_TAG_CODE_FILE_ATTRIBUTES, tagHandler, Stream,
+         readUi32, readUi16, Blob, StreamNoDataError, parseJpegChunks,
+         generateParser, inflateBlock, verifyDeflateHeader, InflateNoDataError */
 
 // TODO: clean up. For now, we don't include the generator after pre-building
 // the handlers. This doesn't work during build-playerglobal, though.x
@@ -29,6 +48,10 @@ function readTags(context, stream, swfVersion, onprogress) {
       }
       stream.ensure(length);
 
+      if (tagCode === 0) {
+        break;
+      }
+
       var substream = stream.substream(stream.pos, stream.pos += length);
       var subbytes = substream.bytes;
       var tag = { code: tagCode };
@@ -58,7 +81,7 @@ function readTags(context, stream, swfVersion, onprogress) {
       } else if (onprogress && 'id' in tag) {
         onprogress(context);
       }
-    } while (tagCode && stream.pos < stream.end);
+    } while (stream.pos < stream.end);
   } catch (e) {
     if (e !== StreamNoDataError) throw e;
     stream.pos = lastSuccessfulPosition;
@@ -270,9 +293,22 @@ SWF.parseAsync = function swf_parseAsync(options) {
       }
 
       if (isImage) {
-        parseImage(data, imageType);
+        parseImage(data, progressInfo.bytesTotal, imageType);
       }
       buffer = null;
+    },
+    close: function () {
+      if (buffer) {
+        // buffer was closed: none or few bytes were received
+        var symbol = {
+          command: 'empty',
+          data : buffer.buffer.subarray(0, buffer.pos)
+        };
+        options.oncomplete && options.oncomplete(symbol);
+      }
+      if ('target' in this && this.target.close) {
+        this.target.close();
+      }
     }
   };
 
@@ -290,20 +326,32 @@ SWF.parseAsync = function swf_parseAsync(options) {
     pipe.target = target;
   }
 
-  function parseImage(data, type) {
-    var props = {};
-    var chunks;
-    if (type == 'image/jpeg') {
-      chunks = parseJpegChunks(props, data);
-    } else {
-      chunks = [data];
-    }
-    var symbol = {
-      type: 'image',
-      props: props,
-      data : new Blob(chunks, {type: type})
-    }
-    options.oncomplete && options.oncomplete(symbol);
+  function parseImage(data, bytesTotal, type) {
+    var buffer = new Uint8Array(bytesTotal);
+    buffer.set(data);
+    var bufferPos = data.length;
+
+    pipe.target = {
+      push: function (data) {
+        buffer.set(data, bufferPos);
+        bufferPos += data.length;
+      },
+      close: function () {
+        var props = {};
+        var chunks;
+        if (type == 'image/jpeg') {
+          chunks = parseJpegChunks(props, buffer);
+        } else {
+          chunks = [buffer];
+        }
+        var symbol = {
+          type: 'image',
+          props: props,
+          data : new Blob(chunks, {type: type})
+        };
+        options.oncomplete && options.oncomplete(symbol);
+      }
+    };
   }
 
   return pipe;

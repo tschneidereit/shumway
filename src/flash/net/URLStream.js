@@ -1,3 +1,22 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global FileLoadingService, Stream */
+
 var URLStreamDefinition = (function () {
   var def = {
     initialize: function () {
@@ -16,22 +35,33 @@ var URLStreamDefinition = (function () {
       session.onprogress = function (data, progressState) {
         if (initStream) {
           initStream = false;
-          var length = progressState.bytesTotal;
+          var length = Math.max(progressState.bytesTotal, data.length);
           var buffer = new ArrayBuffer(length);
           self._stream = new Stream(buffer, 0, 0, length);
+        } else if (self._stream.end + data.length > self._stream.bytes.length) {
+          var length = self._stream.end + data.length;
+          var buffer = new ArrayBuffer(length);
+          var newStream = new Stream(buffer, 0, 0, length);
+          newStream.push(self._stream.bytes.subarray(0, self._stream.end));
+          self._stream = newStream;
         }
         self._stream.push(data);
         var ProgressEventClass = avm2.systemDomain.getClass("flash.events.ProgressEvent");
-        self.dispatchEvent(ProgressEventClass.createInstance(["progress",
+        self._dispatchEvent(ProgressEventClass.createInstance(["progress",
            false, false, progressState.bytesLoaded, progressState.bytesTotal]));
       };
       session.onerror = function (error) {
         self._connected = false;
-        self.dispatchEvent(new flash.events.IOErrorEvent(flash.events.IOErrorEvent.IO_ERROR, false, false, error));
+        if (!self._stream) {
+          // We need to have something to return in data
+          self._stream = new Stream(new ArrayBuffer(0), 0, 0, 0);
+        }
+        self._dispatchEvent(new flash.events.IOErrorEvent(
+          flash.events.IOErrorEvent.class.IO_ERROR, false, false, error));
       };
       session.onopen = function () {
         self._connected = true;
-        self.dispatchEvent(new flash.events.Event("open", false, false));
+        self._dispatchEvent(new flash.events.Event("open", false, false));
       };
       session.onhttpstatus = function (location, httpStatus, httpHeaders) {
         var HTTPStatusEventClass = avm2.systemDomain.getClass("flash.events.HTTPStatusEvent");
@@ -51,17 +81,16 @@ var URLStreamDefinition = (function () {
 
         httpStatusEvent.public$responseHeaders = headers;
         httpStatusEvent.public$responseURL = location;
-        self.dispatchEvent(httpStatusEvent);
+        self._dispatchEvent(httpStatusEvent);
       };
       session.onclose = function () {
         self._connected = false;
         if (!self._stream) {
           // We need to have something to return in data
-          var buffer = new ArrayBuffer(0);
-          self._stream = new Stream(buffer, 0, 0, 0);
+          self._stream = new Stream(new ArrayBuffer(0), 0, 0, 0);
         }
 
-        self.dispatchEvent(new flash.events.Event("complete", false, false))
+        self._dispatchEvent(new flash.events.Event("complete", false, false));
       };
       session.open(request._toFileRequest());
       this._session = session;

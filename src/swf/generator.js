@@ -1,4 +1,24 @@
-/* -*- mode: javascript; tab-width: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global slice, push, isArray, keys, fail */
+/*global readSi8, readSi16, readSi32, readUi8, readUi16, readUi32, readFixed,
+  readFixed8, readFloat16, readFloat, readDouble, readEncodedU32, readBool,
+  align, readSb, readUb, readFb, readString, readBinary */
 
 var defaultTemplateSet = [
   readSi8, readSi16, readSi32, readUi8, readUi16, readUi32, readFixed,
@@ -23,13 +43,13 @@ function generateParser(_struct) {
 
     var production = [];
     for (var field in _struct) {
-      var type = _struct[field];
-      if (typeof type === 'object' && type.$ != undefined) {
+      var type = _struct[field], options;
+      if (typeof type === 'object' && type.$ !== undefined) {
         assert(!isArray(type.$), 'invalid type', 'generate');
-        var options = type;
+        options = type;
         type = options.$;
       } else {
-        var options = { };
+        options = { };
       }
 
       var merge = false;
@@ -56,10 +76,11 @@ function generateParser(_struct) {
       }
 
       if (options.count || 'length' in options || options.condition) {
+        var listVar;
         if (refer) {
-          var listVar = field;
+          listVar = field;
         } else {
-          var listVar = '$' + varCount++;
+          listVar = '$' + varCount++;
           segment.unshift('var ' + listVar + '=');
         }
         segment.push('[]');
@@ -114,13 +135,15 @@ function generateParser(_struct) {
           } else {
             type = template;
           }
+          /* fall through */
         case 'string':
           segment.push(type);
           break;
         case 'object':
           var shared = segment.splice(0).join('');
 
-          function branch(_struct) {
+          /*jshint -W083 */
+          var branch = function branch(_struct) {
             var obj = produce(_struct, merge ? context : refer && field);
             var init = shared;
             if (!merge && obj) {
@@ -130,7 +153,7 @@ function generateParser(_struct) {
             }
             segment.push(init);
             segment.push(productions.pop());
-          }
+          };
 
           if (isArray(type)) {
             var expr = type[0];
@@ -149,7 +172,7 @@ function generateParser(_struct) {
               }
             } else {
               var values = keys(branches);
-              assert(values != false, 'missing case values', 'generate');
+              assert(values && values.length, 'missing case values', 'generate');
               segment.push('switch(' + expr + '){');
               var val;
               var i = 0;
@@ -180,10 +203,11 @@ function generateParser(_struct) {
     productions.push(production.join('\n'));
     return context;
   })(_struct, '$');
-  
+
   var args = ['$bytes', '$stream', '$'];
   if (arguments.length > 1)
     push.apply(args, slice.call(arguments, 1));
+  /*jshint -W067 */
   return (1, eval)(
     '(function(' + args.join(',') + '){\n' +
       '$||($={})\n' +

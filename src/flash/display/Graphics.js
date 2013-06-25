@@ -1,3 +1,22 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global Kanvas, describeProperty */
+
 var GraphicsDefinition = (function () {
   var GRAPHICS_PATH_COMMAND_CUBIC_CURVE_TO = 6;
   var GRAPHICS_PATH_COMMAND_CURVE_TO       = 3;
@@ -50,7 +69,7 @@ var GraphicsDefinition = (function () {
     },
 
     get _currentPath() {
-      var path = new Kanvas.Path;
+      var path = new Kanvas.Path();
       if (this._mx !== null || this._my !== null) {
         path.moveTo(this._mx, this._my);
         this._mx = this._my = null;
@@ -60,7 +79,7 @@ var GraphicsDefinition = (function () {
       path.strokeStyle = this._strokeStyle;
       this._subpaths.push(path);
       // Cache as an own property.
-      Object.defineProperty(this, '_currentPath', describeProperty(path));
+      Object.defineProperty(this, '_currentPath', { value: path, configurable: true });
       return path;
     },
 
@@ -98,6 +117,8 @@ var GraphicsDefinition = (function () {
 
       this._fillStyle = pattern;
 
+      // NOTE firefox really sensitive to really small scale when painting gradients
+      var scale = 819.2;
       pattern.currentTransform = matrix ?
         { a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, e: matrix.tx, f: matrix.ty } :
         { a: scale, b: 0, c: 0, d: scale, e: 0, f: 0 };
@@ -175,6 +196,7 @@ var GraphicsDefinition = (function () {
           this._currentPath.arc(x+radiusW, y+radiusH, radiusW, 0, Math.PI * 2);
         else
           this._currentPath.ellipse(x+radiusW, y+radiusH, radiusW, radiusH, 0, 0, Math.PI * 2);
+        this._revision++;
         return;
       }
 
@@ -191,16 +213,18 @@ var GraphicsDefinition = (function () {
       this._currentPath.arcTo(x, y+h, x, y+h-radiusH, radiusW, radiusH);
       this._currentPath.arcTo(x, y, x+radiusW, y, radiusW, radiusH);
       this._currentPath.arcTo(x+w, y, x+w, y+radiusH, radiusW, radiusH);
+      this._revision++;
     },
     drawRoundRectComplex: function (x, y, w, h, topLeftRadius, topRightRadius, bottomLeftRadius, bottomRightRadius) {
       if (isNaN(w + h + topLeftRadius + topRightRadius + bottomLeftRadius + bottomRightRadius))
         throw ArgumentError();
 
-      this._currentPath.moveTo(x+w, y+h-radiusH);
+      this._currentPath.moveTo(x+w, y+h-bottomRightRadius);
       this._currentPath.arcTo(x+w, y+h, x+w-bottomRightRadius, y+h, bottomRightRadius);
       this._currentPath.arcTo(x, y+h, x, y+h-bottomLeftRadius, bottomLeftRadius);
       this._currentPath.arcTo(x, y, x+topLeftRadius, y, topLeftRadius);
       this._currentPath.arcTo(x+w, y, x+w, y+topRightRadius, topRightRadius);
+      this._revision++;
     },
     drawTriangles: function (vertices, indices, uvtData, culling) {
       notImplemented();

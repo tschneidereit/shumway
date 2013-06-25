@@ -32,7 +32,7 @@ TRACELOG_FILE = 'trace.log'
 REFDIR = 'ref'
 TMPDIR = 'tmp'
 VERBOSE = False
-BROWSER_TIMEOUT = 60
+BROWSER_TIMEOUT = 90
 
 SERVER_HOST = "localhost"
 
@@ -279,20 +279,23 @@ class BaseBrowserCommand(object):
         self.browserLog = open(BROWSERLOG_FILE, "w")
 
     def teardown(self):
+        print "Tearing down %s ..." % self.name
         self.process.terminate()
 
-        # If the browser is still running, wait up to ten seconds for it to quit
-        if self.process and self.process.poll() is None:
-            checks = 0
-            while self.process.poll() is None and checks < 20:
-                checks += 1
-                time.sleep(.5)
-            # If it's still not dead, try to kill it
-            if self.process.poll() is None:
-                print "Process %s is still running. Killing." % self.name
-                self.process.kill()
-                self.process.wait()
-            
+        # Waiting up to ten seconds for it to quit
+        checks = 0
+        while self.process.poll() is None and checks < 20:
+            checks += 1
+            time.sleep(.5)
+        # If it's still not dead, trying to kill it
+        if self.process.poll() is None:
+            print "Process %s is still running. Killing." % self.name
+            self.process.kill()
+            self.process.wait()
+
+        self.process = None
+        time.sleep(1)
+
         if self.tempDir is not None and os.path.exists(self.tempDir):
             shutil.rmtree(self.tempDir)
 
@@ -438,6 +441,8 @@ def check(task, results, browser, masterMode):
         checkEq(task, results, browser, masterMode)
     elif 'stas' == kind:
         checkStas(task, results, browser)
+    elif 'sanity' == kind:
+        checkSanity(task, results, browser)
     else:
         assert 0 and 'Unknown test type'
 
@@ -525,6 +530,21 @@ def checkStas(task, results, browser):
 
     if passed:
         print 'TEST-PASS | stas test', task['id'], '| in', browser
+
+def checkSanity(task, results, browser):
+    taskId = task['id']
+    taskType = task['type']
+
+    passed = True
+    for p in xrange(len(results)):
+        if results[p].failure:
+          print 'TEST-UNEXPECTED-FAIL |', taskType, taskId, '| in', browser, '| trace of ', p + 1, '!= reference trace'
+
+          passed = False
+
+    if passed:
+        print 'TEST-PASS | sanity test', task['id'], '| in', browser
+
 
 def processResults():
     print ''

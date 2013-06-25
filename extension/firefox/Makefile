@@ -1,3 +1,17 @@
+# Copyright 2013 Mozilla Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 UTILS_HOME = ../../utils
 CLOSURE ?= $(UTILS_HOME)/cc.jar
 BUILD_DIR = ../../build/firefox
@@ -67,7 +81,7 @@ build: ensureoutputdir ../src/flash/playerglobal.abc
 	# Build Loader.js, since it's loaded in a worker.
 	CLOSURE=$(CLOSURE) node build.js ../../src/flash/display/Loader.js > $(BUILD_DIR)/content/flash/display/Loader.js
 	# Package all the source files into two files.
-	CLOSURE=$(CLOSURE) node build.js content/web/scripts.js -d > $(BUILD_DIR)/content/shumway.js
+	CLOSURE=$(CLOSURE) node build.js content/web/scripts.js -fc -c s > $(BUILD_DIR)/content/shumway.js
 	CLOSURE=$(CLOSURE) node build.js content/web/scripts-worker.js > $(BUILD_DIR)/content/shumway-worker.js
 	# Removing hidden files
 	-find build -name ".DS_Store" -exec rm {} \;

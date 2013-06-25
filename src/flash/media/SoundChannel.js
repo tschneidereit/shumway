@@ -1,3 +1,22 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global base64ArrayBuffer, AudioContext, webkitAudioContext, Audio */
+
 var SoundChannelDefinition = (function () {
   return {
     // ()
@@ -33,7 +52,7 @@ var SoundChannelDefinition = (function () {
           // end of buffer
           self._unregisterWithSoundMixer();
           self._audioChannel.stop();
-          self.dispatchEvent(new flash.events.Event("soundComplete", false, false))
+          self._dispatchEvent(new flash.events.Event("soundComplete", false, false));
           return;
         }
 
@@ -91,7 +110,7 @@ var SoundChannelDefinition = (function () {
       });
       element.addEventListener("ended", function ended() {
         self._unregisterWithSoundMixer();
-        self.dispatchEvent(new flash.events.Event("soundComplete", false, false))
+        self._dispatchEvent(new flash.events.Event("soundComplete", false, false));
       });
       this._element = element;
     },
@@ -323,5 +342,5 @@ AudioDataChannel.prototype = {
   }
 };
 AudioDataChannel.isSupported = (function () {
-  return 'mozSetup' in (new Audio);
+  return 'mozSetup' in (new Audio());
 })();

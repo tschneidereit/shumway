@@ -1,149 +1,193 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 var EventDispatcherDefinition = (function () {
-  var CUSTOM_DOM_EVENT_PREFIX = 'shumway.';
+  function doDispatchEvent(dispatcher, event) {
+    var target = dispatcher._target;
+    var type = event._type;
+    var listeners = dispatcher._listeners[type];
 
-  var def = {
-    __class__: 'flash.events.EventDispatcher',
-
-    initialize: function () {
-      this._captureHandlers = { };
-      this._control = null;
-      this._handlers = { };
-    },
-
-    ctor: function (target) {
-      this._target = target;
-    },
-    addEventListener: function (type, listener, useCapture, prio, useWeakReference) {
-      if (typeof listener !== 'function')
-      if (typeof listener !== 'function' || !type)
-        throw ArgumentError();
-
-      if (prio === undefined)
-        prio = 0;
-
-      var handlers = useCapture ? this._captureHandlers : this._handlers;
-      var handler = handlers[type];
-
-      if (!handler) {
-        var target = this;
-        handler = {
-          queue: [],
-
-          handleEvent: function (evt) {
-            if (evt instanceof CustomEvent) {
-              var domEvent = evt;
-              evt = domEvent.detail;
-              evt._eventPhase = domEvent.eventPhase;
-            }
-
-            evt._currentTarget = evt._target;
-
-            var queue = this.queue;
-            for (var i = 0, n = queue.length; i < n; i++) {
-              var entry = queue[i];
-              entry.listener(evt);
-            }
-          }
-        };
-
-        if (this._control)
-          this._control.addEventListener(CUSTOM_DOM_EVENT_PREFIX + type, handler, useCapture);
-
-        handlers[type] = handler;
+    if (event._bubbles) {
+      var ancestors = [];
+      var currentNode = target._parent;
+      while (currentNode) {
+        if (currentNode._hasEventListener(type)) {
+          ancestors.push(currentNode);
+        }
+        currentNode = currentNode._parent;
       }
 
-      var queue = handler.queue;
-      var index = queue.length;
-      while (index > 0) {
-        var entry = queue[index - 1];
+      if (!listeners && !ancestors.length) {
+        return true;
+      }
 
-        if (prio < entry.prio)
+      if (event._target) {
+        event = event.clone();
+      }
+
+      var keepPropagating = true;
+
+      var i = ancestors.length;
+      while (i-- && keepPropagating) {
+        var currentTarget = ancestors[i];
+        var queue = currentTarget._captureListeners[type];
+        keepPropagating =
+          processListeners(queue, event, target, currentTarget, 1);
+      }
+
+      if (listeners && keepPropagating) {
+        keepPropagating = processListeners(listeners, event, target);
+      }
+
+      for (var i = 0; i < ancestors.length && keepPropagating; i++) {
+        var currentTarget = ancestors[i];
+        var queue = currentTarget._listeners[type];
+        keepPropagating =
+          processListeners(queue, event, target, currentTarget, 3);
+      }
+    } else if (listeners) {
+      if (event._target) {
+        event = event.clone();
+      }
+
+      processListeners(listeners, event, target);
+    }
+
+    return !event._isDefaultPrevented;
+  }
+  function processListeners(queue, event, target, currentTarget, eventPhase) {
+    if (queue) {
+      queue = queue.slice();
+
+      event._target = target;
+      event._currentTarget = currentTarget || target;
+      event._eventPhase = eventPhase || 2;
+
+      for (var i = 0; i < queue.length; i++) {
+        var item = queue[i];
+        item.handleEvent(event);
+        if (event._stopImmediatePropagation) {
           break;
-
-        index--;
-      }
-      queue.splice(index, 0, { listener: listener, prio: prio });
-    },
-    ctor: function (target) {
-
-    },
-    dispatchEvent: function (evt) {
-      evt._target = this;
-
-      if (this._control) {
-        var domEvent = document.createEvent('CustomEvent');
-        domEvent.initCustomEvent(CUSTOM_DOM_EVENT_PREFIX + evt.type, evt.bubbles, evt.cancelable, evt);
-        if ($DEBUG) {
-          try {
-            this._control.dispatchEvent(domEvent);
-          } catch (e) {
-            log('error ' + e + ', stack: \n' + e.stack);
-          }
-        } else {
-          this._control.dispatchEvent(domEvent);
         }
+      }
+    }
+
+    return !event._stopPropagation;
+  }
+
+  return {
+    // (target:IEventDispatcher = null)
+    __class__: "flash.events.EventDispatcher",
+    initialize: function () {
+      this._target = this;
+      this._listeners = { };
+      this._captureListeners = { };
+    },
+
+    _addEventListener: function addEventListener(type, listener, useCapture, priority) {
+      if (typeof listener !== 'function') {
+        throw new ArgumentError();
+      }
+
+      var listeners = useCapture ? this._captureListeners : this._listeners;
+      var queue = listeners[type];
+      var listenerObj = {
+        handleEvent: listener,
+        priority: priority || 0
+      };
+      if (queue) {
+        var level = queue.length;
+
+        var i = level;
+        while (i--) {
+          var item = queue[i];
+
+          if (item.handleEvent === listener) {
+            return;
+          }
+
+          if (priority > item.priority) {
+            level = i;
+          }
+        }
+
+        queue.splice(level, 0, listenerObj);
       } else {
-        var handler = this._handlers[evt.type];
-        if (handler) {
-          if ($DEBUG) {
-            try {
-              handler.handleEvent(evt);
-            } catch (e) {
-              log('error ' + e + ', stack: \n' + e.stack);
-            }
-          } else {
-            handler.handleEvent(evt);
-          }
-        }
+        listeners[type] = [listenerObj];
+      }
+    },
+    _removeEventListener: function removeEventListener(type, listener, useCapture) {
+      if (typeof listener !== 'function') {
+        return;
       }
 
-      return !!evt.isDefaultPrevented;
-    },
-    hasEventListener: function (type) {
-      return type in this._captureHandlers || type in this._handlers;
-    },
-    removeEventListener: function (type, listener, useCapture) {
-      var handlers = useCapture ? this._captureHandlers : this._handlers;
-      var handler = handlers[type];
-      if (handler) {
-        var queue = handler.queue;
+      var listeners = useCapture ? this._captureListeners : this._listeners;
+      var queue = listeners[type];
+      if (queue) {
         for (var i = 0; i < queue.length; i++) {
-          if (queue[i].listener === listener) {
+          var item = queue[i];
+          if (item.handleEvent === listener) {
             queue.splice(i, 1);
-            break;
+            if (!queue.length) {
+              delete listeners[type];
+            }
+            return;
           }
-        }
-        if (!queue.length) {
-          if (this._control)
-            this._control.removeEventListener(CUSTOM_DOM_EVENT_PREFIX + type, handler, useCapture);
-
-          delete handlers[type];
         }
       }
     },
-    willTrigger: function (type) {
-      var dispatcher = this;
-      do {
-        if (dispatcher.hasEventListener(type))
-          return true;
-      } while (dispatcher = dispatcher.parent);
+    _hasEventListener: function hasEventListener(type) { // (type:String) -> Boolean
+      return type in this._listeners || type in this._captureListeners;
+    },
+    _dispatchEvent: function dispatchEvent(event) {
+      doDispatchEvent(this, event);
+    },
 
-      return false;
-    }
-  };
+    __glue__: {
+      native: {
+        instance: {
+          ctor: function ctor(target) { // (target:IEventDispatcher) -> void
+            this._target = target || this;
+          },
+          addEventListener: function addEventListener(type, listener, useCapture, priority, useWeakReference) { // (type:String, listener:Function, useCapture:Boolean = false, priority:int = 0, useWeakReference:Boolean = false) -> void
+            this._addEventListener(type, listener, useCapture, priority);
+          },
+          removeEventListener: function removeEventListener(type, listener, useCapture) { // (type:String, listener:Function, useCapture:Boolean = false) -> void
+            this._removeEventListener(type, listener, useCapture);
+          },
+          hasEventListener: function hasEventListener(type) { // (type:String) -> Boolean
+            return this._hasEventListener(type);
+          },
+          willTrigger: function willTrigger(type) { // (type:String) -> Boolean
+            var currentNode = this._target;
+            do {
+              if (currentNode._hasEventListener(type)) {
+                return true;
+              }
+            } while ((currentNode = currentNode._parent));
 
-  def.__glue__ = {
-    native: {
-      instance: {
-        ctor: def.ctor,
-        addEventListener: def.addEventListener,
-        removeEventListener: def.removeEventListener,
-        hasEventListener: def.hasEventListener,
-        willTrigger: def.willTrigger,
-        dispatchEventFunction: def.dispatchEvent
+            return false;
+          },
+          dispatchEventFunction: function dispatchEventFunction(event) {
+            doDispatchEvent(this, event);
+          }
+        }
       }
     }
   };
-
-  return def;
 }).call(this);

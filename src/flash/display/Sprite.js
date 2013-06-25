@@ -1,3 +1,22 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global Multiname, executeActions */
+
 var SpriteDefinition = (function () {
   var def = {
     __class__: 'flash.display.Sprite',
@@ -8,7 +27,7 @@ var SpriteDefinition = (function () {
 
       var s = this.symbol;
       if (s) {
-        this._graphics = s.graphics || new flash.display.Graphics;
+        this._graphics = s.graphics || new flash.display.Graphics();
 
         if (s.timeline) {
           var displayList = s.timeline[0];
@@ -21,7 +40,7 @@ var SpriteDefinition = (function () {
           }
         }
       } else {
-        this._graphics = new flash.display.Graphics;
+        this._graphics = new flash.display.Graphics();
       }
     },
 
@@ -94,12 +113,12 @@ var SpriteDefinition = (function () {
           //
           // XXX: I think we're supposed to throw if the symbol class
           // constructor is not nullary.
-          symbolClass.instance.call(instance);
+          symbolClass.instanceConstructor.call(instance);
 
           if (BitmapDataClass.isInstanceOf(instance)) {
             var bitmapData = instance;
             instance = BitmapClass.createAsSymbol(props);
-            BitmapClass.instance.call(instance, bitmapData);
+            BitmapClass.instanceConstructor.call(instance, bitmapData);
           }
 
           assert(instance._control);
@@ -110,10 +129,10 @@ var SpriteDefinition = (function () {
 
           instance._markAsDirty();
 
-          instance.dispatchEvent(new flash.events.Event("load"));
-          instance.dispatchEvent(new flash.events.Event("added"));
+          instance._dispatchEvent(new flash.events.Event("load"));
+          instance._dispatchEvent(new flash.events.Event("added"));
           if (this.stage)
-            instance.dispatchEvent(new flash.events.Event("addedToStage"));
+            instance._dispatchEvent(new flash.events.Event("addedToStage"));
 
           children[i] = instance;
         }
@@ -139,7 +158,7 @@ var SpriteDefinition = (function () {
       if (name)
         parent[Multiname.getPublicQualifiedName(name)] = instance;
 
-      symbolClass.instance.call(instance);
+      symbolClass.instanceConstructor.call(instance);
 
       assert(instance._control);
       parent._control.appendChild(instance._control);
@@ -149,8 +168,8 @@ var SpriteDefinition = (function () {
 
       instance._markAsDirty();
 
-      instance.dispatchEvent(new flash.events.Event("load"));
-      instance.dispatchEvent(new flash.events.Event("added"));
+      instance._dispatchEvent(new flash.events.Event("load"));
+      instance._dispatchEvent(new flash.events.Event("added"));
 
       children.push(instance);
 
@@ -183,9 +202,9 @@ var SpriteDefinition = (function () {
           clip = instance._getAS2Object();
         if (!(variableName in clip))
           clip[variableName] = instance.text;
-        instance._refreshAS2Variables = function() {
+        instance._addEventListener('constructFrame', function() {
           instance.text = clip[variableName];
-        };
+        });
       }
 
       if (events) {
@@ -195,6 +214,7 @@ var SpriteDefinition = (function () {
           if (event.eoe) {
             break;
           }
+          /*jshint -W083 */
           var fn = function(actionBlock) {
             return executeActions(actionBlock, avm1Context, this._getAS2Object());
           }.bind(instance, event.actionsData);
@@ -202,14 +222,14 @@ var SpriteDefinition = (function () {
             if (eventName.indexOf("on") !== 0 || !event[eventName])
               continue;
             var avm2EventName = eventName[2].toLowerCase() + eventName.substring(3);
-            this.addEventListener(avm2EventName, fn, false);
+            this._addEventListener(avm2EventName, fn, false);
             eventsBound.push({name: avm2EventName, fn: fn});
           }
         }
         if (eventsBound.length > 0) {
-          instance.addEventListener('removed', function (eventsBound) {
+          instance._addEventListener('removed', function (eventsBound) {
             for (var i = 0; i < eventsBound.length; i++) {
-              this.removeEventListener(eventsBound[i].name, eventsBound[i].fn, false);
+              this._removeEventListener(eventsBound[i].name, eventsBound[i].fn, false);
             }
           }.bind(instance, eventsBound), false);
         }

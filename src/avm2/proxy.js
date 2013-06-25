@@ -1,11 +1,29 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /**
  * Proxy.as
  */
-function ProxyClass(runtime, scope, instance, baseClass) {
+function ProxyClass(runtime, scope, instanceConstructor, baseClass) {
   function ProxyConstructor() {
     somewhatImplemented("Proxy");
   }
-  var c = new runtime.domain.system.Class("Proxy", ProxyConstructor, Domain.coerceCallable(ProxyConstructor));
+  var c = new Class("Proxy", ProxyConstructor, Domain.coerceCallable(ProxyConstructor));
   c.extendBuiltin(baseClass);
   return c;
 }
@@ -25,8 +43,18 @@ var VM_IS_PROXY = "vm is proxy";
 var VM_CALL_PROXY = "vm call proxy";
 
 function isProxyObject(obj) {
-  assert (obj);
   return obj[VM_IS_PROXY];
+}
+
+function nameFromQualifiedName(qn) {
+  if (isNumeric(qn)) {
+    return qn;
+  }
+  var mn = Multiname.fromQualifiedName(qn);
+  if (mn === undefined) {
+    return undefined;
+  }
+  return mn.name;
 }
 
 function installProxyClassWrapper(cls) {
@@ -35,13 +63,13 @@ function installProxyClassWrapper(cls) {
     print("proxy wrapping, class: " + cls);
   }
 
-  var instance = cls.instance;
+  var instanceConstructor = cls.instanceConstructor;
 
   function construct() {
     if (TRACE_PROXY) {
       print("proxy create, class: " + cls);
     }
-    var target = Object.create(instance.prototype);
+    var target = Object.create(instanceConstructor.prototype);
     var proxy = Proxy.create({
       get: function(o, qn) {
         if (qn === VM_IS_PROXY) {
@@ -77,13 +105,13 @@ function installProxyClassWrapper(cls) {
           print("proxy get, class: " + target.class + ", qn: " + qn + " inAS: " + inAS());
         }
         if (inAS()) {
-          var mn = Multiname.fromQualifiedName(qn);
-          if (mn && !nameInTraits(target, qn)) {
-            return target[proxyTrapQns.getProperty](mn.name);
+          var name = nameFromQualifiedName(qn);
+          if (name !== undefined && !nameInTraits(target, qn)) {
+            return target[proxyTrapQns.getProperty](name);
           }
         }
-        if (target[VM_OPEN_METHODS] && target[VM_OPEN_METHODS][VM_OPEN_METHOD_PREFIX + qn]) {
-          return target[VM_OPEN_METHODS][VM_OPEN_METHOD_PREFIX + qn].bind(o);
+        if (target[VM_OPEN_METHODS] && target[VM_OPEN_METHODS][qn]) {
+          return bindSafely(target[VM_OPEN_METHODS][qn], o);
         }
         TRACE_PROXY && print("> proxy pass through " + qn);
         return target[qn];
@@ -93,9 +121,9 @@ function installProxyClassWrapper(cls) {
           print("proxy set, class: " + target.class + ", qn: " + qn + " inAS: " + inAS());
         }
         if (inAS()) {
-          var mn = Multiname.fromQualifiedName(qn);
-          if (mn && !nameInTraits(target, qn)) {
-            target[proxyTrapQns.setProperty](mn.name, value);
+          var name = nameFromQualifiedName(qn);
+          if (name !== undefined && !nameInTraits(target, qn)) {
+            target[proxyTrapQns.setProperty](name, value);
             return;
           }
         }
@@ -107,9 +135,9 @@ function installProxyClassWrapper(cls) {
           print("proxy has, class: " + target.class + ", qn: " + qn + " inAS: " + inAS());
         }
         if (inAS()) {
-          var mn = Multiname.fromQualifiedName(qn);
-          if (mn) {
-            return target[proxyTrapQns.hasProperty](mn.name);
+          var name = nameFromQualifiedName(qn);
+          if (name !== undefined && !nameInTraits(target, qn)) {
+            return target[proxyTrapQns.hasProperty](name);
           }
         }
         return qn in target;
@@ -119,9 +147,9 @@ function installProxyClassWrapper(cls) {
           print("proxy hasOwn, class: " + target.class + ", qn: " + qn + " inAS: " + inAS());
         }
         if (inAS()) {
-          var mn = Multiname.fromQualifiedName(qn);
-          if (mn && !nameInTraits(target, qn)) {
-            return target[proxyTrapQns.hasProperty](mn.name);
+          var name = nameFromQualifiedName(qn);
+          if (name !== undefined && !nameInTraits(target, qn)) {
+            return target[proxyTrapQns.hasProperty](name);
           }
         }
         TRACE_PROXY && print("> proxy pass through " + qn);
@@ -133,11 +161,11 @@ function installProxyClassWrapper(cls) {
       keys: function() {
         notImplemented("keys");
       }
-    }, instance.prototype);
+    }, instanceConstructor.prototype);
     // The derived proxy constructor needs to have a reference to the proxy object itself.
-    instance.apply(proxy, sliceArguments(arguments, 0));
+    instanceConstructor.apply(proxy, sliceArguments(arguments, 0));
     return proxy;
   }
 
-  cls.instance = construct;
+  cls.instanceConstructor = construct;
 }

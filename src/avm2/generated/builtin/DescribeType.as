@@ -103,7 +103,6 @@ package avmplus
     internal function describeTraits(x:XML, traits:Object):void
     {
         var c:XMLList = x.*;
-
         for each (var i in traits.bases)
         {
             var base:String = i;
@@ -225,7 +224,6 @@ package avmplus
             describeTraits(e, oi.traits);
             x.AS3::appendChild(e);
         }
-
         return x;
     }
 

@@ -1,16 +1,37 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global SWF, renderStage, toStringRgba, ShumwayKeyboardListener */
+
 SWF.embed = function(file, doc, container, options) {
   var canvas = doc.createElement('canvas');
   var ctx = canvas.getContext('kanvas-2d');
-  var loader = new flash.display.Loader;
+  var loader = new flash.display.Loader();
   var loaderInfo = loader.contentLoaderInfo;
-  var stage = new flash.display.Stage;
+  var stage = new flash.display.Stage();
 
   stage._loader = loader;
   loaderInfo._parameters = options.movieParams;
+  loaderInfo._url = options.url || (typeof file === 'string' ? file : null);
 
   // HACK support of HiDPI displays
   var pixelRatio = 'devicePixelRatio' in window ? window.devicePixelRatio : 1;
   var canvasHolder = null;
+  canvas._pixelRatio = pixelRatio;
   if (pixelRatio > 1) {
     var cssScale = 'scale(' + (1 / pixelRatio) + ', ' + (1 / pixelRatio) + ')';
     canvas.setAttribute('style', '-moz-transform: ' + cssScale + ';' +
@@ -23,10 +44,10 @@ SWF.embed = function(file, doc, container, options) {
     canvasHolder.setAttribute('style', 'display: inline-block; overflow: hidden;');
     canvasHolder.appendChild(canvas);
   }
+  stage._contentsScaleFactor = pixelRatio;
 
   loader._parent = stage;
   loader._stage = stage;
-  stage._loader = loader;
 
   var cursorVisible = true;
   function syncCursor() {
@@ -48,6 +69,7 @@ SWF.embed = function(file, doc, container, options) {
     syncCursor();
   };
   stage._syncCursor = syncCursor;
+  stage._mouseMoved = false;
 
   function fitCanvas(container, canvas) {
     if (canvasHolder) {
@@ -56,13 +78,14 @@ SWF.embed = function(file, doc, container, options) {
     }
     canvas.width = container.clientWidth * pixelRatio;
     canvas.height = container.clientHeight * pixelRatio;
+    stage._invalid = true;
   }
 
-  loaderInfo.addEventListener('init', function () {
+  loaderInfo._addEventListener('init', function () {
     if (container.clientHeight) {
       fitCanvas(container, canvas);
       window.addEventListener('resize', function () {
-        fitCanvas.bind(container, canvas);
+        fitCanvas(container, canvas);
       });
     } else {
       if (canvasHolder) {
@@ -79,17 +102,18 @@ SWF.embed = function(file, doc, container, options) {
       ShumwayKeyboardListener.focus = stage;
 
       if (stage._clickTarget) {
-        stage._clickTarget.dispatchEvent(new flash.events.MouseEvent('click'));
+        stage._clickTarget._dispatchEvent(new flash.events.MouseEvent('click'));
       }
     });
     canvas.addEventListener('dblclick', function () {
       if (stage._clickTarget && stage._clickTarget._doubleClickEnabled) {
-        stage._clickTarget.dispatchEvent(new flash.events.MouseEvent('doubleClick'));
+        stage._clickTarget._dispatchEvent(new flash.events.MouseEvent('doubleClick'));
       }
     });
     canvas.addEventListener('mousedown', function () {
+      stage._mouseMoved = true;
       if (stage._clickTarget) {
-        stage._clickTarget.dispatchEvent(new flash.events.MouseEvent('mouseDown'));
+        stage._clickTarget._dispatchEvent(new flash.events.MouseEvent('mouseDown'));
       }
     });
     canvas.addEventListener('mousemove', function (domEvt) {
@@ -100,30 +124,50 @@ SWF.embed = function(file, doc, container, options) {
         do {
           left += node.offsetLeft;
           top += node.offsetTop;
-        } while (node = node.offsetParent);
+        } while ((node = node.offsetParent));
       }
 
       var canvasState = stage._canvasState;
       stage._mouseX = ((domEvt.pageX - left) * pixelRatio - canvasState.offsetX) /
-        canvasState.scale;
+        canvasState.scaleX;
       stage._mouseY = ((domEvt.pageY - top) * pixelRatio - canvasState.offsetY) /
-        canvasState.scale;
+        canvasState.scaleY;
+      stage._mouseMoved = true;
     });
     canvas.addEventListener('mouseup', function () {
+      stage._mouseMoved = true;
       if (stage._clickTarget) {
-        stage._clickTarget.dispatchEvent(new flash.events.MouseEvent('mouseUp'));
+        stage._clickTarget._dispatchEvent(new flash.events.MouseEvent('mouseUp'));
       }
     });
     canvas.addEventListener('mouseover', function () {
+      stage._mouseMoved = true;
       stage._mouseOver = true;
       stage._mouseJustLeft = false;
     });
     canvas.addEventListener('mouseout', function () {
+      stage._mouseMoved = true;
       stage._mouseOver = false;
       stage._mouseJustLeft = true;
     });
 
     var bgcolor = loaderInfo._backgroundColor;
+    if (options.objectParams) {
+      var m;
+      if (options.objectParams.bgcolor &&
+          (m = /#([0-9A-F]{6})/i.exec(options.objectParams.bgcolor))) {
+        var hexColor = parseInt(m[1], 16);
+        bgcolor = {
+          red: (hexColor >> 16) & 255,
+          green: (hexColor >> 8) & 255,
+          blue: hexColor & 255,
+          alpha: 255
+        };
+      }
+      if (options.objectParams.wmode === 'transparent') {
+        bgcolor = {red: 0, green: 0, blue: 0, alpha: 0};
+      }
+    }
     stage._color = bgcolor;
 
     ctx.fillStyle = toStringRgba(bgcolor);
@@ -133,8 +177,8 @@ SWF.embed = function(file, doc, container, options) {
     stage._children[0] = root;
     stage._control.appendChild(root._control);
 
-    root.dispatchEvent(new flash.events.Event("added"));
-    root.dispatchEvent(new flash.events.Event("addedToStage"));
+    root._dispatchEvent(new flash.events.Event("added"));
+    root._dispatchEvent(new flash.events.Event("addedToStage"));
 
     syncCursor();
 
@@ -144,14 +188,14 @@ SWF.embed = function(file, doc, container, options) {
       options.onStageInitialized(stage);
     }
 
-    renderStage(stage, ctx, options.onBeforeFrame, options.onFrame);
+    renderStage(stage, ctx, options);
   });
 
   if (options.onComplete) {
-    loaderInfo.addEventListener("complete", function () {
+    loaderInfo._addEventListener("complete", function () {
       options.onComplete();
     });
   }
 
-  loader._load({url:file});
+  loader._load(typeof file === 'string' ? new flash.net.URLRequest(file) : file);
 };

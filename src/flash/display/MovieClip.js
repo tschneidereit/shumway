@@ -1,18 +1,41 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global MP3DecoderSession, AS2MovieClip, $DEBUG */
+
 var MovieClipDefinition = (function () {
   var def = {
     __class__: 'flash.display.MovieClip',
 
     initialize: function () {
       this._currentFrame = 0;
+      this._actualFrame = 0;
       this._currentFrameLabel = null;
       this._currentLabel = false;
-      this._currentScene = { };
+      this._currentScene = 0;
+      this._deferScriptExecution = false;
       this._enabled = null;
       this._frameScripts = { };
-      this._frameLabels = { };
       this._framesLoaded = 1;
       this._isPlaying = true;
-      this._scenes = { };
+      this._labelMap = { };
+      this._sceneFrameMap = { };
+      this._sceneMap = { };
+      this._scenes = [];
       this._timeline = null;
       this._totalFrames = 1;
       this._startSoundRegistrations = [];
@@ -21,14 +44,33 @@ var MovieClipDefinition = (function () {
       if (s) {
         this._timeline = s.timeline || null;
         this._framesLoaded = s.framesLoaded || 1;
-        this._frameLabels = Object.create(s.frameLabels || null);
+        this._labelMap = Object.create(s.labelMap || null);
         this._frameScripts = Object.create(s.frameScripts || null);
         this._totalFrames = s.totalFrames || 1;
         this._startSoundRegistrations = s.startSoundRegistrations || [];
+
+        if (s.scenes) {
+          this._scenes = s.scenes;
+        } else {
+          var map = this._labelMap;
+          var labels = [];
+          for (var name in map) {
+            var frame = map[name];
+            labels.push(new flash.display.FrameLabel(name, frame));
+          }
+          var scene = new flash.display.Scene('Scene 1', labels, this._totalFrames);
+          this._scenes = [scene];
+        }
       }
+
+      this._onConstructFrame = function () {
+        this._gotoFrame(this._currentFrame % this._totalFrames + 1);
+      }.bind(this);
+      this._addEventListener('constructFrame', this._onConstructFrame);
     },
 
     _callFrame: function (frameNum) {
+      this._deferScriptExecution = true;
       if (frameNum in this._frameScripts) {
         var scripts = this._frameScripts[frameNum];
         for (var i = 0, n = scripts.length; i < n; i++) {
@@ -36,19 +78,23 @@ var MovieClipDefinition = (function () {
             try {
               scripts[i].call(this);
             } catch (e) {
-              log('error ' + e + ', stack: \n' + e.stack);
+              console.error('error ' + e + ', stack: \n' + e.stack);
             }
           } else {
             scripts[i].call(this);
           }
         }
       }
+      this._deferScriptExecution = false;
+      if (this._actualFrame !== this._currentFrame) {
+        this._gotoFrame(this._actualFrame);
+      }
     },
     _as2CallFrame: function (frame) {
       if (isNaN(frame)) {
-        var frameLabel = this._frameLabels[frame];
-        if (frameLabel) {
-          this._callFrame(frameLabel.frame);
+        var frameNum = this._labelMap[frame];
+        if (frameNum !== undefined) {
+          this._callFrame(frameNum);
         }
       } else {
         this._callFrame(frame);
@@ -72,6 +118,12 @@ var MovieClipDefinition = (function () {
 
       if (frameNum === currentFrame)
         return;
+
+      this._actualFrame = frameNum;
+
+      if (this._deferScriptExecution) {
+        return;
+      }
 
       this._markAsDirty();
 
@@ -109,9 +161,10 @@ var MovieClipDefinition = (function () {
                 children.splice(currentIndex, 1);
 
                 this._control.removeChild(currentChild._control);
-                currentChild.dispatchEvent(new flash.events.Event("removed"));
+                currentChild._dispatchEvent(new flash.events.Event("removed"));
                 if (this.stage)
-                    currentChild._removedFromStage();
+                    currentChild._removedFromStage(new flash.events.Event("removedFromStage"));
+                currentChild.destroy();
               }
             } else if (cmd !== currentListCmd) {
               if (currentChild &&
@@ -119,7 +172,7 @@ var MovieClipDefinition = (function () {
                   cmd.ratio === currentListCmd.ratio) {
                 if (currentChild._animated) {
                   if (cmd.hasClipDepth)
-                    child._clipDepth = cmd.clipDepth;
+                    currentChild._clipDepth = cmd.clipDepth;
 
                   if (cmd.hasMatrix) {
                     var m = cmd.matrix;
@@ -151,9 +204,10 @@ var MovieClipDefinition = (function () {
                   replace = true;
 
                   this._control.removeChild(currentChild._control);
-                  currentChild.dispatchEvent(new flash.events.Event("removed"));
+                  currentChild._dispatchEvent(new flash.events.Event("removed"));
                   if (this.stage)
-                    currentChild._removedFromStage();
+                    currentChild._removedFromStage(new flash.events.Event("removedFromStage"));
+                  currentChild.destroy();
                 }
 
                 this._addTimelineChild(cmd, index, replace);
@@ -235,7 +289,7 @@ var MovieClipDefinition = (function () {
               avm2.applicationDomain.getClass(symbolInfo.className);
 
             var soundObj = symbolClass.createAsSymbol(symbolInfo.props);
-            symbolClass.instance.call(soundObj);
+            symbolClass.instanceConstructor.call(soundObj);
             sounds[symbolId] = sound = { object: soundObj };
           }
 
@@ -259,7 +313,7 @@ var MovieClipDefinition = (function () {
             avm2.applicationDomain.getClass(className);
 
           var sound = symbolClass.createAsSymbol(this._soundStream.data);
-          symbolClass.instance.call(sound);
+          symbolClass.instanceConstructor.call(sound);
           var channel = sound.play();
           this._soundStream.sound = sound;
           this._soundStream.channel = channel;
@@ -277,10 +331,10 @@ var MovieClipDefinition = (function () {
       return this._currentLabel;
     },
     get currentLabels() {
-      return this._currentScene.labels;
+      return this._scenes[this._currentScene].labels;
     },
     get currentScene() {
-      return this._currentScene;
+      return this._scenes[this._currentScene];
     },
     get enabled() {
       return this._enabled;
@@ -293,6 +347,9 @@ var MovieClipDefinition = (function () {
     },
     get totalFrames() {
       return this._totalFrames;
+    },
+    get scenes() {
+      return this._scenes;
     },
     get trackAsMenu() {
       return false;
@@ -315,20 +372,12 @@ var MovieClipDefinition = (function () {
           frameScripts[frameNum] = [fn];
       }
     },
-    _addToPendingScripts: function (fn) {
-      if (this._stage == null) {
-        // HACK called from the constructor, applying _gotoFrame frame at once?
-        return fn();
-      }
-      return this._stage._pendingScripts.push(fn);
-    },
     gotoAndPlay: function (frame, scene) {
       this.play();
       if (isNaN(frame)) {
         this.gotoLabel(frame);
       } else {
-        this._addToPendingScripts(
-          this._gotoFrame.bind(this, frame));
+        this._gotoFrame(frame);
       }
     },
     gotoAndStop: function (frame, scene) {
@@ -336,15 +385,13 @@ var MovieClipDefinition = (function () {
       if (isNaN(frame)) {
         this.gotoLabel(frame);
       } else if (this._stage) {
-        this._addToPendingScripts(
-          this._gotoFrame.bind(this, frame));
+        this._gotoFrame(frame);
       }
     },
     gotoLabel: function (labelName) {
-      var frameLabel = this._frameLabels[labelName];
-      if (frameLabel && this._stage) {
-        this._addToPendingScripts(
-          this._gotoFrame.bind(this, frameLabel.frame));
+      var frameNum = this._labelMap[labelName];
+      if (frameNum !== undefined && this._stage) {
+        this._gotoFrame(frameNum);
       }
     },
     isPlaying: function () {
@@ -352,30 +399,29 @@ var MovieClipDefinition = (function () {
     },
     nextFrame: function () {
       this.stop();
-      this._addToPendingScripts(function () {
-        this._gotoFrame(this._currentFrame % this._totalFrames + 1);
-      }.bind(this));
-    },
-    _renderNextFrame: function () {
       this._gotoFrame(this._currentFrame % this._totalFrames + 1);
     },
     nextScene: function () {
       notImplemented();
     },
     play: function () {
-      this._isPlaying = true;
+      if (!this._isPlaying) {
+        this._isPlaying = true;
+        this._addEventListener('constructFrame', this._onConstructFrame);
+      }
     },
     prevFrame: function () {
       this.stop();
-      this._addToPendingScripts(function () {
-        this._gotoFrame(this._currentFrame > 1 ? this._currentFrame - 1 : this._totalFrames);
-      }.bind(this));
+      this._gotoFrame(this._currentFrame > 1 ? this._currentFrame - 1 : this._totalFrames);
     },
     prevScene: function () {
       notImplemented();
     },
     stop: function () {
-      this._isPlaying = false;
+      if (this._isPlaying) {
+        this._isPlaying = false;
+        this._removeEventListener('constructFrame', this._onConstructFrame);
+      }
     }
   };
 

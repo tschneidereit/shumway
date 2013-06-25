@@ -1,4 +1,21 @@
-/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 4 -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 var domainOptions = systemOptions.register(new OptionSet("Domain Options"));
 var traceClasses = domainOptions.register(new Option("tc", "traceClasses", "boolean", false, "trace class creation"));
 var traceDomain = domainOptions.register(new Option("tdpa", "traceDomain", "boolean", false, "trace domain property access"));
@@ -17,7 +34,7 @@ function executeScript(script) {
     print("Executing: " + abc.name + " " + script);
   }
   release || assert(!script.executing && !script.executed);
-  var global = new Global(abc.runtime, script);
+  var global = new Global(script);
   if (abc.domain.allowNatives) {
     global[Multiname.getPublicQualifiedName("unsafeJSNative")] = getNative;
   }
@@ -25,9 +42,9 @@ function executeScript(script) {
   var scope = new Scope(null, script.global);
   // XXX interpreted methods populate stack with every call, compiled don't
   // pushing current runtime to the stack, so Runtime.currentDomain is successful
-  Runtime.stack.push(abc.runtime);
-  abc.runtime.createFunction(script.init, scope).call(script.global);
-  Runtime.stack.pop();
+  AVM2.domainStack.push(abc.domain);
+  createFunction(script.init, scope).call(script.global);
+  AVM2.domainStack.pop();
   script.executed = true;
 }
 
@@ -39,6 +56,11 @@ function ensureScriptIsExecuted(script, reason) {
     executeScript(script);
   }
 }
+
+var Glue = createEmptyObject();
+Glue.PUBLIC_PROPERTIES = 0x1;
+Glue.PUBLIC_METHODS    = 0x2;
+Glue.ALL               = Glue.PUBLIC_PROPERTIES | Glue.PUBLIC_METHODS;
 
 var Domain = (function () {
 
@@ -56,13 +78,13 @@ var Domain = (function () {
     this.loadedClasses = [];
 
     // Classes cache.
-    this.classCache = Object.create(null);
+    this.classCache = createEmptyObject();
 
     // Script cache.
-    this.scriptCache = Object.create(null);
+    this.scriptCache = createEmptyObject();
 
     // Class Info cache.
-    this.classInfoCache = Object.create(null);
+    this.classInfoCache = createEmptyObject();
 
     // Our parent.
     this.base = base;
@@ -73,8 +95,9 @@ var Domain = (function () {
     // Do we compile or interpret?
     this.mode = mode;
 
-    // Storage for custom natives
-    this.natives = {};
+    this.onClassCreated = new Callback();
+
+    this.onMessage = new Callback();
 
     // If we are the system domain (the root), we should initialize the Class
     // and MethodClosure classes.
@@ -82,231 +105,6 @@ var Domain = (function () {
       this.system = base.system;
     } else {
       this.system = this;
-
-      var OWN_INITIALIZE   = 0x1;
-      var SUPER_INITIALIZE = 0x2;
-
-      var Class = this.Class = function Class(name, instance, callable) {
-        this.debugName = name;
-
-        if (instance) {
-          release || assert(instance.prototype);
-          this.instance = instance;
-          this.instanceNoInitialize = instance;
-          this.hasInitialize = 0;
-          this.instance.class = this;
-        }
-
-        if (!callable) {
-          callable = Domain.coerceCallable(this);
-        } else if (callable === Domain.coerceCallable) {
-          callable = Domain.coerceCallable(this);
-        }
-        defineNonEnumerableProperty(this, "call", callable.call);
-        defineNonEnumerableProperty(this, "apply", callable.apply);
-      };
-
-      Class.prototype = {
-        forceConstify: true,
-
-        setSymbol: function setSymbol(props) {
-          this.instance.prototype.symbol = props;
-        },
-
-        getSymbol: function getSymbol() {
-          return this.instance.prototype.symbol;
-        },
-
-        initializeInstance: function initializeInstance(obj) {
-          // Initialize should be nullary and nonrecursive. If the script
-          // needs to pass in script objects to native land, there's usually a
-          // ctor function.
-          var c = this;
-          var initializes = [];
-          while (c) {
-            if (c.hasInitialize & OWN_INITIALIZE) {
-              initializes.push(c.instance.prototype.initialize);
-            }
-            c = c.baseClass;
-          }
-          var s;
-          while ((s = initializes.pop())) {
-            s.call(obj);
-          }
-          Counter.count("Initialize: " + this.classInfo.instanceInfo.name);
-        },
-
-        createInstance: function createInstance(args) {
-          var o = Object.create(this.instance.prototype);
-          this.instance.apply(o, args);
-          return o;
-        },
-
-        createAsSymbol: function createAsSymbol(props) {
-          var o = Object.create(this.instance.prototype);
-          // Custom classes will have already have .symbol linked.
-          if (o.symbol) {
-            var symbol = Object.create(o.symbol);
-            for (var prop in props) {
-              symbol[prop] = props[prop];
-            }
-            o.symbol = symbol;
-          } else {
-            o.symbol = props;
-          }
-          return o;
-        },
-
-        extendBuiltin: function(baseClass) {
-          // Some natives handle their own prototypes/it's impossible to do the
-          // traits/public prototype BS, e.g. Object, Array, etc.
-          // FIXME: This is technically non-semantics preserving.
-          this.baseClass = baseClass;
-          this.dynamicPrototype = this.instance.prototype;
-          defineNonEnumerableProperty(this.dynamicPrototype, Multiname.getPublicQualifiedName("constructor"), this);
-        },
-
-        extend: function (baseClass) {
-          release || assert (baseClass);
-          this.baseClass = baseClass;
-          this.dynamicPrototype = Object.create(baseClass.dynamicPrototype);
-          if (baseClass.hasInitialize) {
-            var instanceNoInitialize = this.instance;
-            var self = this;
-            this.instance = function () {
-              self.initializeInstance(this);
-              instanceNoInitialize.apply(this, arguments);
-            };
-            this.instance.class = instanceNoInitialize.class;
-            this.hasInitialize |= SUPER_INITIALIZE;
-          }
-          this.instance.prototype = Object.create(this.dynamicPrototype);
-          defineNonEnumerableProperty(this.dynamicPrototype, Multiname.getPublicQualifiedName("constructor"), this);
-          defineReadOnlyProperty(this.instance.prototype, "class", this);
-        },
-
-        link: function (definition) {
-          release || assert(this.dynamicPrototype);
-
-          function glueProperties(obj, props) {
-            var keys = Object.keys(props);
-            for (var i = 0, j = keys.length; i < j; i++) {
-              var p = keys[i];
-              var propName = props[p];
-              assert (typeof propName === "string", "Make sure it's not a function.");
-              var qn = Multiname.getQualifiedName(Multiname.fromSimpleName(propName));
-              release || assert(typeof qn === "string");
-              var desc = Object.getOwnPropertyDescriptor(obj, qn);
-              if (desc && desc.get) {
-                Object.defineProperty(obj, p, desc);
-              } else {
-                Object.defineProperty(obj, p, {
-                  get: new Function("", "return this." + qn),
-                  set: new Function("v", "this." + qn + " = v")
-                });
-              }
-            }
-          }
-
-          if (definition.initialize) {
-            if (!this.hasInitialize) {
-              var instanceNoInitialize = this.instance;
-              var self = this;
-              this.instance = function () {
-                self.initializeInstance(this);
-                instanceNoInitialize.apply(this, arguments);
-              };
-              this.instance.class = instanceNoInitialize.class;
-              this.instance.prototype = instanceNoInitialize.prototype;
-            }
-            this.hasInitialize |= OWN_INITIALIZE;
-          }
-
-          var proto = this.dynamicPrototype;
-          var keys = Object.keys(definition);
-          for (var i = 0, j = keys.length; i < j; i++) {
-            var p = keys[i];
-            Object.defineProperty(proto, p, Object.getOwnPropertyDescriptor(definition, p));
-          }
-
-          var glue = definition.__glue__;
-          if (!glue)
-            return;
-
-          // Accessors for script properties from within AVM2.
-          if (glue.script) {
-            if (glue.script.instance) {
-              glueProperties(proto, glue.script.instance);
-            }
-            if (glue.script.static) {
-              glueProperties(this, glue.script.static);
-            }
-          }
-
-          // Binding to member methods marked as [native].
-          this.native = glue.native;
-        },
-
-        extendNative: function (baseClass, native) {
-          this.baseClass = baseClass;
-          this.dynamicPrototype = Object.getPrototypeOf(native.prototype);
-          this.instance.prototype = native.prototype;
-          defineNonEnumerableProperty(this.dynamicPrototype, Multiname.getPublicQualifiedName("constructor"), this);
-          defineReadOnlyProperty(this.instance.prototype, "class", this);
-        },
-
-        coerce: function (value) {
-          return value;
-        },
-
-        isInstanceOf: function (value) {
-          // TODO: Fix me.
-          return this.isInstance(value);
-        },
-
-        isInstance: function (value) {
-          if (value === null || typeof value !== "object") {
-            return false;
-          }
-          return this.dynamicPrototype.isPrototypeOf(value);
-        },
-
-        toString: function () {
-          return "[class " + this.classInfo.instanceInfo.name.name + "]";
-        }
-      };
-
-      var callable = Domain.coerceCallable(Class);
-      defineNonEnumerableProperty(Class, "call", callable.call);
-      defineNonEnumerableProperty(Class, "apply", callable.apply);
-
-      Class.instance = Class;
-      Class.toString = Class.prototype.toString;
-
-      // Traits are below the dynamic instant prototypes,
-      // i.e. this.dynamicPrototype === Object.getPrototypeOf(this.instance.prototype)
-      // and we cache the dynamic instant prototype as this.dynamicPrototype.
-      //
-      // Traits are not visible to the AVM script.
-      Class.native = {
-        instance: {
-          prototype: {
-            get: function () { return this.dynamicPrototype; }
-          }
-        }
-      };
-
-      var MethodClosure = this.MethodClosure = function MethodClosure($this, fn) {
-        var bound = fn.bind($this);
-        defineNonEnumerableProperty(this, "call", bound.call.bind(bound));
-        defineNonEnumerableProperty(this, "apply", bound.apply.bind(bound));
-      };
-
-      MethodClosure.prototype = {
-        toString: function () {
-          return "function Function() {}";
-        }
-      };
     }
   }
 
@@ -333,13 +131,13 @@ var Domain = (function () {
     };
   };
 
-  Domain.constructingCallable = function constructingCallable(instance) {
+  Domain.constructingCallable = function constructingCallable(instanceConstructor) {
     return {
       call: function ($this) {
-        return new Function.bind.apply(instance, arguments);
+        return new Function.bind.apply(instanceConstructor, arguments);
       },
       apply: function ($this, args) {
-        return new Function.bind.apply(instance, [$this].concat(args));
+        return new Function.bind.apply(instanceConstructor, [$this].concat(args));
       }
     };
   };
@@ -352,7 +150,7 @@ var Domain = (function () {
           // console.info("Getting " + multiname + " but script is not executed");
           return undefined;
         }
-        return resolved.script.global[Multiname.getQualifiedName(resolved.name)];
+        return resolved.script.global[Multiname.getQualifiedName(resolved.trait.name)];
       }
       if (strict) {
         return unexpected("Cannot find property " + multiname);
@@ -367,7 +165,7 @@ var Domain = (function () {
       if (!c) {
         c = cache[simpleName] = this.getProperty(Multiname.fromSimpleName(simpleName), true, true);
       }
-      release || assert(c instanceof this.system.Class);
+      release || assert(c instanceof Class);
       return c;
     },
 
@@ -395,19 +193,28 @@ var Domain = (function () {
     },
 
     findClassInfo: function findClassInfo(mn) {
-      release || Multiname.isQName(mn);
-      var qn = Multiname.getQualifiedName(mn);
-
-      var ci = this.classInfoCache[qn];
-      if (ci) {
-        return ci;
+      var originalQn; // Remember for later in this function
+      if (Multiname.isQName(mn)) {
+        // This deals with the case where mn is already a qn.
+        originalQn = Multiname.getQualifiedName(mn);
+        var ci = this.classInfoCache[originalQn];
+        if (ci) {
+          return ci;
+        }
+      } else {
+        var ci = this.classInfoCache[mn.id];
+        if (ci) {
+          return ci;
+        }
       }
       if (this.base) {
+        // Recurse with the mn as is.
         ci = this.base.findClassInfo(mn);
         if (ci) {
           return ci;
         }
       }
+      // The class info may be among the loaded ABCs, go looking for it.
       var abcs = this.abcs;
       for (var i = 0; i < abcs.length; i++) {
         var abc = abcs[i];
@@ -417,14 +224,26 @@ var Domain = (function () {
           var traits = script.traits;
           for (var k = 0; k < traits.length; k++) {
             var trait = traits[k];
-            if (trait.isClass() && Multiname.getQualifiedName(trait.name) == qn) {
-              return (this.classInfoCache[qn] = trait.classInfo);
+            if (trait.isClass()) {
+              var traitName = Multiname.getQualifiedName(trait.name);
+              // So here mn is either a Multiname or a QName.
+              if (originalQn) {
+                if (traitName === originalQn) {
+                  return (this.classInfoCache[originalQn] = trait.classInfo);
+                }
+              } else {
+                for (var m = 0, n = mn.namespaces.length; m < n; m++) {
+                  var qn = mn.getQName(m);
+                  if (traitName === Multiname.getQualifiedName(qn)) {
+                    return (this.classInfoCache[qn] = trait.classInfo);
+                  }
+                }
+              }
             }
           }
         }
       }
-
-      // Ask host to load the defining ABC
+      // Still no luck, so let's ask host to load the defining ABC and try again.
       if (!this.base && this.vm.findDefiningAbc) {
         var abc = this.vm.findDefiningAbc(mn);
         if (abc !== null && !this.loadedAbcs[abc.name]) {
@@ -433,7 +252,6 @@ var Domain = (function () {
           return this.findClassInfo(mn);
         }
       }
-
       return undefined;
     },
 
@@ -478,7 +296,7 @@ var Domain = (function () {
                 if (execute) {
                   ensureScriptIsExecuted(script, trait.name);
                 }
-                return (this.scriptCache[mn.id] = { script: script, name: trait.name });
+                return (this.scriptCache[mn.id] = { script: script, trait: trait });
               }
             }
           } else {
@@ -504,9 +322,6 @@ var Domain = (function () {
       console.time("Execute ABC: " + abc.name);
       this.loadAbc(abc);
       executeScript(abc.lastScript);
-      if (traceClasses.value) {
-        this.traceLoadedClasses();
-      }
       console.timeEnd("Execute ABC: " + abc.name);
     },
 
@@ -516,7 +331,17 @@ var Domain = (function () {
       }
       abc.domain = this;
       this.abcs.push(abc);
-      abc.runtime = new Runtime(abc);
+      if (!this.base) {
+        Type.initializeTypes(this);
+      }
+    },
+
+    broadcastMessage: function (message, origin) {
+      this.onMessage.notify({
+        data: message,
+        origin: origin,
+        source: this
+      });
     },
 
     _getScriptObject: function () {
@@ -528,54 +353,16 @@ var Domain = (function () {
       return this.scriptObject;
     },
 
-    traceLoadedClasses: function () {
+    traceLoadedClasses: function (lastOnly) {
       var writer = new IndentingWriter();
-      function traceProperties(obj) {
-        for (var key in obj) {
-          var str = key;
-          var descriptor = Object.getOwnPropertyDescriptor(obj, key);
-          if (descriptor) {
-            if (descriptor.get) {
-              str += " getter";
-            }
-            if (descriptor.set) {
-              str += " setter";
-            }
-            if (descriptor.value) {
-              var value = obj[key];
-              if (value instanceof Scope) {
-                str += ": ";
-                var scope = value;
-                while (scope) {
-                  release || assert(scope.object);
-                  str += scope.object.debugName || "T";
-                  if ((scope = scope.parent)) {
-                    str += " <: ";
-                  }
-                }
-              } else if (value instanceof Function) {
-                str += ": " + (value.name ? value.name : "anonymous");
-              } else if (value) {
-                str += ": " + value;
-              }
-            }
-          }
-          writer.writeLn(str);
+      lastOnly || writer.enter("Loaded Classes And Interfaces");
+      var classes = lastOnly ? [this.loadedClasses.last()] : this.loadedClasses;
+      classes.forEach(function (cls) {
+        if (cls !== Class) {
+          cls.trace(writer);
         }
-      }
-      writer.enter("Loaded Classes");
-      this.loadedClasses.forEach(function (cls) {
-        var description = cls.debugName + (cls.baseClass ? " extends " + cls.baseClass.debugName : "");
-        writer.enter(description + " {");
-        writer.enter("instance");
-        traceProperties(cls.prototype);
-        writer.leave("");
-        writer.enter("static");
-        traceProperties(cls);
-        writer.leave("");
-        writer.leave("}");
       });
-      writer.leave("");
+      lastOnly || writer.leave("");
     }
   };
 

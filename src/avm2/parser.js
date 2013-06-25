@@ -1,4 +1,21 @@
-/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 4 -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 var AbcStream = (function () {
   function abcStream(bytes) {
     this.bytes = bytes;
@@ -272,15 +289,15 @@ var Trait = (function () {
     if (str) {
       str += " ";
     }
-    str += Multiname.getQualifiedName(this.name) + ", kind: " + this.kind;
+    str += Multiname.getQualifiedName(this.name);
     switch (this.kind) {
       case TRAIT_Slot:
       case TRAIT_Const:
-        return str + ", slotId: " + this.slotId + ", typeName: " + this.typeName + ", value: " + this.value;
+        return str + ", typeName: " + this.typeName + ", slotId: " + this.slotId + ", value: " + this.value;
       case TRAIT_Method:
       case TRAIT_Setter:
       case TRAIT_Getter:
-        return str + ", method: " + this.methodInfo + ", dispId: " + this.dispId;
+        return str + ", " + this.kindName() + ": " + this.methodInfo.name;
       case TRAIT_Class:
         return str + ", slotId: " + this.slotId + ", class: " + this.classInfo;
       case TRAIT_Function: // TODO
@@ -313,10 +330,13 @@ var ShumwayNamespace = (function () {
   var MIN_API_MARK              = 0xe294;
   var MAX_API_MARK              = 0xf8ff;
 
-  function namespace(kind, uri) {
+  function namespace(kind, uri, prefix) {
     if (kind !== undefined) {
       if (uri === undefined) {
         uri = "";
+      }
+      if (prefix !== undefined) {
+        this.prefix = prefix;
       }
       this.kind = kind;
       this.originalURI = this.uri = uri;
@@ -338,7 +358,6 @@ var ShumwayNamespace = (function () {
         this.uri = this.uri.substring(0, n - 1);
       }
     } else if (this.isUnique()) {
-      // Make a psuedo unique id by concatenating current milliseconds to original uri
       this.uri = String(this.uri + uniqueNamespaceCounter++);
     }
     this.uri = mangleNamespaceURI(this.uri);
@@ -353,8 +372,8 @@ var ShumwayNamespace = (function () {
     return uri;
   }
 
-  var uriToMangledNameMap = Object.create(null);
-  var mangledNameToURIMap = Object.create(null);
+  var uriToMangledNameMap = createEmptyObject();
+  var mangledNameToURIMap = createEmptyObject();
   var mangledNameList = [];
   var MANGLE_NAMESPACES = true;
 
@@ -402,8 +421,8 @@ var ShumwayNamespace = (function () {
     return release || assert(false, "Cannot find kind " + str);
   };
 
-  namespace.createNamespace = function createNamespace(uri) {
-    return new namespace(CONSTANT_Namespace, uri);
+  namespace.createNamespace = function createNamespace(uri, prefix) {
+    return new namespace(CONSTANT_Namespace, uri, prefix);
   };
 
   namespace.prototype = Object.create({
@@ -452,7 +471,8 @@ var ShumwayNamespace = (function () {
 
     getAccessModifier: function getAccessModifier() {
       return kinds[this.kind];
-    }
+    },
+
   });
 
   namespace.PUBLIC = new namespace(CONSTANT_Namespace);
@@ -557,12 +577,18 @@ var Multiname = (function () {
   var nextID = 1;
   var PUBLIC_QUALIFIED_NAME_PREFIX = "public$$";
   function multiname(namespaces, name, flags) {
+    if (name !== undefined) {
+      assert (name === null || isString(name), "Multiname name must be a string. " + name);
+      // assert (!isNumeric(name), "Multiname name must not be numeric: " + name);
+    }
     this.id = nextID ++;
     this.namespaces = namespaces;
     this.name = name;
     this.flags = flags || 0;
   }
 
+  multiname.RUNTIME_NAME = RUNTIME_NAME;
+  multiname.ATTRIBUTE = ATTRIBUTE;
   multiname.parse = function parse(constantPool, stream, multinames, patchFactoryTypes) {
     var index = 0;
     var kind = stream.readU8();
@@ -656,17 +682,18 @@ var Multiname = (function () {
            mn instanceof Number;
   };
 
+  multiname.needsResolution = function (mn) {
+    return mn instanceof multiname && mn.namespaces.length > 1;
+  };
+
   /**
    * Tests if the specified value is a valid qualified name.
    */
   multiname.isQName = function (mn) {
-    if (typeof mn === "number" || typeof mn === "string" || mn instanceof Number) {
-      return true;
-    }
     if (mn instanceof multiname) {
       return mn.namespaces && mn.namespaces.length === 1;
     }
-    return false;
+    return true;
   };
 
   /**
@@ -694,17 +721,26 @@ var Multiname = (function () {
    * Gets the qualified name for this multiname, this is either the identity or
    * a mangled Multiname object.
    */
-  multiname.getQualifiedName = function getQualifiedName(mn) {
-    release || assert(multiname.isQName(mn));
-    if (typeof mn === "number" || typeof mn === "string" || mn instanceof Number) {
-      return mn;
-    } else {
-      return mn.qualifiedName || (mn.qualifiedName = qualifyName(mn.namespaces[0].qualifiedName, mn.name));
-    }
 
-    function qualifyName(qualifier, name) {
-      return qualifier ? qualifier + "$" + name : name;
+  function qualifyName(qualifier, name) {
+    release || assert (typeof name !== "object");
+    return qualifier ? qualifier + "$" + name : name;
+  }
+
+  multiname.getQualifiedName = function getQualifiedName(mn) {
+    release || assert (Multiname.isQName(mn));
+    if (mn instanceof Multiname) {
+      if (mn.qualifiedName !== undefined) {
+        return mn.qualifiedName;
+      }
+      var name = String(mn.name);
+      if (isNumeric(name)) {
+        release || assert (mn.namespaces[0].isPublic());
+        return mn.qualifiedName = name;
+      }
+      mn = mn.qualifiedName = qualifyName(mn.namespaces[0].qualifiedName, name);
     }
+    return mn;
   };
 
   /**
@@ -715,10 +751,7 @@ var Multiname = (function () {
     if (qn instanceof Multiname) {
       return qn;
     }
-    if (typeof qn === "number" || qn instanceof Number || isNumeric(qn)) {
-      return new Multiname(ShumwayNamespace.PUBLIC, qn);
-    }
-    assert (typeof qn === "string");
+    assert (typeof qn === "string" && !isNumeric(qn));
     var a = qn.indexOf("$");
     if (a < 0 || !(ShumwayNamespace.PREFIXES[qn.substring(0, a)])) {
       return undefined;
@@ -735,7 +768,7 @@ var Multiname = (function () {
   multiname.getFullQualifiedName = function getFullQualifiedName(mn) {
     var qn = multiname.getQualifiedName(mn);
     if (mn instanceof Multiname && mn.typeParameter) {
-      qn += "$" + multiname.getQualifiedName(mn.typeParameter);
+      qn += "$" + multiname.getFullQualifiedName(mn.typeParameter);
     }
     return qn;
   };
@@ -744,7 +777,10 @@ var Multiname = (function () {
   multiname.getPublicQualifiedName = function getPublicQualifiedName(name) {
     if (isNumeric(name)) {
       return Number(name);
+    } else if (name !== null && isObject(name)) {
+      return name;
     }
+    assert (isString(name) || isNullOrUndefined(name));
     return PUBLIC_QUALIFIED_NAME_PREFIX + name;
   };
 
@@ -778,18 +814,7 @@ var Multiname = (function () {
   };
 
   multiname.isAnyName = function isAnyName(mn) {
-    return typeof mn === "object" && !mn.isRuntimeName() && mn.name === undefined;
-  };
-
-  /**
-   * Helper function that creates multinames without allocating objects for numeric
-   * names.
-   */
-  multiname.getMultiname = function getMultiname(namespaces, name) {
-    if (isNumeric(name)) {
-      return name;
-    }
-    return new Multiname(namespaces, name);
+    return typeof mn === "object" && !mn.isRuntimeName() && !mn.name;
   };
 
   var simpleNameCache = {};
@@ -882,8 +907,16 @@ var Multiname = (function () {
   };
 
   multiname.prototype.getName = function getName() {
-    release || assert(!this.isAnyName() && !this.isRuntimeName());
     return this.name;
+  };
+
+  multiname.prototype.getOriginalName = function getOriginalName() {
+    release || assert(this.isQName());
+    var name = this.namespaces[0].originalURI;
+    if (name) {
+      name += ".";
+    }
+    return name + this.name;
   };
 
   multiname.prototype.getNamespace = function getNamespace() {
@@ -896,8 +929,13 @@ var Multiname = (function () {
     if (this.isAnyName()) {
       return "*";
     } else {
-      return this.isRuntimeName() ? "[]" : this.getName();
+      var name = this.getName();
+      return this.isRuntimeName() ? "[]" : name;
     }
+  };
+
+  multiname.prototype.hasObjectName = function hasObjectName() {
+    return typeof this.name === "object";
   };
 
   multiname.prototype.toString = function toString() {
@@ -1104,6 +1142,7 @@ var MethodInfo = (function () {
       }
     }
 
+    this.abc = abc;
     this.flags = flags;
     this.optionals = optionals;
     this.debugName = debugName;
@@ -1115,6 +1154,9 @@ var MethodInfo = (function () {
     toString: function toString() {
       var flags = getFlags(this.flags, "NEED_ARGUMENTS|NEED_ACTIVATION|NEED_REST|HAS_OPTIONAL|||SET_DXN|HAS_PARAM_NAMES".split("|"));
       return (flags ? flags + " " : "") + this.name;
+    },
+    hasOptional: function hasOptional() {
+      return !!(this.flags & METHOD_HasOptional);
     },
     needsActivation: function needsActivation() {
       return !!(this.flags & METHOD_Activation);
@@ -1150,6 +1192,7 @@ var MethodInfo = (function () {
     var methods = abc.methods;
 
     var info = methods[stream.readU30()];
+    info.hasBody = true;
     release || assert(!info.isNative());
     info.maxStack = stream.readU30();
     info.localCount = stream.readU30();
@@ -1219,6 +1262,7 @@ var InstanceInfo = (function () {
   var nextID = 1;
   function instanceInfo(abc, stream) {
     this.id = nextID ++;
+    this.abc = abc;
     var constantPool = abc.constantPool;
     var methods = abc.methods;
 
@@ -1236,6 +1280,7 @@ var InstanceInfo = (function () {
       this.interfaces[i] = constantPool.multinames[stream.readU30()];
     }
     this.init = methods[stream.readU30()];
+    this.init.isInstanceInitializer = true;
     this.init.name = this.name;
     attachHolder(this.init, this);
     this.traits = parseTraits(abc, stream, this);
@@ -1262,6 +1307,7 @@ var ClassInfo = (function () {
   var nextID = 1;
   function classInfo(abc, instanceInfo, stream) {
     this.id = nextID ++;
+    this.abc = abc;
     this.init = abc.methods[stream.readU30()];
     this.init.isClassInitializer = true;
     attachHolder(this.init, this);
@@ -1272,9 +1318,10 @@ var ClassInfo = (function () {
 
   function getDefaultValue(qn) {
     if (Multiname.getQualifiedName(qn) === Multiname.Int ||
-        Multiname.getQualifiedName(qn) === Multiname.Uint ||
-        Multiname.getQualifiedName(qn) === Multiname.Number) {
+        Multiname.getQualifiedName(qn) === Multiname.Uint) {
       return 0;
+    } else if (Multiname.getQualifiedName(qn) === Multiname.Number) {
+      return NaN;
     } else if (Multiname.getQualifiedName(qn) === Multiname.Boolean) {
       return false;
     } else {
@@ -1361,8 +1408,6 @@ var AbcFile = (function () {
     for (i = 0; i < n; ++i) {
       MethodInfo.parseBody(this, stream);
     }
-
-    InlineCacheManager.updateInlineCaches(this);
 
     console.timeEnd("Parse ABC: " + name);
   }

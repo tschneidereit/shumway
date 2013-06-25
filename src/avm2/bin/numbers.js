@@ -1,3 +1,21 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /**
  * Shumway AVM Testing Framework
  *
@@ -381,12 +399,16 @@ function runNextTest () {
         console.log("Executed in: " + totalTime + ", wrote: " + fileName);
         console.log(counts);
         console.log(padRight("=== DONE ", "=", 120));
+        var exitCode = 0;
         if (failedTests.length) {
           console.log(padRight("=== FAILED TESTS ", "=", 120));
           for (var i = 0; i < failedTests.length; i++) {
             console.log(failedTests[i]);
           }
           console.log(padRight("", "=", 120));
+          exitCode = 1;
+        } else {
+          console.log(padRight("=== SUCCESS: ALL TESTS PASSED ", "=", 120));
         }
         if (summary.value) {
           printSummary();
@@ -423,6 +445,7 @@ function runNextTest () {
             })(test);
           }
         }
+        process.exit(exitCode);
       });
     }
   }
@@ -456,6 +479,6 @@ if (!isWin) {
     if (summary.value) {
       printSummary();
     }
-    process.exit();
+    process.exit(2);
   });
 }

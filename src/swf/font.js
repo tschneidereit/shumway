@@ -1,4 +1,21 @@
-/* -*- mode: javascript; tab-width: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global max, min, log, pow, fromCharCode, keys */
 
 var nextFontId = 1;
 
@@ -19,6 +36,9 @@ function toString32(val) {
 }
 
 function defineFont(tag, dictionary) {
+  // Ignoring "['glyf'] is better written in dot notation"
+  /*jshint -W069 */
+
   var tables = { };
   var codes = [];
   var glyphIndex = { };
@@ -29,7 +49,7 @@ function defineFont(tag, dictionary) {
 
   if (tag.codes) {
     codes = codes.concat(tag.codes);
-    for (var i = 0, code; code = codes[i]; ++i)
+    for (var i = 0, code; (code = codes[i]); ++i)
       glyphIndex[code] = i;
     codes.sort(function(a, b) {
       return a - b;
@@ -168,7 +188,7 @@ function defineFont(tag, dictionary) {
     var xMax = -1024;
     var yMin = 1024;
     var yMax = -1024;
-    for (var j = 0, record; record = records[j]; ++j) {
+    for (var j = 0, record; (record = records[j]); ++j) {
       if (record.type) {
         if (record.isStraight) {
           if (record.isGeneral) {
@@ -396,7 +416,6 @@ function defineFont(tag, dictionary) {
       toString16(str.length) +
       toString16(offset);
       offset += str.length;
-    ;
   }
   tables['name'] = name + strings.join('');
 

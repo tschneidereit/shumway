@@ -1,3 +1,21 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 (function (exports) {
 
   var T = estransform;
@@ -106,7 +124,7 @@
     } else if (typeof value === "number") {
       return new Literal(value);
     } else {
-      unexpected("Cannot emit constant for value: " + value);
+      unexpected("Cannot emit constant for value: ", value);
     }
   }
 
@@ -222,7 +240,7 @@
 
   Context.prototype.compileLabelBody = function compileLabelBody(node) {
     var body = [];
-    if (node.label) {
+    if (node.label !== undefined) {
       this.useVariable(this.label);
       body.push(new ExpressionStatement(assignment(id(this.label.name), new Literal(node.label))));
     }
@@ -372,14 +390,14 @@
 
   function compileValue(value, cx, noVariable) {
     assert (value);
-    assert (value.compile, "Implement |compile| for " + value + " (" + value.nodeName + ")");
+    assert (value.compile, "Implement |compile| for ", value, " (", value.nodeName + ")");
     assert (cx instanceof Context);
     assert (!isArray(value));
     if (noVariable || !value.variable) {
       var node = value.compile(cx);
       return node;
     }
-    assert (value.variable, "Value has no variable: " + value);
+    assert (value.variable, "Value has no variable: ", value);
     return id(value.variable.name);
   }
 
@@ -458,11 +476,12 @@
   };
 
   IR.Binary.prototype.compile = function (cx) {
-    return new BinaryExpression (
-      this.operator.name,
-      compileValue(this.left, cx),
-      compileValue(this.right, cx)
-    );
+    var left = compileValue(this.left, cx);
+    var right = compileValue(this.right, cx);
+    if (this.operator === Operator.AVM2ADD) {
+      return call(id("avm2Add"), [left, right]);
+    }
+    return new BinaryExpression (this.operator.name, left, right);
   };
 
   IR.CallProperty.prototype.compile = function (cx) {
@@ -513,7 +532,7 @@
       return compileValue(arg, cx);
     });
     var callee = compileValue(this.callee, cx);
-    callee = property(callee, "instance");
+    callee = property(callee, "instanceConstructor");
     return new NewExpression(callee, args);
   };
 
@@ -610,10 +629,9 @@
   };
 
   IR.AVM2RuntimeMultiname.prototype.compile = function (cx) {
-    // CallExpression.call(this, property(id("Multiname"), "getMultiname"), [namespaces, name]);
     var namespaces = compileValue(this.namespaces, cx);
     var name = compileValue(this.name, cx);
-    return call(property(id("Multiname"), "getMultiname"), [namespaces, name]);
+    return call(id("createName"), [namespaces, name]);
   };
 
   function generateSource(node) {

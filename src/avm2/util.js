@@ -1,3 +1,20 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 var inBrowser = typeof console != "undefined";
 
@@ -46,7 +63,7 @@ function assertFalse(condition, message) {
 
 function assertNotImplemented(condition, message) {
   if (!condition) {
-    error(message);
+    error("NotImplemented: " + message);
   }
 }
 
@@ -59,23 +76,19 @@ function notImplemented(message) {
 }
 
 function somewhatImplemented(message) {
-  warning(message);
+  warning("somewhatImplemented: " + message);
 }
 
 function unexpected(message) {
-  release || assert(false, message);
+  release || assert(false, "Unexpected: " + message);
 }
 
 function makeForwardingGetter(target) {
-  return function () {
-    return this[target];
-  }
+  return new Function("return this[\"" + target + "\"]");
 }
 
 function makeForwardingSetter(target) {
-  return function (value) {
-    this[target] = value;
-  }
+  return new Function("value", "this[\"" + target + "\"] = value;");
 }
 
 function defineReadOnlyProperty(obj, name, value) {
@@ -83,6 +96,20 @@ function defineReadOnlyProperty(obj, name, value) {
                                      writable: false,
                                      configurable: true,  // XXX: make it non-configurable?
                                      enumerable: false });
+}
+
+/**
+ * Makes sure you never re-bind a method.
+ */
+function bindSafely(fn, obj) {
+  assert (!fn.boundTo && obj);
+  var f = fn.bind(obj);
+  f.boundTo = obj;
+  return f;
+}
+
+function createEmptyObject() {
+  return Object.create(null);
 }
 
 function getLatestGetterOrSetterPropertyDescriptor(obj, name) {
@@ -132,8 +159,23 @@ function defineNonEnumerableProperty(obj, name, value) {
                                      enumerable: false });
 }
 
+function defineNonEnumerableForwardingProperty(obj, name, otherName) {
+  Object.defineProperty(obj, name, {
+    get: makeForwardingGetter(otherName),
+    set: makeForwardingSetter(otherName),
+    writable: true,
+    configurable: true,
+    enumerable: false
+  });
+}
+
+function defineNewNonEnumerableProperty(obj, name, value) {
+  assert (!Object.prototype.hasOwnProperty.call(obj, name), "Property: " + name + " already exits.");
+  defineNonEnumerableProperty(obj, name, value);
+}
+
 function isNullOrUndefined(value) {
-  return value === null || value === undefined;
+  return value == undefined;
 }
 
 function isPowerOfTwo(x) {
@@ -148,6 +190,19 @@ function time(fn, count) {
   var time = (new Date() - start) / count;
   console.info("Took: " + time + "ms.");
   return time;
+}
+
+function clamp(x, min, max) {
+  if (x < min) {
+    return min;
+  } else if (x > max) {
+    return max;
+  }
+  return x;
+}
+
+function hasOwnProperty(object, name) {
+  return Object.prototype.hasOwnProperty.call(object, name);
 }
 
 /**
@@ -168,11 +223,53 @@ function toKeyValueArray(o) {
  * Checks for numeric values of the form: 1, "0123", "1.4", "+13", "+0x5".
  */
 function isNumeric(x) {
-  return typeof x === "number" || !isNaN(parseInt(x, 10));
+  if (typeof x === "number") {
+    return true;
+  } else if (typeof x === "string") {
+    return !isNaN(parseInt(x, 10));
+  }
+  return false;
 }
 
-function isString(string) {
-  return typeof string === "string";
+function boxValue(value) {
+  return Object(value);
+}
+
+function isObject(value) {
+  return typeof value === "object" || typeof value === 'function';
+}
+
+function isString(value) {
+  return typeof value === "string";
+}
+
+function isFunction(value) {
+  return typeof value === "function";
+}
+
+function isNumber(value) {
+  return typeof value === "number";
+}
+
+function toDouble(x) {
+  return Number(x);
+}
+
+function toBoolean(x) {
+  return !!x;
+}
+
+function toUint(x) {
+  var object = x | 0;
+  return object < 0 ? (object + 4294967296) : object;
+}
+
+function toInt(x) {
+  return x | 0;
+}
+
+function toString(x) {
+  return String(x);
 }
 
 function setBitFlags(flags, flag, value) {
@@ -877,10 +974,26 @@ var IndentingWriter = (function () {
     }
   };
 
-  indentingWriter.prototype.debugLn = function writeLn(str) {
+  indentingWriter.prototype.debugLn = function debugLn(str) {
+    this.colorLn(PURPLE, str);
+  };
+
+  indentingWriter.prototype.yellowLn = function yellowLn(str) {
+    this.colorLn(YELLOW, str);
+  };
+
+  indentingWriter.prototype.greenLn = function greenLn(str) {
+    this.colorLn(GREEN, str);
+  };
+
+  indentingWriter.prototype.redLn = function redLn(str) {
+    this.colorLn(RED, str);
+  };
+
+  indentingWriter.prototype.colorLn = function writeLn(color, str) {
     if (!this.suppressOutput) {
       if (!inBrowser) {
-        this.out(this.padding + PURPLE + str + ENDC);
+        this.out(this.padding + color + str + ENDC);
       } else {
         this.out(this.padding + str);
       }
@@ -1083,4 +1196,31 @@ var SortedList = (function() {
     }
   };
   this.WeakMap = WeakMap;
+})();
+
+var Callback = (function () {
+  function callback() {
+    this.queue = [];
+  }
+  callback.prototype.register = function register(callback) {
+    assert (callback);
+    this.queue.push(callback);
+  };
+  callback.prototype.unregister = function unregister(callback) {
+    assert (callback);
+    var i = this.queue.indexOf(callback);
+    if (i !== -1) {
+      this.queue.splice(i, 1);
+    }
+  };
+  callback.prototype.notify = function notify() {
+    var args = sliceArguments(arguments, 0);
+    var queue = this.queue;
+    for (var i = 0; i < queue.length; i++) {
+      Counter.count("callback.notify");
+      var callback = queue[i];
+      callback.apply(null, args);
+    }
+  };
+  return callback;
 })();

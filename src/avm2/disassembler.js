@@ -1,3 +1,21 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 var disassemblerOptions = systemOptions.register(new OptionSet("Disassembler Options"));
 
 var filter = disassemblerOptions.register(new Option("f", "filter", "string", "SpciMsmNtu", "[S]ource, constant[p]ool, [c]lasses, [i]nstances, [M]etadata, [s]cripts, [m]ethods, multi[N]ames, S[t]atistics, [u]tf"));
@@ -161,7 +179,8 @@ function traceOperands(opcode, abc, code, rewind) {
   return str;
 }
 
-MethodInfo.prototype.trace = function trace(writer, abc) {
+MethodInfo.prototype.trace = function trace(writer) {
+  var abc = this.abc;
   writer.enter("method" + (this.name ? " " + this.name : "") + " {");
   writer.writeLn("flags: " + getFlags(this.flags, "NEED_ARGUMENTS|NEED_ACTIVATION|NEED_REST|HAS_OPTIONAL||NATIVE|SET_DXN|HAS_PARAM_NAMES".split("|")));
   writer.writeLn("parameters: " + this.parameters.map(function (x) {
@@ -361,8 +380,8 @@ var SourceTracer = (function () {
 
       writer.writeLn("Cut and paste the following into `native.js' and edit accordingly");
       writer.writeLn("8< --------------------------------------------------------------");
-      writer.enter("natives." + native.cls + " = function " + native.cls + "(runtime, scope, instance, baseClass) {");
-      writer.writeLn("var c = new runtime.domain.system.Class(\"" + name + "\", instance, Domain.passthroughCallable(instance));");
+      writer.enter("natives." + native.cls + " = function " + native.cls + "(runtime, scope, instanceConstructor, baseClass) {");
+      writer.writeLn("var c = new Class(\"" + name + "\", instanceConstructor, Domain.passthroughCallable(instanceConstructor));");
       writer.writeLn("c.extend(baseClass);\n");
 
       function traceTraits(traits, isStatic) {
@@ -458,7 +477,7 @@ var SourceTracer = (function () {
         // var methods = traits.methods;
 
         var methods = [];
-        var gettersAndSetters = Object.create(null);
+        var gettersAndSetters = createEmptyObject();
 
         traits.methods.forEach(function (trait, i) {
           var traitName = trait.name.getName();

@@ -1,3 +1,21 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 function loadMovie(path, reportFrames) {
   var movieReady = new Promise;
   movieReady.then(function() { sendResponse(); });
@@ -7,10 +25,11 @@ function loadMovie(path, reportFrames) {
     var i = 0, frame = 0;
     onFrameCallback = function () {
       while (i < reportFrames.length && frame >= reportFrames[i]) {
+        var snapshot = getCanvasData();
         movieReady.then(sendResponse.bind(null, {
           index: i,
           frame: frame,
-          snapshot: getCanvasData()
+          snapshot: snapshot
         }));
         i++;
       }
@@ -20,14 +39,80 @@ function loadMovie(path, reportFrames) {
 
   createAVM2(builtinPath, playerGlobalPath, EXECUTION_MODE.INTERPRET, EXECUTION_MODE.COMPILE, function (avm2) {
     function loaded() { movieReady.resolve(); }
+    function terminate() {
+      ignoreAdanvances = true;
+      // cleaning up
+      if (!movieReady.resolved) { // movieReady needs to be resolved
+        movieReady.resolve();
+      }
+      if (advanceTimeout) { // invoke current timeout
+        clearTimeout(advanceTimeout);
+        advanceCallback();
+      }
+      // reports unreported frames
+      while (reportFrames && i < reportFrames.length) {
+        onFrameCallback();
+      }
+    }
 
     FileLoadingService.baseUrl = path;
     new BinaryFileReader(path).readAll(null, function(buffer) {
       if (!buffer) {
         throw "Unable to open the file " + SWF_PATH + ": " + error;
       }
-      SWF.embed(buffer, document, document.getElementById("stage"), { onComplete: loaded, onFrame: onFrameCallback });
+      SWF.embed(buffer, document, document.getElementById("stage"), {
+        onComplete: loaded,
+        onAfterFrame: onFrameCallback,
+        onTerminated: terminate
+      });
     });
+  });
+}
+
+var sanityTests = {
+  tests: [],
+  push: function () {
+    this.tests.push.apply(this.tests, arguments);
+    this.onload();
+  },
+  onload: null
+};
+
+function loadScripts(files) {
+  sanityTests.onload = next;
+
+  var i = 0;
+  function next() {
+    if (i >= files.length) {
+      return runSanityTests(sanityTests.tests);
+    }
+    var script = document.createElement('script');
+    script.src = files[i++];
+    document.getElementsByTagName('head')[0].appendChild(script);
+  }
+  next();
+}
+
+function runSanityTests(tests) {
+  createAVM2(builtinPath, playerGlobalPath, EXECUTION_MODE.INTERPRET, EXECUTION_MODE.COMPILE, function (avm2) {
+    sendResponse();
+    for (var i = 0; i < tests.length; i++) {
+      var failed = false;
+      try {
+        tests[i]({
+          info: function (m) {
+            console.info(m);
+          },
+          error: function (m) {
+            console.error(m);
+            failed = true;
+          }
+        }, avm2);
+      } catch (ex) {
+        failed = true;
+      }
+      sendResponse({index: i, failure: failed});
+    }
   });
 }
 
@@ -84,6 +169,13 @@ function sendMouseEvent(type, x, y) {
   canvas.dispatchEvent(e);
 }
 
+var advanceTimeout = null, ignoreAdanvances = false;
+
+function advanceCallback() {
+  advanceTimeout = null;
+  sendResponse();
+}
+
 window.addEventListener('message', function (e) {
   var data = e.data;
   if (typeof data !== 'object' || data.type !== 'test-message')
@@ -92,11 +184,16 @@ window.addEventListener('message', function (e) {
   case 'load':
     loadMovie(data.path, data.reportFrames);
     break;
+  case 'js':
+    loadScripts(data.files);
+    break;
   case 'advance':
+    if (ignoreAdanvances) {
+      advanceCallback();
+      break;
+    }
     var delay = data.args[0];
-    setTimeout(function () {
-      sendResponse();
-    }, delay);
+    advanceTimeout = setTimeout(advanceCallback, delay);
     break;
   case 'mouse-move':
     if (mouseOutside) {

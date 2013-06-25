@@ -1,3 +1,22 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global AS2Button, executeActions */
+
 var SimpleButtonDefinition = (function () {
   var def = {
     __class__: 'flash.display.SimpleButton',
@@ -66,26 +85,28 @@ var SimpleButtonDefinition = (function () {
       }
 
       // binding mouse events
-      var MouseEventClass = avm2.systemDomain.getClass("flash.events.MouseEvent");
-      this.addEventListener(MouseEventClass.MOUSE_DOWN, function (evt) {
+      var MouseEventClass = flash.events.MouseEvent;
+      this._addEventListener(MouseEventClass.class.MOUSE_DOWN, function (evt) {
         this._isMouseDown = true;
         this._updateButton();
-      }.bind(this), true);
-      this.addEventListener(MouseEventClass.MOUSE_OUT, function (evt) {
+      }.bind(this), false);
+      this._addEventListener(MouseEventClass.class.MOUSE_OUT, function (evt) {
         this._isMouseOver = false;
         this._updateButton();
-      }.bind(this), true);
-      this.addEventListener(MouseEventClass.MOUSE_OVER, function (evt) {
+      }.bind(this), false);
+      this._addEventListener(MouseEventClass.class.MOUSE_OVER, function (evt) {
         this._isMouseOver = true;
         this._updateButton();
-      }.bind(this), true);
-      this.addEventListener(MouseEventClass.MOUSE_UP, function (evt) {
+      }.bind(this), false);
+      this._addEventListener(MouseEventClass.class.MOUSE_UP, function (evt) {
         this._isMouseDown = false;
         this._updateButton();
-      }.bind(this), true);
+      }.bind(this), false);
 
       if (!this._loader._isAvm2Enabled && s && s.buttonActions) {
-        this._initAvm1Events(s.buttonActions);
+        this._addEventListener("addedToStage", function (e) {
+          this._initAvm1Events(s.buttonActions);
+        }.bind(this), false);
       }
     },
 
@@ -132,6 +153,7 @@ var SimpleButtonDefinition = (function () {
       var keyEvents = null;
       for (var i = 0; i < buttonActions.length; i++) {
         var buttonAction = buttonActions[i];
+        /*jshint -W083 */
         var fn = function (actionBlock) {
           return executeActions(actionBlock, avm1Context, this._getAS2Object());
         }.bind(this.parent, buttonAction.actionsData);
@@ -159,10 +181,10 @@ var SimpleButtonDefinition = (function () {
           }
         };
         // XXX: attaching events to the stage for now
-        var KeyboardEventClass = avm2.systemDomain.getClass("flash.events.KeyboardEvent");
-        this.stage.addEventListener(KeyboardEventClass.KEY_DOWN, keyListener, false);
-        this.addEventListener('removed', function () {
-          this.stage.removeEventListener(KeyboardEventClass.KEY_DOWN, keyListener, false);
+        var KeyboardEventClass = flash.events.KeyboardEvent;
+        this.stage._addEventListener(KeyboardEventClass.class.KEY_DOWN, keyListener, false);
+        this._addEventListener('removedFromStage', function () {
+          this.stage._removeEventListener(KeyboardEventClass.class.KEY_DOWN, keyListener, false);
         }.bind(this), false);
       }
     },
@@ -183,7 +205,7 @@ var SimpleButtonDefinition = (function () {
     props.animated = true;
     props.parent = parent;
     var instance = symbolClass.createAsSymbol(props);
-    symbolClass.instance.call(instance);
+    symbolClass.instanceConstructor.call(instance);
     return instance;
   }
 

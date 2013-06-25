@@ -1,15 +1,30 @@
 [
+    {  "id": "events",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/events/dispatch.swf",
+         "swfs/events/priority.swf",
+         "swfs/events/propagation.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "sanity",
+       "filenames": [
+         "sanity/sanity.js"
+       ],
+       "type": "sanity"
+    },
     {  "id": "basic",
        "stas": "swfs/trace.stas",
        "filenames": [
-         "swfs/local2global.swf",
-         "swfs/stroke1.swf",
-         "swfs/targetPath1.swf",
          "swfs/add.swf",
-         "swfs/stream1.swf",
-         "swfs/movieinfo1.swf",
          "swfs/encoding1.swf",
-         "swfs/fscommand1.swf"
+         "swfs/fscommand1.swf",
+         "swfs/local2global.swf",
+         "swfs/movieinfo1.swf",
+         "swfs/stream1.swf",
+         "swfs/stroke1.swf",
+         "swfs/targetPath1.swf"
        ],
        "type": "stas"
     },
@@ -63,6 +78,137 @@
     {  "id": "box2d-ref",
        "frames": [50, 150, 300],
        "swf": "/examples/Box2DFlashAS3/demo.swf",
+       "type": "eq"
+    },
+    {  "id": "flash_utils_ByteArray",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_utils_ByteArray.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_utils_Timer",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_utils_Timer.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_display_Stage trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_display_Stage.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_display_DisplayObject trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_display_DisplayObject.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_display_DisplayObjectContainer trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_display_DisplayObjectContainer.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_display_Graphics trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_display_Graphics.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_system_System trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_system_System.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_system_Security trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_system_Security.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_system_SecurityDomain trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_system_SecurityDomain.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_system_Capabilities trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_system_Capabilities.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_net_SharedObject trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_net_SharedObject.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_net_URLRequest trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_net_URLRequest.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_display_Shape trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_display_Shape.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_filters_BlurFilter trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_filters_BlurFilter.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_filters_DropShadowFilter trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_filters_DropShadowFilter.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_filters_GlowFilter trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_filters_GlowFilter.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_text_TextField trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_text_TextField.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "flash_ui_ContextMenu trace",
+       "stas": "swfs/trace.stas",
+       "filenames": [
+         "swfs/flash_ui_ContextMenu.swf"
+       ],
+       "type": "stas"
+    },
+    {  "id": "MaskTest",
+       "frames": [1],
+       "swf": "swfs/MaskTest.swf",
        "type": "eq"
     }
 ]

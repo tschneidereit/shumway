@@ -1,3 +1,22 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global self */
+
 var SWF_TAG_CODE_CSM_TEXT_SETTINGS                 = 74;
 var SWF_TAG_CODE_DEFINE_BINARY_DATA                = 87;
 var SWF_TAG_CODE_DEFINE_BITS                       =  6;
@@ -33,6 +52,7 @@ var SWF_TAG_CODE_DEFINE_TEXT                       = 11;
 var SWF_TAG_CODE_DEFINE_TEXT2                      = 33;
 var SWF_TAG_CODE_DEFINE_VIDEO_STREAM               = 60;
 var SWF_TAG_CODE_DO_ABC                            = 82;
+var SWF_TAG_CODE_DO_ABC_                           = 72;
 var SWF_TAG_CODE_DO_ACTION                         = 12;
 var SWF_TAG_CODE_DO_INIT_ACTION                    = 59;
 var SWF_TAG_CODE_ENABLE_DEBUGGER                   = 58;

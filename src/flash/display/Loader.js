@@ -1,7 +1,57 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global self, importScripts, FileReader, FileReaderSync, Image, Worker, btoa,
+         URL, FileLoadingService, Promise, AbcFile, SHUMWAY_ROOT, SWF,
+         defineBitmap, defineImage, defineFont, defineShape, defineSound,
+         defineLabel, defineButton, defineText,
+         AS2Key, AS2Mouse, AS2Context, executeActions,
+         createSoundStream, MP3DecoderSession, PLAY_USING_AUDIO_TAG,
+         cloneObject, fromCharCode */
+/*global SWF_TAG_CODE_DEFINE_BITS, SWF_TAG_CODE_DEFINE_BITS_JPEG2,
+          SWF_TAG_CODE_DEFINE_BITS_JPEG3, SWF_TAG_CODE_DEFINE_BITS_JPEG4,
+          SWF_TAG_CODE_DEFINE_BITS_LOSSLESS, SWF_TAG_CODE_DEFINE_BITS_LOSSLESS2,
+          SWF_TAG_CODE_DEFINE_BUTTON, SWF_TAG_CODE_DEFINE_BUTTON2,
+          SWF_TAG_CODE_DEFINE_EDIT_TEXT, SWF_TAG_CODE_DEFINE_FONT,
+          SWF_TAG_CODE_DEFINE_FONT2, SWF_TAG_CODE_DEFINE_FONT3,
+          SWF_TAG_CODE_DEFINE_FONT4, SWF_TAG_CODE_DEFINE_MORPH_SHAPE,
+          SWF_TAG_CODE_DEFINE_MORPH_SHAPE2, SWF_TAG_CODE_DEFINE_SCALING_GRID,
+          SWF_TAG_CODE_DEFINE_SCENE_AND_FRAME_LABEL_DATA, SWF_TAG_CODE_DEFINE_SHAPE,
+          SWF_TAG_CODE_DEFINE_SHAPE2, SWF_TAG_CODE_DEFINE_SHAPE3,
+          SWF_TAG_CODE_DEFINE_SHAPE4, SWF_TAG_CODE_DEFINE_SOUND,
+          SWF_TAG_CODE_DEFINE_SPRITE, SWF_TAG_CODE_DEFINE_TEXT,
+          SWF_TAG_CODE_DEFINE_TEXT2, SWF_TAG_CODE_DO_ABC,
+          SWF_TAG_CODE_DO_ABC_, SWF_TAG_CODE_DO_ACTION,
+          SWF_TAG_CODE_DO_INIT_ACTION, SWF_TAG_CODE_FRAME_LABEL,
+          SWF_TAG_CODE_JPEG_TABLES, SWF_TAG_CODE_PLACE_OBJECT,
+          SWF_TAG_CODE_PLACE_OBJECT2, SWF_TAG_CODE_PLACE_OBJECT3,
+          SWF_TAG_CODE_REMOVE_OBJECT, SWF_TAG_CODE_REMOVE_OBJECT2,
+          SWF_TAG_CODE_SET_BACKGROUND_COLOR, SWF_TAG_CODE_SHOW_FRAME,
+          SWF_TAG_CODE_SOUND_STREAM_BLOCK, SWF_TAG_CODE_SOUND_STREAM_HEAD,
+          SWF_TAG_CODE_START_SOUND, SWF_TAG_CODE_SYMBOL_CLASS */
+// Ignoring "The Function constructor is a form of eval."
+/*jshint -W054 */
+// TODO: Investigate "Don't make functions within a loop."
+/*jshint -W083 */
+
 var $RELEASE = false;
 
 var LoaderDefinition = (function () {
-  var WORKERS_ENABLED = false;
+  var WORKERS_ENABLED = true;
   var LOADER_PATH = 'flash/display/Loader.js';
 
   var workerScripts;
@@ -36,9 +86,11 @@ var LoaderDefinition = (function () {
     ];
   }
 
+  var isWorker = typeof window === 'undefined';
+
   // Note that loader is null when calling from inside the worker, as AVM2 is
   // only initialized on the main thread.
-  function loadFromWorker(loader, input, context) {
+  function loadFromWorker(loader, request, context) {
     var symbols = { };
 
     var commitData;
@@ -98,6 +150,7 @@ var LoaderDefinition = (function () {
         var tags = swfTag.tags;
         var frameScripts = null;
         var frameIndex = 0;
+        var soundStream = null;
         for (var i = 0, n = tags.length; i < n; i++) {
           var tag = tags[i];
           switch (tag.code) {
@@ -140,7 +193,7 @@ var LoaderDefinition = (function () {
             break;
           case SWF_TAG_CODE_SHOW_FRAME:
             var repeat = 1;
-            while (i < n) {
+            while (i < n - 1) {
               var nextTag = tags[i + 1];
               if (nextTag.code !== SWF_TAG_CODE_SHOW_FRAME)
                 break;
@@ -207,7 +260,21 @@ var LoaderDefinition = (function () {
             }
 
             switch (tag.code) {
+            case SWF_TAG_CODE_DEFINE_SCENE_AND_FRAME_LABEL_DATA:
+              frame.sceneData = tag.data;
+              break;
+            case SWF_TAG_CODE_DEFINE_SCALING_GRID:
+              var symbolUpdate = {
+                isSymbol: true,
+                id: tag.symbolId,
+                updates: {
+                  scale9Grid: tag.splitter
+                }
+              };
+              commitData(symbolUpdate);
+              break;
             case SWF_TAG_CODE_DO_ABC:
+            case SWF_TAG_CODE_DO_ABC_:
               var abcBlocks = frame.abcBlocks;
               if (abcBlocks)
                 abcBlocks.push({data: tag.data, flags: tag.flags});
@@ -292,55 +359,63 @@ var LoaderDefinition = (function () {
           commitData(result);
           commitData({command: 'complete'});
         }
-      }
+      };
     }
     function parseBytes(bytes) {
       SWF.parse(bytes, createParsingContext());
     }
 
-    if (typeof input === 'object') {
+    if (isWorker || !flash.net.URLRequest.class.isInstanceOf(request)) {
+      var input = request;
       if (input instanceof ArrayBuffer) {
         parseBytes(input);
       } else if ('subscribe' in input) {
         var pipe = SWF.parseAsync(createParsingContext());
-        input.subscribe(pipe.push.bind(pipe));
+        input.subscribe(function (data, progress) {
+          if (data) {
+            pipe.push(data, progress);
+          } else {
+            pipe.close();
+          }
+        });
       } else if (typeof FileReaderSync !== 'undefined') {
-        var reader = new FileReaderSync;
+        var reader = new FileReaderSync();
         var buffer = reader.readAsArrayBuffer(input);
         parseBytes(buffer);
       } else {
-        var reader = new FileReader;
+        var reader = new FileReader();
         reader.onload = function () {
           parseBytes(this.result);
         };
         reader.readAsArrayBuffer(input);
       }
     } else {
-      var xhr = new XMLHttpRequest;
-      xhr.open('GET', input);
-      xhr.responseType = 'arraybuffer';
-      xhr.onload = function onload(event) {
-        //TODO: check which way to handle status codes
-        if (xhr.status >= 300) {
-          loader._commitData({command: 'error', xhr: xhr});
-        } else {
-          parseBytes(this.response);
-        }
-      };
-      xhr.onprogress = function onprogress(event) {
+      var session = FileLoadingService.createSession();
+      var pipe = SWF.parseAsync(createParsingContext());
+      session.onprogress = function (data, progressState) {
+        pipe.push(data, progressState);
+
         var data = {
           command : 'progress',
-          result : {bytesLoaded : event.loaded, bytesTotal : event.total}
+          result : {bytesLoaded : progressState.bytesLoaded, bytesTotal : progressState.bytesTotal}
         };
         loader._commitData(data);
-      }
-      xhr.send();
+      };
+      session.onerror = function (error) {
+        loader._commitData({command: 'error', error: error});
+      };
+      session.onopen = function () {
+      };
+      session.onclose = function () {
+        pipe.close();
+      };
+      session.open(request._toFileRequest());
     }
   }
 
   // If we're inside a worker, do the parsing work and return undefined, since
   // communication is done by posting messages to the main thread.
-  if (typeof window === 'undefined') {
+  if (isWorker) {
     importScripts.apply(null, workerScripts);
 
     self.onmessage = function (evt) {
@@ -371,12 +446,12 @@ var LoaderDefinition = (function () {
     __class__: 'flash.display.Loader',
 
     initialize: function () {
-      this._contentLoaderInfo = new flash.display.LoaderInfo;
+      this._contentLoaderInfo = new flash.display.LoaderInfo();
       this._contentLoaderInfo._loader = this;
       this._dictionary = { };
       this._displayList = null;
       this._timeline = [];
-      this._previousPromise = null;
+      this._lastPromise = null;
       this._uncaughtErrorEvents = null;
     },
     _commitData: function (data) {
@@ -388,12 +463,23 @@ var LoaderDefinition = (function () {
         this._updateProgress(data.result);
         break;
       case 'complete':
-        this.contentLoaderInfo.dispatchEvent(
-            new flash.events.Event("complete"));
+        var frameConstructed = new Promise();
+        avm2.systemDomain.onMessage.register(function waitForFrame(e) {
+          if (e.data._type === 'frameConstructed') {
+            frameConstructed.resolve();
+            avm2.systemDomain.onMessage.unregister(waitForFrame);
+          }
+        });
+        Promise.when(frameConstructed, this._lastPromise).then(function () {
+          this.contentLoaderInfo._dispatchEvent(new flash.events.Event("complete"));
+        }.bind(this));
+        break;
+      case 'empty':
+        this._lastPromise = new Promise();
+        this._lastPromise.resolve();
         break;
       case 'error':
-        this.contentLoaderInfo.dispatchEvent(
-            new flash.events.IOErrorEvent("ioError"));
+        this.contentLoaderInfo._dispatchEvent(new flash.events.IOErrorEvent("ioError"));
         break;
       default:
         //TODO: fix special-casing. Might have to move document class out of dictionary[0]
@@ -415,14 +501,14 @@ var LoaderDefinition = (function () {
       var event = new flash.events.ProgressEvent("progress", false, false,
                                                  loaderInfo._bytesLoaded,
                                                  loaderInfo._bytesTotal);
-      loaderInfo.dispatchEvent(event);
+      loaderInfo._dispatchEvent(event);
     },
     _buildFrame: function (displayList, timeline, promiseQueue, frame, frameNum) {
       var loader = this;
       var dictionary = loader._dictionary;
       var labelName = frame.labelName;
 
-      displayList = Object.create(displayList);
+      displayList = cloneObject(displayList);
 
       var depths = frame.depths;
       if (depths) {
@@ -431,7 +517,7 @@ var LoaderDefinition = (function () {
           if (cmd) {
             if (displayList[depth] && cmd.move) {
               var oldCmd = cmd;
-              cmd = Object.create(displayList[depth]);
+              cmd = cloneObject(displayList[depth]);
               for (var prop in oldCmd) {
                 var val = oldCmd[prop];
                 if (val)
@@ -444,9 +530,8 @@ var LoaderDefinition = (function () {
               if (itemPromise && !itemPromise.resolved)
                 promiseQueue.push(itemPromise);
 
-              cmd = Object.create(cmd, {
-                promise: { value: itemPromise }
-              });
+              cmd = cloneObject(cmd);
+              cmd.promise = itemPromise;
             }
           }
           displayList[depth] = cmd;
@@ -464,15 +549,16 @@ var LoaderDefinition = (function () {
       var actionBlocks = frame.actionBlocks;
       var initActionBlocks = frame.initActionBlocks;
       var exports = frame.exports;
+      var sceneData = frame.sceneData;
       var loader = this;
       var dictionary = loader._dictionary;
       var loaderInfo = loader.contentLoaderInfo;
       var timeline = loader._timeline;
       var frameNum = timeline.length + 1;
-      var framePromise = new Promise;
+      var framePromise = new Promise();
       var labelName = frame.labelName;
-      var prevPromise = this._previousPromise;
-      this._previousPromise = framePromise;
+      var prevPromise = this._lastPromise;
+      this._lastPromise = framePromise;
       var promiseQueue = [prevPromise];
 
       this._displayList = this._buildFrame(this._displayList, timeline, promiseQueue, frame, frameNum);
@@ -480,7 +566,7 @@ var LoaderDefinition = (function () {
       if (frame.bgcolor)
         loaderInfo._backgroundColor = frame.bgcolor;
       else
-        loaderInfo._backgroundColor = { color: 0xFFFFFF, alpha: 0xFF };
+        loaderInfo._backgroundColor = { red: 255, green: 255, blue: 255, alpha: 255 };
 
       Promise.when.apply(Promise, promiseQueue).then(function () {
         if (abcBlocks && loader._isAvm2Enabled) {
@@ -498,6 +584,7 @@ var LoaderDefinition = (function () {
         }
 
         if (exports && loader._isAvm2Enabled) {
+          var exportPromises = [];
           for (var i = 0, n = exports.length; i < n; i++) {
             var asset = exports[i];
             var symbolPromise = dictionary[asset.symbolId];
@@ -512,9 +599,11 @@ var LoaderDefinition = (function () {
                 };
               })(symbolPromise, asset.className)
             );
+            exportPromises.push(symbolPromise);
           }
+          return Promise.when.apply(Promise, exportPromises);
         }
-
+     }).then(function () {
         var root = loader._content;
 
         if (!root) {
@@ -542,13 +631,9 @@ var LoaderDefinition = (function () {
           }
 
           if (labelName) {
-            var frameLabels = { };
-            frameLabels[labelName] = {
-              __class__: 'flash.display.FrameLabel',
-              frame: frameNum,
-              name: labelName
-            };
-            root.symbol.frameLabels = frameLabels;
+            var labelMap = { };
+            labelMap[labelName] = frameNum;
+            root.symbol.labelMap = labelMap;
           }
 
           if (!loader._isAvm2Enabled) {
@@ -591,18 +676,32 @@ var LoaderDefinition = (function () {
             root.symbol.frameScripts = frameScripts;
           }
 
-          rootClass.instance.call(root);
+          if (sceneData) {
+            var sd = sceneData.scenes;
+            var ld = sceneData.labels;
+            var scenes = [];
+            var i = sd.length;
+            while (i--) {
+              var s = sd[i];
+              var labels = [];
+              for (var j = 0; j < ld.length; j++) {
+                var lbl = ld[j];
+                labels.push(new flash.display.FrameLabel(lbl.name, lbl.frame + 1));
+              }
+              var scene = new flash.display.Scene(s.name, labels, s.offset);
+              scenes.push(scene);
+            }
+            root.symbol.scenes = scenes;
+          }
+
+          rootClass.instanceConstructor.call(root);
 
           loader._content = root;
         } else {
           root._framesLoaded += frame.repeat;
 
-          if (labelName && root._frameLabels) {
-            root._frameLabels[labelName] = {
-              __class__: 'flash.display.FrameLabel',
-              frame: frameNum,
-              name: labelName
-            };
+          if (labelName && root._labelMap) {
+            root._labelMap[labelName] = frameNum;
           }
 
           if (!loader._isAvm2Enabled) {
@@ -633,45 +732,54 @@ var LoaderDefinition = (function () {
         }
 
         if (frameNum === 1)
-          loaderInfo.dispatchEvent(new flash.events.Event('init', false, false));
+          loaderInfo._dispatchEvent(new flash.events.Event('init', false, false));
 
         framePromise.resolve(frame);
       });
     },
     _commitImage : function (imageInfo) {
       var loader = this;
-      var imgPromise = new Promise;
-      var img = new Image;
+      var imgPromise = this._lastPromise = new Promise();
+      var img = new Image();
       imageInfo.props.img = img;
       img.onload = function() {
         var props = imageInfo.props;
         props.parent = loader._parent;
         props.stage = loader._stage;
         props.skipCopyToCanvas = true;
+
         var Bitmap = avm2.systemDomain.getClass("flash.display.Bitmap");
         var BitmapData = avm2.systemDomain.getClass("flash.display.BitmapData");
         var bitmapData = BitmapData.createAsSymbol(props);
-        BitmapData.instance.call(bitmapData, 0, 0, true, 0xffffff00);
+        BitmapData.instanceConstructor.call(bitmapData, 0, 0, true, 0xffffff00);
         var image = Bitmap.createAsSymbol(bitmapData);
         loader._children.push(image);
-        Bitmap.instance.call(image, bitmapData);
+        Bitmap.instanceConstructor.call(image, bitmapData);
         image._parent = loader;
         loader._control.appendChild(image._control);
         loader._content = image;
         imgPromise.resolve(imageInfo);
-        loader.contentLoaderInfo.dispatchEvent(
-            new flash.events.Event("init"));
-      }
+        loader.contentLoaderInfo._dispatchEvent(new flash.events.Event("init"));
+      };
       img.src = URL.createObjectURL(imageInfo.data);
       delete imageInfo.data;
     },
     _commitSymbol: function (symbol) {
+      var dictionary = this._dictionary;
+      if ('updates' in symbol) {
+        dictionary[symbol.id].then(function (s) {
+          for (var i in symbol.updates) {
+            s.props[i] = symbol.updates[i];
+          }
+        });
+        return;
+      }
+
       var className = 'flash.display.DisplayObject';
       var dependencies = symbol.require;
-      var dictionary = this._dictionary;
       var promiseQueue = [];
       var props = { loader: this };
-      var symbolPromise = new Promise;
+      var symbolPromise = new Promise();
 
       if (dependencies && dependencies.length) {
         for (var i = 0, n = dependencies.length; i < n; i++) {
@@ -705,7 +813,7 @@ var LoaderDefinition = (function () {
           if (characters.length === 1) {
             states[stateName] = characters[0];
           } else {
-            var statePromise = new Promise;
+            var statePromise = new Promise();
             statePromise.resolve({
               className: 'flash.display.Sprite',
               props: {
@@ -739,8 +847,8 @@ var LoaderDefinition = (function () {
         }
         break;
       case 'image':
-        var img = new Image;
-        var imgPromise = new Promise;
+        var img = new Image();
+        var imgPromise = new Promise();
         img.onload = function () {
           if (symbol.mask) {
             // Write the symbol image into new canvas and apply
@@ -796,7 +904,7 @@ var LoaderDefinition = (function () {
           if (graphicsFactory[ratio])
             return graphicsFactory[ratio];
 
-          var graphics = new flash.display.Graphics;
+          var graphics = new flash.display.Graphics();
           graphics._scale = 0.05;
           graphics._subpaths = createGraphicsSubPaths(graphics, dictionary, ratio);
 
@@ -809,7 +917,7 @@ var LoaderDefinition = (function () {
         if (!symbol.pcm && !PLAY_USING_AUDIO_TAG) {
           assert(symbol.packaged.mimeType === 'audio/mpeg');
 
-          var decodePromise = new Promise;
+          var decodePromise = new Promise();
           MP3DecoderSession.processAll(symbol.packaged.data,
             function (props, pcm, id3tags, error) {
               props.pcm = pcm || new Uint8Array(0);
@@ -830,7 +938,7 @@ var LoaderDefinition = (function () {
       case 'sprite':
         var displayList = null;
         var frameCount = symbol.frameCount;
-        var frameLabels = { };
+        var labelMap = { };
         var frameNum = 1;
         var frames = symbol.frames;
         var timeline = [];
@@ -839,11 +947,7 @@ var LoaderDefinition = (function () {
           var frame = frames[i];
           var frameNum = timeline.length + 1;
           if (frame.labelName) {
-            frameLabels[frame.labelName] = {
-              __class__: 'flash.display.FrameLabel',
-              frame: frameNum,
-              name: frame.labelName
-            };
+            labelMap[frame.labelName] = frameNum;
           }
 
           if (frame.startSounds) {
@@ -882,7 +986,7 @@ var LoaderDefinition = (function () {
         className = 'flash.display.MovieClip';
         props.timeline = timeline;
         props.framesLoaded = frameCount;
-        props.frameLabels = frameLabels;
+        props.labelMap = labelMap;
         props.frameScripts = frameScripts;
         props.totalFrames = frameCount;
         props.startSoundRegistrations = startSoundRegistrations;
@@ -908,9 +1012,9 @@ var LoaderDefinition = (function () {
       loaderInfo._height = bbox.bottom - bbox.top;
       loaderInfo._frameRate = info.frameRate;
 
-      var documentPromise = new Promise;
+      var documentPromise = new Promise();
 
-      var vmPromise = new Promise;
+      var vmPromise = new Promise();
       vmPromise.then(function() {
         documentPromise.resolve({
           className: 'flash.display.MovieClip',
@@ -919,7 +1023,7 @@ var LoaderDefinition = (function () {
       });
 
       loader._dictionary[0] = documentPromise;
-      loader._previousPromise = documentPromise;
+      loader._lastPromise = documentPromise;
       loader._vmPromise = vmPromise;
 
       loader._isAvm2Enabled = info.fileAttributes.doAbc;
@@ -928,23 +1032,32 @@ var LoaderDefinition = (function () {
     _load: function (request, checkPolicyFile, applicationDomain,
                      securityDomain, deblockingFilter)
     {
-      var input = request.url;
-      if (typeof window !== 'undefined' && WORKERS_ENABLED) {
+      if (!isWorker && WORKERS_ENABLED) {
         var loader = this;
         var worker = new Worker(SHUMWAY_ROOT + LOADER_PATH);
         worker.onmessage = function (evt) {
           loader._commitData(evt.data);
         };
-        if (typeof input === 'object' && 'subscribe' in input) {
-          worker.postMessage('pipe:');
-          input.subscribe(function (data, progressInfo) {
-            worker.postMessage({data: data, progress: progressInfo});
-          });
+        if (flash.net.URLRequest.class.isInstanceOf(request)) {
+          var session = FileLoadingService.createSession();
+          session.onprogress = function (data, progress) {
+            worker.postMessage({data: data, progress: progress});
+          };
+          session.onerror = function (error) {
+            loader._commitData({command: 'error', error: error});
+          };
+          session.onopen = function () {
+            worker.postMessage('pipe:');
+          };
+          session.onclose = function () {
+            worker.postMessage({data: null});
+          };
+          session.open(request._toFileRequest());
         } else {
-          worker.postMessage(input);
+          worker.postMessage(request);
         }
       } else {
-        loadFromWorker(this, input);
+        loadFromWorker(this, request);
       }
     },
     _setup: function () {
@@ -964,6 +1077,11 @@ var LoaderDefinition = (function () {
 
         AS2Key.$bind(stage);
         AS2Mouse.$bind(stage);
+
+        stage._addEventListener('frameConstructed',
+                                avm1Context.flushPendingScripts.bind(avm1Context),
+                                false,
+                                Number.MAX_VALUE);
       }
 
       loader._vmPromise.resolve();
@@ -987,7 +1105,7 @@ var LoaderDefinition = (function () {
         },
         _load: def._load,
         _loadBytes: function _loadBytes(bytes, checkPolicyFile, applicationDomain, securityDomain, requestedContentParent, parameters, deblockingFilter, allowLoadBytesCodeExecution, imageDecodingPolicy) { // (bytes:ByteArray, checkPolicyFile:Boolean, applicationDomain:ApplicationDomain, securityDomain:SecurityDomain, requestedContentParent:DisplayObjectContainer, parameters:Object, deblockingFilter:Number, allowLoadBytesCodeExecution:Boolean, imageDecodingPolicy:String) -> void
-          notImplemented("Loader._loadBytes");
+          def._load(bytes.a);
         },
         _unload: function _unload(halt, gc) { // (halt:Boolean, gc:Boolean) -> void
           notImplemented("Loader._unload");

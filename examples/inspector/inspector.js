@@ -1,4 +1,21 @@
 /* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 var BinaryFileReader = (function binaryFileReader() {
   function constructor(url, method, mimeType, data) {
     this.url = url;
@@ -104,6 +121,9 @@ function findDefiningAbc(mn) {
   return null;
 }
 
+/** Global sanityTests array, sanity tests add themselves to this */
+var sanityTests = [];
+
 // avm2 must be global.
 var avm2;
 function createAVM2(builtinPath, libraryPath, sysMode, appMode, next) {
@@ -114,12 +134,13 @@ function createAVM2(builtinPath, libraryPath, sysMode, appMode, next) {
     avm2.loadedAbcs = {};
     // Avoid loading more Abcs while the builtins are loaded
     avm2.builtinsLoaded = false;
+    avm2.systemDomain.onClassCreated.register(Stubs.onClassCreated);
     avm2.systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer), "builtin.abc"));
     avm2.builtinsLoaded = true;
     console.timeEnd("Execute builtin.abc");
     new BinaryFileReader(libraryPath).readAll(null, function (buffer) {
       // If library is shell.abc, then just go ahead and run it now since
-      // its not worth doing it lazily given that it is so small.
+      // it's not worth doing it lazily given that it is so small.
       if (libraryPath === shellAbcPath) {
         avm2.systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer), libraryPath));
       } else {
@@ -159,7 +180,7 @@ function parseQueryString(qs) {
  * when the page loads.
  */
 if (remoteFile) {
-  $('#openFileToolbar')[0].setAttribute('hidden', true);
+  document.getElementById('openFileToolbar').setAttribute('hidden', true);
   executeFile(remoteFile, null, parseQueryString(window.location.search));
 }
 
@@ -168,19 +189,25 @@ if (yt) {
   var xhr = new XMLHttpRequest({mozSystem: true});
   xhr.open('GET', 'http://www.youtube.com/watch?v=' + yt, true);
   xhr.onload = function (e) {
-    var config = JSON.parse(/ytplayer\.config\s*=\s*([^;]+)/.exec(xhr.responseText)[1]);
+    var config = JSON.parse(/ytplayer\.config\s*=\s*(.+?);<\/script/.exec(xhr.responseText)[1]);
+    // HACK removing FLVs from the fmt_list
+    config.args.fmt_list = config.args.fmt_list.split(',').filter(function (s) {
+      var fid = s.split('/')[0];
+      return fid !== '5' && fid !== '34' && fid !== '35'; // more?
+    }).join(',');
+
     var swf = JSON.parse(/swf\s*=\s*("[^;]+)/.exec(xhr.responseText)[1]);
     swf = /src="([^"]+)/.exec(swf)[1];
 
-    $('#openFileToolbar')[0].setAttribute('hidden', true);
+    document.getElementById('openFileToolbar').setAttribute('hidden', true);
     executeFile(swf, null, config.args);
   };
   xhr.send(null);
 }
 
 function showMessage(msg) {
-  $('#message').text(msg);
-  $('#message')[0].parentElement.removeAttribute('hidden');
+  document.getElementById('message').textContent = msg;
+  document.getElementById('message').parentElement.removeAttribute('hidden');
 }
 
 function executeFile(file, buffer, movieParams) {
@@ -209,28 +236,17 @@ function executeFile(file, buffer, movieParams) {
     libraryScripts = playerGlobalScripts;
     createAVM2(builtinPath, playerGlobalAbcPath, sysMode, appMode, function (avm2) {
       function runSWF(file, buffer) {
-        SWF.embed(buffer, document, $("#stage")[0], {
+        SWF.embed(buffer || file, document, document.getElementById('stage'), {
           onComplete: terminate,
           onStageInitialized: stageInitialized,
           onBeforeFrame: frame,
+          url: FileLoadingService.resolveUrl(file),
           movieParams: movieParams || {},
         });
       }
       if (!buffer && asyncLoading) {
-        var subscription = {
-          subscribe: function (callback) {
-            this.callback = callback;
-          }
-        };
-        runSWF(file, subscription);
         FileLoadingService.setBaseUrl(file);
-        new BinaryFileReader(file).readAsync(
-          function onchunk(data, progressInfo) {
-            subscription.callback(data, progressInfo);
-          },
-          function onerror(error) {
-            console.error("Unable to open the file " + file + ": " + error);
-          });
+        runSWF(file);
       } else if (!buffer) {
         FileLoadingService.setBaseUrl(file);
         new BinaryFileReader(file).readAll(null, function(buffer, error) {
@@ -243,12 +259,45 @@ function executeFile(file, buffer, movieParams) {
         runSWF(file, buffer);
       }
     });
+  } else if (file.endsWith(".js") || file.endsWith("/")) {
+    libraryScripts = playerGlobalScripts;
+    var sysMode = state.sysCompiler ? EXECUTION_MODE.COMPILE : EXECUTION_MODE.INTERPRET;
+    var appMode = state.appCompiler ? EXECUTION_MODE.COMPILE : EXECUTION_MODE.INTERPRET;
+    createAVM2(builtinPath, playerGlobalAbcPath, sysMode, appMode, function (avm2) {
+      if (file.endsWith("/")) {
+        readDirectoryListing(file, function (files) {
+          function loadNextScript(done) {
+            if (!files.length) {
+              done();
+              return;
+            }
+            var sanityTest = files.pop();
+            console.info("Loading Sanity Test: " + sanityTest);
+            loadScript(sanityTest, function () {
+              loadNextScript(done);
+            });
+          }
+          loadNextScript(function whenAllScriptsAreLoaded() {
+            console.info("Executing Sanity Test");
+            sanityTests.forEach(function (test) {
+              test(console, avm2);
+            });
+          });
+        });
+      } else {
+        loadScript(file, function () {
+          sanityTests.forEach(function (test) {
+            test(console, avm2);
+          });
+        });
+      }
+    });
   }
 }
 
 function stageInitialized(stage) {
   if (TRACE_SYMBOLS_INFO) {
-    var traceSymbolsInfo = $('#traceSymbolsInfo')[0];
+    var traceSymbolsInfo = document.getElementById('traceSymbolsInfo');
     traceSymbolsInfo.removeAttribute('hidden');
     traceSymbolsInfo.appendChild(stage._control);
   }
@@ -273,8 +322,9 @@ function frame(e) {
   var stageSize = getQueryVariable("size");
   if (stageSize && /^\d+x\d+$/.test(stageSize)) {
     var dims = stageSize.split('x');
-    $("#stage")[0].style.width = dims[0] + "px";
-    $("#stage")[0].style.height = dims[1] + "px";
+    var stage = document.getElementById('stage');
+    stage.style.width = dims[0] + "px";
+    stage.style.height = dims[1] + "px";
   }
 })();
 
@@ -282,9 +332,18 @@ var FileLoadingService = {
   createSession: function () {
     return {
       open: function (request) {
+        if (request.url.indexOf('http://s.youtube.com/stream_204') === 0) {
+          // No reason to send error report yet, let's keep it this way for now.
+          // 204 means no response, so no data will be expected.
+          console.error('YT_CALLBACK: ' + request.url);
+          this.onopen && this.onopen();
+          this.onclose && this.onclose();
+          return;
+        }
+
         var self = this;
         var path = FileLoadingService.resolveUrl(request.url);
-        console.log('FileLoadingService: loading ' + path);
+        console.log('FileLoadingService: loading ' + path + ", data: " + request.data);
         new BinaryFileReader(path, request.method, request.mimeType, request.data).readAsync(
           function (data, progress) {
             self.onprogress(data, {bytesLoaded: progress.loaded, bytesTotal: progress.total});

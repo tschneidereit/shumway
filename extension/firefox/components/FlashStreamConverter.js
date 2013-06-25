@@ -1,5 +1,20 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 'use strict';
 
@@ -18,6 +33,7 @@ const EXPECTED_PLAYPREVIEW_URI_PREFIX = 'data:application/x-moz-playpreview;,' +
 const FIREFOX_ID = '{ec8030f7-c20a-464f-9b0e-13a3a9e97384}';
 const SEAMONKEY_ID = '{92650c4d-4b8e-4d2a-b7eb-24ecf4f6b63a}';
 
+const MAX_CLIPBOARD_DATA_SIZE = 8000;
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
@@ -75,15 +91,86 @@ function parseQueryString(qs) {
   return obj;
 }
 
+function domainMatches(host, pattern) {
+  if (!pattern) return false;
+  if (pattern === '*') return true;
+  host = host.toLowerCase();
+  var parts = pattern.toLowerCase().split('*');
+  if (host.indexOf(parts[0]) !== 0) return false;
+  var p = parts[0].length;
+  for (var i = 1; i < parts.length; i++) {
+    var j = host.indexOf(parts[i], p);
+    if (j === -1) return false;
+    p = j + parts[i].length;
+  }
+  return parts[parts.length - 1] === '' || p === host.length;
+}
+
+function fetchPolicyFile(url, cache, callback) {
+  if (url in cache) {
+    return callback(cache[url]);
+  }
+
+  log('Fetching policy file at ' + url);
+  var MAX_POLICY_SIZE = 8192;
+  var xhr =  Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
+                               .createInstance(Ci.nsIXMLHttpRequest);
+  xhr.open('GET', url, true);
+  xhr.overrideMimeType('text/xml');
+  xhr.onprogress = function (e) {
+    if (e.loaded >= MAX_POLICY_SIZE) {
+      xhr.abort();
+      cache[url] = false;
+      callback(null, 'Max policy size');
+    }
+  };
+  xhr.onreadystatechange = function(event) {
+    if (xhr.readyState === 4) {
+      // TODO disable redirects
+      var doc = xhr.responseXML;
+      if (xhr.status !== 200 || !doc) {
+        cache[url] = false;
+        return callback(null, 'Invalid HTTP status: ' + xhr.statusText);
+      }
+      // parsing params
+      var params = doc.documentElement.childNodes;
+      var policy = { siteControl: null, allowAccessFrom: []};
+      for (var i = 0; i < params.length; i++) {
+        switch (params[i].localName) {
+        case 'site-control':
+          policy.siteControl = params[i].getAttribute('permitted-cross-domain-policies');
+          break;
+        case 'allow-access-from':
+          var access = {
+            domain: params[i].getAttribute('domain'),
+            security: params[i].getAttribute('security') === 'true'
+          };
+          policy.allowAccessFrom.push(access);
+          break;
+        default:
+          // TODO allow-http-request-headers-from and other
+          break;
+        }
+      }
+      callback(cache[url] = policy);
+    }
+  };
+  xhr.send(null);
+}
+
 // All the priviledged actions.
-function ChromeActions(url, params, baseUrl, window) {
+function ChromeActions(url, window, document) {
   this.url = url;
-  this.params = params;
-  this.baseUrl = baseUrl;
+  this.objectParams = null;
+  this.movieParams = null;
+  this.baseUrl = url;
   this.isOverlay = false;
   this.isPausedAtStart = false;
   this.window = window;
+  this.document = document;
   this.externalComInitialized = false;
+  this.allowScriptAccess = false;
+  this.crossdomainRequestsCache = Object.create(null);
 }
 
 ChromeActions.prototype = {
@@ -97,36 +184,58 @@ ChromeActions.prototype = {
     return JSON.stringify({
       url: this.url,
       baseUrl : this.baseUrl,
-      params: this.params,
+      movieParams: this.movieParams,
+      objectParams: this.objectParams,
       isOverlay: this.isOverlay,
       isPausedAtStart: this.isPausedAtStart
      });
   },
-  _canDownloadFile: function canDownloadFile(url, checkPolicyFile) {
-    // TODO flash cross-origin request
-    if (url === this.url)
-      return true; // allow downloading for the original file
+  _canDownloadFile: function canDownloadFile(data, callback) {
+    var url = data.url, checkPolicyFile = data.checkPolicyFile;
 
-    // let's allow downloading from http(s) and same origin
-    var urlPrefix = /^(https?:\/\/[A-Za-z0-9\-_\.:\[\]]+\/)/i.exec(url);
-    var basePrefix = /^(https?:\/\/[A-Za-z0-9\-_\.:\[\]]+\/)/i.exec(this.url);
-    if (basePrefix && urlPrefix && basePrefix[1] === urlPrefix[1]) {
-        return true;
+    // TODO flash cross-origin request
+    if (url === this.url) {
+      // allow downloading for the original file
+      return callback({success: true});
     }
 
+    // allows downloading from the same origin
+    var urlPrefix = /^(https?):\/\/([A-Za-z0-9\-_\.\[\]]+)/i.exec(url);
+    var basePrefix = /^(https?):\/\/([A-Za-z0-9\-_\.\[\]]+)/i.exec(this.url);
+    if (basePrefix && urlPrefix && basePrefix[0] === urlPrefix[0]) {
+      return callback({success: true});
+    }
+
+    // additionally using internal whitelist
     var whitelist = getStringPref('shumway.whitelist', '');
     if (whitelist && urlPrefix) {
       var whitelisted = whitelist.split(',').some(function (i) {
-        if (i.indexOf('://') < 0) {
-          i = '*://' + i;
-        }
-        return new RegExp('^' + i.replace(/\./g, '\\.').replace(/\*/g, '.*') + '/').test(urlPrefix);
+        return domainMatches(urlPrefix[2], i);
       });
-      if (whitelisted)
-        return true;
+      if (whitelisted) {
+        return callback({success: true});
+      }
     }
 
-    return false;
+    if (!checkPolicyFile || !urlPrefix || !basePrefix) {
+      return callback({success: false});
+    }
+
+    // we can request crossdomain.xml
+    fetchPolicyFile(urlPrefix[0] + '/crossdomain.xml', this.crossdomainRequestsCache,
+      function (policy, error) {
+
+      if (!policy || policy.siteControl === 'none') {
+        return callback({success: false});
+      }
+      // TODO assuming master-only, there are also 'by-content-type', 'all', etc.
+
+      var allowed = policy.allowAccessFrom.some(function (i) {
+        return domainMatches(basePrefix[2], i.domain) &&
+          (!i.secure || basePrefix[1].toLowerCase() === 'https');
+      });
+      return callback({success: allowed});
+    }.bind(this));
   },
   loadFile: function loadFile(data) {
     var url = data.url;
@@ -138,56 +247,57 @@ ChromeActions.prototype = {
     var postData = data.postData || null;
 
     var win = this.window;
+    var baseUrl = this.baseUrl;
 
-    if (!this._canDownloadFile(url, checkPolicyFile)) {
-      log("bad url " + url + " " + this.url);
-      win.postMessage({callback:"loadFile", sessionId: sessionId, topic: "error",
-        error: "only original swf file or file from the same origin loading supported"}, "*");
-      return;
-    }
+    var performXHR = function () {
+      var xhr = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
+                                  .createInstance(Ci.nsIXMLHttpRequest);
+      xhr.open(method, url, true);
+      xhr.responseType = "moz-chunked-arraybuffer";
 
-    var xhr = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
-                                .createInstance(Ci.nsIXMLHttpRequest);
-    xhr.open(method, url, true);
-    // arraybuffer is not provide onprogress, fetching as regular chars
-    if ('overrideMimeType' in xhr)
-      xhr.overrideMimeType('text/plain; charset=x-user-defined');
-
-    if (this.baseUrl) {
-      // Setting the referer uri, some site doing checks if swf is embedded
-      // on the original page.
-      xhr.setRequestHeader("Referer", this.baseUrl);
-    }
-
-    // TODO apply range request headers if limit is specified
-
-    var lastPosition = 0;
-    xhr.onprogress = function (e) {
-      var position = e.loaded;
-      var chunk = xhr.responseText.substring(lastPosition, position);
-      var data = new Uint8Array(chunk.length);
-      for (var i = 0; i < data.length; i++)
-        data[i] = chunk.charCodeAt(i) & 0xFF;
-      win.postMessage({callback:"loadFile", sessionId: sessionId, topic: "progress",
-                       array: data, loaded: e.loaded, total: e.total}, "*");
-      lastPosition = position;
-      if (limit && e.total >= limit) {
-        xhr.abort();
+      if (baseUrl) {
+        // Setting the referer uri, some site doing checks if swf is embedded
+        // on the original page.
+        xhr.setRequestHeader("Referer", baseUrl);
       }
-    };
-    xhr.onreadystatechange = function(event) {
-      if (xhr.readyState === 4) {
-        if (xhr.status !== 200 && xhr.status !== 0) {
-          win.postMessage({callback:"loadFile", sessionId: sessionId, topic: "error",
-                           error: xhr.statusText}, "*");
+
+      // TODO apply range request headers if limit is specified
+
+      var lastPosition = 0;
+      xhr.onprogress = function (e) {
+        var position = e.loaded;
+        var data = new Uint8Array(xhr.response);
+        win.postMessage({callback:"loadFile", sessionId: sessionId, topic: "progress",
+                         array: data, loaded: e.loaded, total: e.total}, "*");
+        lastPosition = position;
+        if (limit && e.total >= limit) {
+          xhr.abort();
         }
-        win.postMessage({callback:"loadFile", sessionId: sessionId, topic: "close"}, "*");
-      }
+      };
+      xhr.onreadystatechange = function(event) {
+        if (xhr.readyState === 4) {
+          if (xhr.status !== 200 && xhr.status !== 0) {
+            win.postMessage({callback:"loadFile", sessionId: sessionId, topic: "error",
+                             error: xhr.statusText}, "*");
+          }
+          win.postMessage({callback:"loadFile", sessionId: sessionId, topic: "close"}, "*");
+        }
+      };
+      if (mimeType)
+        xhr.setRequestHeader("Content-Type", mimeType);
+      xhr.send(postData);
+      win.postMessage({callback:"loadFile", sessionId: sessionId, topic: "open"}, "*");
     };
-    if (mimeType)
-      xhr.setRequestHeader("Content-Type", mimeType);
-    xhr.send(postData);
-    win.postMessage({callback:"loadFile", sessionId: sessionId, topic: "open"}, "*");
+
+    this._canDownloadFile({url: url, checkPolicyFile: checkPolicyFile}, function (data) {
+      if (data.success) {
+        performXHR();
+      } else {
+        log("data access id prohibited to " + url + " from " + baseUrl);
+        win.postMessage({callback:"loadFile", sessionId: sessionId, topic: "error",
+          error: "only original swf file or file from the same origin loading supported"}, "*");
+      }
+    });
   },
   fallback: function() {
     var obj = this.window.frameElement;
@@ -196,8 +306,20 @@ ChromeActions.prototype = {
     e.initCustomEvent("MozPlayPlugin", true, true, null);
     obj.dispatchEvent(e);
   },
+  setClipboard: function (data) {
+    if (typeof data !== 'string' ||
+        data.length > MAX_CLIPBOARD_DATA_SIZE ||
+        !this.document.hasFocus()) {
+      return;
+    }
+    // TODO other security checks?
+
+    let clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"]
+                      .getService(Ci.nsIClipboardHelper);
+    clipboard.copyString(data);
+  },
   externalCom: function (data) {
-    if (!getBoolPref('shumway.external', false))
+    if (!this.allowScriptAccess)
       return;
 
     // TODO check security ?
@@ -327,12 +449,13 @@ function initExternalCom(wrappedWindow, wrappedObject, targetDocument) {
         return '<undefined/>';
       }
     };
-    wrappedWindow.__flash__eval = function (expr) {
+    var sandbox = new Cu.Sandbox(wrappedWindow, {sandboxPrototype: wrappedWindow});
+    wrappedWindow.__flash__eval = function (evalInSandbox, sandbox, expr) {
       this.console.log('__flash__eval: ' + expr);
-      return this.eval(expr);
-    };
+      return evalInSandbox(expr, sandbox);
+    }.bind(wrappedWindow, Cu.evalInSandbox, sandbox);
     wrappedWindow.__flash__call = function (expr) {
-      this.console.log('__flash__call: ' + expr);
+      this.console.log('__flash__call (ignored): ' + expr);
     };
   }
   wrappedObject.__flash__registerCallback = function (functionName) {
@@ -386,12 +509,13 @@ FlashStreamConverterBase.prototype = {
     return true;
   },
 
-  createChromeActions: function(window, urlHint) {
+  createChromeActions: function(window, document, urlHint) {
     var url;
-    var baseUrl; // XXX base url?
+    var baseUrl;
+    var pageUrl;
     var element = window.frameElement;
     var isOverlay = false;
-    var params = {};
+    var objectParams = {};
     if (element) {
       var tagName = element.nodeName;
       while (tagName != 'EMBED' && tagName != 'OBJECT') {
@@ -402,9 +526,14 @@ FlashStreamConverterBase.prototype = {
           throw 'Plugin element is not found';
         tagName = element.nodeName;
       }
+
+      pageUrl = element.ownerDocument.location.href; // proper page url?
+
       if (tagName == 'EMBED') {
-        params = parseQueryString(element.getAttribute('flashvars'));
-        url = element.getAttribute('src');
+        for (var i = 0; i < element.attributes.length; ++i) {
+          var paramName = element.attributes[i].localName.toLowerCase();
+          objectParams[paramName] = element.attributes[i].value;
+        }
       } else {
         url = element.getAttribute('data');
         for (var i = 0; i < element.childNodes.length; ++i) {
@@ -413,39 +542,60 @@ FlashStreamConverterBase.prototype = {
               paramElement.nodeName != 'PARAM') {
             continue;
           }
-          switch (paramElement.getAttribute('name').toLowerCase()) {
-          case 'flashvars':
-            params = parseQueryString(paramElement.getAttribute('value'));
-            break;
-          case 'movie':
-          case 'src':
-            if (url) {
-              break;
-            }
-            url = paramElement.getAttribute('value');
-            break;
-          }
+          var paramName = paramElement.getAttribute('name').toLowerCase();
+          objectParams[paramName] = paramElement.getAttribute('value');
         }
       }
-      baseUrl = element.ownerDocument.location.href;
+    }
+
+    url = url || objectParams.src || objectParams.movie;
+    baseUrl = objectParams.base || pageUrl;
+
+    var movieParams = {};
+    if (objectParams.flashvars) {
+      movieParams = parseQueryString(objectParams.flashvars);
+    }
+    var queryStringMatch = /\?([^#]+)/.exec(url);
+    if (queryStringMatch) {
+      var queryStringParams = parseQueryString(queryStringMatch[1]);
+      for (var i in queryStringParams) {
+        if (!(i in movieParams)) {
+          movieParams[i] = queryStringParams[i];
+        }
+      }
     }
 
     url = !url ? urlHint : Services.io.newURI(url, null,
       baseUrl ? Services.io.newURI(baseUrl, null, null) : null).spec;
 
-    var queryStringMatch = /\?([^#]+)/.exec(url);
-    if (queryStringMatch) {
-      var queryStringParams = parseQueryString(queryStringMatch[1]);
-      for (var i in queryStringParams) {
-        if (!(i in params)) {
-          params[i] = queryStringParams[i];
-        }
-      }
+    var allowScriptAccess = false;
+    switch (objectParams.allowscriptaccess || 'sameDomain') {
+    case 'always':
+      allowScriptAccess = true;
+      break;
+    case 'never':
+      allowScriptAccess = false;
+      break;
+    default:
+      if (!pageUrl)
+        break;
+      try {
+        // checking if page is in same domain (? same protocol and port)
+        allowScriptAccess =
+          Services.io.newURI('/', null, Services.io.newURI(pageUrl, null, null)).spec ==
+          Services.io.newURI('/', null, Services.io.newURI(url, null, null)).spec;
+      } catch (ex) {}
+      break;
     }
-    var actions = new ChromeActions(url, params, baseUrl, window);
+
+    var actions = new ChromeActions(url, window, document);
+    actions.objectParams = objectParams;
+    actions.movieParams = movieParams;
+    actions.baseUrl = baseUrl || url;
     actions.isOverlay = isOverlay;
     actions.embedTag = element;
     actions.isPausedAtStart = /\bpaused=true$/.test(urlHint);
+    actions.allowScriptAccess = allowScriptAccess;
     return actions;
   },
 
@@ -498,6 +648,7 @@ FlashStreamConverterBase.prototype = {
         if (domWindow.document.documentURIObject.equals(channel.originalURI)) {
           // Double check the url is still the correct one.
           let actions = converter.createChromeActions(domWindow,
+                                                      domWindow.document,
                                                       originalURI.spec);
           createSandbox(domWindow, isSimpleMode);
           let requestListener = new RequestListener(actions);

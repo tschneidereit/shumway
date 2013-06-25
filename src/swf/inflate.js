@@ -1,4 +1,21 @@
-/* -*- mode: javascript; tab-width: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*global slice, splice, max, fail, Stream */
 
 var codeLengthOrder = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
 
@@ -48,7 +65,7 @@ function makeHuffmanTable(bitLengths) {
 function verifyDeflateHeader(bytes) {
   var header = (bytes[0] << 8) | bytes[1];
   assert((header & 0x0f00) === 0x0800, 'unknown compression method', 'inflate');
-  assert(!(header % 31), 'bad FCHECK', 'inflate');
+  assert((header % 31) === 0, 'bad FCHECK', 'inflate');
   assert(!(header & 0x20), 'FDICT bit set', 'inflate');
 }
 
@@ -104,10 +121,11 @@ function inflateBlock(stream, output, state) {
       var savedBufferPos = stream.pos;
       var savedBitBuffer = stream.bitBuffer;
       var savedBitLength = stream.bitLength;
+      var bitLengths = [];
+      var numLiteralCodes, numDistanceCodes;
       try  {
-        var bitLengths = [];
-        var numLiteralCodes = readBits(sbytes, stream, 5) + 257;
-        var numDistanceCodes = readBits(sbytes, stream, 5) + 1;
+        numLiteralCodes = readBits(sbytes, stream, 5) + 257;
+        numDistanceCodes = readBits(sbytes, stream, 5) + 1;
         var numCodes = numLiteralCodes + numDistanceCodes;
         var numLengthCodes = readBits(sbytes, stream, 4) + 4;
         for (var i = 0; i < 19; ++i)

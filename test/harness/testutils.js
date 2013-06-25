@@ -1,3 +1,21 @@
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+/*
+ * Copyright 2013 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 function Test() {}
 Test.prototype = {
   advance: function(delay) {
@@ -344,6 +362,63 @@ function execEq(file, frames, onprogress) {
           topic: 'load',
           path: file.indexOf(':') >= 0 || file[0] === '/' ? file : '../' + file,
           reportFrames: frames
+        }, '*');
+      });
+      movieFrame.src = 'harness/slave.html?n=' + id;
+    });
+    TestContext._resultPromise = resultPromise;
+}
+
+function execSanity(tests, onprogress) {
+    var promise = new Promise;
+    TestContext._previousPromise.then(function () {
+      TestContext._currentPromise = promise;
+    });
+
+    var testsPromises = [];
+    var lastPromise = promise;
+    for (var i = 0; i < tests.length; i++) {
+      var testPromise = new Promise
+      testPromise.then(function (i, result) {
+        onprogress(i, tests.length, tests[i], result);
+      }.bind(null, i));
+      testsPromises.push(testPromise);
+      var responsePromise = new Promise;
+      lastPromise.then(function (responsePromise) {
+        TestContext._currentPromise = responsePromise;
+        TestContext._responsePromise = responsePromise;
+      }.bind(null, responsePromise));
+      lastPromise = responsePromise;
+
+      responsePromise.then(function (result) {
+        // redirecting to right promise (in case if snapshots send out-of-order)
+        var j = result.index;
+        testsPromises[j].resolve({
+          failure: result.failure,
+          snapshot: null
+        });
+      });
+    }
+    TestContext._previousPromise = lastPromise;
+
+    var resultPromise = Promise.when.apply(Promise, testsPromises);
+    TestContext._resultPromise.then(function () {
+      TestContext.log('Testing ' + tests + '...');
+      TestContext._currentResultPromise = resultPromise;
+
+      var id = TestContext._id++;
+      var movieFrame = document.getElementById('movie')
+      movieFrame.addEventListener('load', function frameLoad() {
+        movieFrame.removeEventListener('load', frameLoad);
+        var movie = movieFrame.contentWindow;
+        TestContext._driverWindow = movie;
+        TestContext._responsePromise = promise;
+        movie.postMessage({
+          type: 'test-message',
+          topic: 'js',
+          files: tests.map(function (file) {
+            return file.indexOf(':') >= 0 || file[0] === '/' ? file : '../' + file;
+          })
         }, '*');
       });
       movieFrame.src = 'harness/slave.html?n=' + id;
