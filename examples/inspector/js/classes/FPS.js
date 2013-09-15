@@ -3,6 +3,7 @@
  */
 var FPS = (function () {
   var barColor = "rgba(255,255,255, 0.075)";
+  var barOverColor = "rgba(255,255,255, 0.2)";
   var backgroundColor = "rgb(61, 61, 61)";
   var backgroundColorInfo = "rgba(0,0,0, 0.35)";
   var fpsLineColor = "rgb(255,64,0)";
@@ -14,8 +15,7 @@ var FPS = (function () {
     this.index = 0;
     this.marks = new CircularBuffer(Int32Array);
     this.times = new CircularBuffer(Float64Array);
-    this.frameRate = 12;
-    this.maxFrameTime = 1000 * 2 / this.frameRate;
+    this.setFrameRate(12);
     this.refreshFrequency = 10;
     this.refreshCounter = 0;
     this.count = 0;
@@ -23,14 +23,15 @@ var FPS = (function () {
     this.kindCount = 0;
     this.canvas = canvas;
     this.context = canvas.getContext('2d');
-    this.fillStyles = ["rgb(85, 152, 213)", "#bfd8a7", "#d906d7"];
+    this.fillStyles = ["rgb(85, 152, 213)", "#bfd8a7", "#d906d7", "green", "blue", "pink", "white", "yellow"];
     window.addEventListener('resize', this.resizeHandler.bind(this), false);
     this.resizeHandler();
   }
 
   fps.prototype.setFrameRate = function setFrameRate(frameRate) {
+    var scale = 2;
     this.frameRate = frameRate;
-    this.maxFrameTime = 1000 * 2 / frameRate;
+    this.maxFrameTime = scale * 1000 * 2 / frameRate;
   };
 
   fps.prototype.refreshEvery = function refreshEvery(freq) {
@@ -145,6 +146,7 @@ var FPS = (function () {
     var gap = 1;
     var maxFrames = (this.cw / (w + gap)) | 0;
     var frames = this.gatherFrames(maxFrames);
+    var frameRateLineH = 1000 / this.frameRate;
     //var t1 = performance.now() - t;
 
     var context = this.context;
@@ -172,8 +174,9 @@ var FPS = (function () {
         avgFrameRateCount++;
       }
       offsetW = i * (w + gap);
-      context.fillStyle = barColor;
-      context.fillRect(offsetW, 0, w, frames[i + 1].startTime - frame.startTime);
+      var delayH = frames[i + 1].startTime - frame.endTime;
+      context.fillStyle = delayH > frameRateLineH ? barOverColor : barColor;
+      context.fillRect(offsetW, 0, w, delayH);
       drawNode(frame);
     }
 
@@ -197,11 +200,10 @@ var FPS = (function () {
     /**
      * Draw FPS line
      */
-    var lineH = 1000 / this.frameRate;
     context.beginPath();
     context.lineWidth = 1;
-    context.moveTo(0, lineH);
-    context.lineTo(this.cw, lineH);
+    context.moveTo(0, frameRateLineH);
+    context.lineTo(this.cw, frameRateLineH);
     context.strokeStyle = fpsLineColor;
     context.stroke();
 
