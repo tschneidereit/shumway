@@ -646,9 +646,18 @@ function renderStage(stage, ctx, events) {
   var firstRun = true;
   var frameCount = 0;
   var frameFPSAverage = new metrics.Average(120);
+  var framesPerTick = 1;
+  var fullThrottle = true;
 
-  (function draw() {
+  function timelineEnter(event) {
+    fps && fps.enter(event);
+  }
 
+  function timelineLeave(event) {
+    fps && fps.leave(event);
+  }
+
+  (function draw(framesLeft) {
     var now = performance.now();
     var renderFrame = now >= nextRenderAt;
 
@@ -693,25 +702,39 @@ function renderStage(stage, ctx, events) {
       if (renderFrame) {
         frameTime = now;
         maxDelay = 1000 / stage._frameRate;
-        while (nextRenderAt < now) {
-          nextRenderAt += maxDelay;
+        if (!fullThrottle) {
+          while (nextRenderAt < now) {
+            nextRenderAt += maxDelay;
+          }
         }
-        fps && fps.enter("EVENTS");
         if (firstRun) {
           // Initial display list is already constructed, skip frame construction phase.
           firstRun = false;
         } else {
-
+          timelineEnter("advanceFrame");
           domain.broadcastMessage("advanceFrame");
-          domain.broadcastMessage("enterFrame");
-          domain.broadcastMessage("constructChildren");
+          timelineLeave("advanceFrame");
 
+          timelineEnter("enterFrame");
+          domain.broadcastMessage("enterFrame");
+          timelineLeave("enterFrame");
+
+          timelineEnter("constructChildren");
+          domain.broadcastMessage("constructChildren");
+          timelineLeave("constructChildren");
         }
 
+        timelineEnter("frameConstructed");
         domain.broadcastMessage("frameConstructed");
+        timelineLeave("frameConstructed");
+
+        timelineEnter("executeFrame");
         domain.broadcastMessage("executeFrame");
+        timelineLeave("executeFrame");
+
+        timelineEnter("exitFrame");
         domain.broadcastMessage("exitFrame");
-        fps && fps.leave("EVENTS");
+        timelineLeave("exitFrame");
       }
 
       if (stage._deferRenderEvent) {
@@ -725,15 +748,15 @@ function renderStage(stage, ctx, events) {
 
         if (!disablePreVisitor.value) {
           traceRenderer.value && frameWriter.enter("> Pre Visitor");
-          fps && fps.enter("PRE");
+          timelineEnter("PRE");
           stage._processInvalidRegions(ctx);
           invalidPath = stage._invalidPath;
-          fps && fps.leave("PRE");
+          timelineLeave("PRE");
           traceRenderer.value && frameWriter.leave("< Pre Visitor");
         }
 
         if (!disableRenderVisitor.value) {
-          fps && fps.enter("RENDER");
+          timelineEnter("RENDER");
           traceRenderer.value && frameWriter.enter("> Render Visitor");
           if (ctx instanceof CanvasWebGLContext) {
             ctx.clear && ctx.clear();
@@ -743,7 +766,7 @@ function renderStage(stage, ctx, events) {
             (new RenderVisitor(stage, ctx, refreshStage)).start();
           }
           traceRenderer.value && frameWriter.leave("< Render Visitor");
-          fps && fps.leave("RENDER");
+          timelineLeave("RENDER");
         }
 
         if (showQuadTree.value) {
@@ -759,11 +782,11 @@ function renderStage(stage, ctx, events) {
       }
 
       if (mouseMoved && !disableMouseVisitor.value) {
-        fps && renderFrame && fps.enter("MOUSE");
+        renderFrame && timelineEnter("MOUSE");
         traceRenderer.value && frameWriter.enter("> Mouse Visitor");
         stage._handleMouse();
         traceRenderer.value && frameWriter.leave("< Mouse Visitor");
-        fps && renderFrame && fps.leave("MOUSE");
+        renderFrame && timelineLeave("MOUSE");
 
         stage._syncCursor();
       }
@@ -795,6 +818,13 @@ function renderStage(stage, ctx, events) {
       return;
     }
 
-    requestAnimationFrame(draw);
+    framesLeft --;
+    if (framesLeft > 0) {
+      draw(framesLeft - 1);
+    } else {
+      requestAnimationFrame(function () {
+        draw(framesPerTick);
+      });
+    }
   })();
 }
