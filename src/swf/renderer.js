@@ -492,6 +492,14 @@ function renderQuadTree(ctx, qtree) {
 
 var fps;
 
+function timelineEnter(event) {
+  fps && fps.enter(event);
+}
+
+function timelineLeave(event) {
+  fps && fps.leave(event);
+}
+
 var renderingTerminated = false;
 
 var samplesLeftPlusOne = 0;
@@ -654,14 +662,6 @@ function renderStage(stage, ctx, events) {
   var frameFPSAverage = new metrics.Average(120);
   var framesPerTick = 1;
   var fullThrottle = true;
-
-  function timelineEnter(event) {
-    fps && fps.enter(event);
-  }
-
-  function timelineLeave(event) {
-    fps && fps.leave(event);
-  }
 
   (function draw(framesLeft) {
     var now = performance.now();

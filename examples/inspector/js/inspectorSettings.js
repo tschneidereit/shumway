@@ -32,7 +32,9 @@ var DEFAULT_SETTINGS = {
   wireframe: false,
   release: true,
   logToConsole: false,
-  mute: false
+  mute: false,
+  kanvas: true,
+  webgl: false
 };
 
 function loadState() {

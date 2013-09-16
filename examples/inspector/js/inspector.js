@@ -179,27 +179,31 @@ function executeFile(file, buffer, movieParams) {
       function runSWF(file, buffer) {
         var swfURL = FileLoadingService.resolveUrl(file);
         var loaderURL = getQueryVariable("loaderURL") || swfURL;
-        SWF.embed(buffer || file, document, document.getElementById('stage'), {
-          onComplete: swfController.completeCallback.bind(swfController),
-          onBeforeFrame: swfController.beforeFrameCallback.bind(swfController),
-          onAfterFrame: swfController.afterFrameCallback.bind(swfController),
-          onStageInitialized: swfController.stageInitializedCallback.bind(swfController),
-          url: swfURL,
-          loaderURL: loaderURL,
-          movieParams: movieParams || {},
-        });
 
-        SWF.embed(buffer || file, document, document.getElementById('stage'), {
-          onComplete: swfController.completeCallback.bind(swfController),
-          onBeforeFrame: swfController.beforeFrameCallback.bind(swfController),
-          onAfterFrame: swfController.afterFrameCallback.bind(swfController),
-          onStageInitialized: swfController.stageInitializedCallback.bind(swfController),
-          url: swfURL,
-          loaderURL: loaderURL,
-          movieParams: movieParams || {},
-          backend: "2d.gl"
-        });
+        if (state.kanvas) {
+          SWF.embed(buffer || file, document, document.getElementById('stage'), {
+            onComplete: swfController.completeCallback.bind(swfController),
+            onBeforeFrame: swfController.beforeFrameCallback.bind(swfController),
+            onAfterFrame: swfController.afterFrameCallback.bind(swfController),
+            onStageInitialized: swfController.stageInitializedCallback.bind(swfController),
+            url: swfURL,
+            loaderURL: loaderURL,
+            movieParams: movieParams || {},
+          });
+        }
 
+        if (state.webgl) {
+          SWF.embed(buffer || file, document, document.getElementById('stage'), {
+            onComplete: swfController.completeCallback.bind(swfController),
+            onBeforeFrame: swfController.beforeFrameCallback.bind(swfController),
+            onAfterFrame: swfController.afterFrameCallback.bind(swfController),
+            onStageInitialized: swfController.stageInitializedCallback.bind(swfController),
+            url: swfURL,
+            loaderURL: loaderURL,
+            movieParams: movieParams || {},
+            backend: "2d.gl"
+          });
+        }
       }
       if (!buffer && asyncLoading) {
         FileLoadingService.setBaseUrl(file);
