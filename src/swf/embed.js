@@ -19,7 +19,7 @@
 
 SWF.embed = function(file, doc, container, options) {
   var canvas = doc.createElement('canvas');
-  var ctx = canvas.getContext('kanvas-2d');
+  var ctx = canvas.getContext(options.backend || 'kanvas-2d');
   var loader = new flash.display.Loader();
   var loaderInfo = loader.contentLoaderInfo;
   var stage = new flash.display.Stage();
@@ -76,8 +76,8 @@ SWF.embed = function(file, doc, container, options) {
       canvasHolder.style.width = container.clientWidth + 'px';
       canvasHolder.style.height = container.clientHeight + 'px';
     }
-    canvas.width = container.clientWidth * pixelRatio;
-    canvas.height = container.clientHeight * pixelRatio;
+    ctx.width = canvas.width = container.clientWidth * pixelRatio;
+    ctx.height = canvas.height = container.clientHeight * pixelRatio;
     stage._invalid = true;
   }
 
@@ -92,8 +92,8 @@ SWF.embed = function(file, doc, container, options) {
         canvasHolder.style.width = stage._stageWidth + 'px';
         canvasHolder.style.height = stage._stageHeight + 'px';
       }
-      canvas.width = stage._stageWidth * pixelRatio;
-      canvas.height = stage._stageHeight * pixelRatio;
+      ctx.width = canvas.width = stage._stageWidth * pixelRatio;
+      ctx.height = canvas.height = stage._stageHeight * pixelRatio;
     }
 
     container.setAttribute("style", "position: relative");

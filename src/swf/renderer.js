@@ -735,7 +735,13 @@ function renderStage(stage, ctx, events) {
         if (!disableRenderVisitor.value) {
           fps && fps.enter("RENDER");
           traceRenderer.value && frameWriter.enter("> Render Visitor");
-          (new RenderVisitor(stage, ctx, refreshStage)).start();
+          if (ctx instanceof CanvasWebGLContext) {
+            ctx.clear && ctx.clear();
+            (new RenderVisitor(stage, ctx, refreshStage)).start();
+            ctx.flush && ctx.flush();
+          } else {
+            (new RenderVisitor(stage, ctx, refreshStage)).start();
+          }
           traceRenderer.value && frameWriter.leave("< Render Visitor");
           fps && fps.leave("RENDER");
         }

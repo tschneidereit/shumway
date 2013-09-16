@@ -91,3 +91,27 @@ function randomStyle() {
   }
   return randomStyleCache[(Math.random() * randomStyleCache.length) | 0];
 }
+
+var colorCache;
+function parseColor(color) {
+  if (!colorCache) {
+    colorCache = Object.create(null);
+  }
+  if (colorCache[color]) {
+    return colorCache[color];
+  }
+  // TODO: Obviously slow, but it will do for now.
+  var span = document.createElement('span');
+  document.body.appendChild(span);
+  span.style.backgroundColor = color;
+  var rgb = getComputedStyle(span).backgroundColor;
+  document.body.removeChild(span);
+  var m = /^rgb\((\d+), (\d+), (\d+)\)$/.exec(rgb);
+  if (!m) m = /^rgba\((\d+), (\d+), (\d+), ([\d.]+)\)$/.exec(rgb);
+  var result = new Float32Array(4);
+  result[0] = parseFloat(m[1]) / 255;
+  result[1] = parseFloat(m[2]) / 255;
+  result[2] = parseFloat(m[3]) / 255;
+  result[3] = m[4] ? parseFloat(m[4]) : 1;
+  return colorCache[color] = result;
+}
