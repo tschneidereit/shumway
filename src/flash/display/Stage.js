@@ -42,13 +42,12 @@ var StageDefinition = (function () {
       this._qtree = null;
       this._numVisibleObjects = 0;
       this._invalidObjects = [];
-      this._invalidPath = null;
       this._mouseMoved = false;
       this._clickTarget = this;
     },
 
     _setup: function setup(ctx, options) {
-      this._qtree = new QuadTree(0, 0, this._stageWidth, this._stageHeight);
+      this._qtree = new QuadTree(0, 0, this._stageWidth, this._stageHeight, 0);
       this._invalid = true;
     },
 
@@ -97,7 +96,7 @@ var StageDefinition = (function () {
       this._invalidObjects.push(displayObject);
     },
 
-    _processInvalidRegions: function processInvalidRegions(ctx) {
+    _processInvalidRegions: function() {
       var objects = this._invalidObjects;
       var regions = [];
 
@@ -111,16 +110,16 @@ var StageDefinition = (function () {
         var currentRegion = displayObject._getRegion();
 
         var isVisible = displayObject._stage && displayObject._visible &&
-                        currentRegion.x + currentRegion.width > 0 &&
-                        currentRegion.x < this._stageWidth &&
-                        currentRegion.y + currentRegion.height > 0 &&
-                        currentRegion.y < this._stageHeight;
+                        currentRegion.xMax > 0 &&
+                        currentRegion.xMin < this._stageWidth &&
+                        currentRegion.yMax > 0 &&
+                        currentRegion.yMin < this._stageHeight;
 
         var syncQtree = !invalidRegion || !isVisible ||
-                         currentRegion.x !== invalidRegion.x ||
-                         currentRegion.y !== invalidRegion.y ||
-                         currentRegion.width !== invalidRegion.width ||
-                         currentRegion.height !== invalidRegion.height;
+                         currentRegion.xMin !== invalidRegion.xMin ||
+                         currentRegion.yMin !== invalidRegion.yMin ||
+                         currentRegion.xMax !== invalidRegion.xMax ||
+                         currentRegion.yMax !== invalidRegion.yMax;
 
         if (invalidRegion && syncQtree) {
           invalidRegion._qtree.delete(invalidRegion);
@@ -155,47 +154,34 @@ var StageDefinition = (function () {
 
       this._numVisibleObjects = numVisibleObjects;
 
-      var scaleX = this._canvasState.scaleX;
-      var scaleY = this._canvasState.scaleY;
-      var offsetX = this._canvasState.offsetX;
-      var offsetY = this._canvasState.offsetY;
-
       var invalidPath = new ShapePath();
 
       for (var i = 0; i < regions.length; i++) {
-        if (numInvalidObjects / numVisibleObjects > 0.75) {
-          return;
-        }
-
         var region = regions[i];
-        var left = (~~(region.x * scaleX + offsetX) - offsetX) / scaleX - 2;
-        var top = (~~(region.y * scaleY + offsetY) - offsetY) / scaleY - 2;
-        var right = (~~((region.x + region.width) * scaleX + offsetX + 0.5) - offsetX) / scaleX + 2;
-        var bottom = (~~((region.y + region.height) * scaleY + offsetY + 0.5) - offsetY) / scaleY + 2;
-        var width = right - left;
-        var height = bottom - top;
-
-        var neighbours = this._qtree.retrieve(left, top, width, height);
+        var xMin = region.xMin - region.xMin % 20 - 40;
+        var yMin = region.yMin - region.yMin % 20 - 40;
+        var xMax = region.xMax - region.xMax % 20 + 80;
+        var yMax = region.yMax - region.yMax % 20 + 80;
+        var neighbours = this._qtree.retrieve(xMin, yMin, xMax, yMax);
         for (var j = 0; j < neighbours.length; j++) {
           var item = neighbours[j];
-          var displayObject = item.obj;
+          var neighbour = item.obj;
 
-          if (displayObject._invalid || (left > item.x + item.width) ||
-                                        (right < item.x) ||
-                                        (top > item.y + item.height) ||
-                                        (bottom < item.y)) {
+          if (neighbour._invalid || (xMin > item.xMax) || (xMax < item.xMin) ||
+                                    (yMin > item.yMax) || (yMax < item.yMin))
+          {
             continue;
           }
 
-          displayObject._invalid = true;
+          neighbour._invalid = true;
 
           numInvalidObjects++;
         }
 
-        invalidPath.rect(left, top, width, height);
+        invalidPath.rect(xMin, yMin, xMax - xMin, yMax - yMin);
       }
 
-      this._invalidPath = invalidPath;
+      return invalidPath;
     },
 
     _handleMouse: function handleMouse() {
@@ -210,10 +196,9 @@ var StageDefinition = (function () {
         var item = candidates[i];
         var displayObject = item.obj;
         if (displayObject._visible &&
-            mouseX >= item.x &&
-            mouseX <= item.x + item.width &&
-            mouseY >= item.y &&
-            mouseY <= item.y + item.height) {
+            mouseX >= item.xMin && mouseX <= item.xMax &&
+            mouseY >= item.yMin && mouseY <= item.yMax)
+        {
           if (flash.display.SimpleButton.class.isInstanceOf(displayObject)) {
             // TODO: move this into the SimpleButton class
             displayObject._hitTestState._parent = displayObject;
@@ -330,20 +315,20 @@ var StageDefinition = (function () {
           },
           stageWidth: {
             get: function stageWidth() { // (void) -> int
-              return this._stageWidth;
+              return this._stageWidth / 20;
             },
             set: function stageWidth(value) { // (value:int) -> void
               notImplemented("Stage.stageWidth");
-              this._stageWidth = value;
+              this._stageWidth = value * 20|0;
             }
           },
           stageHeight: {
             get: function stageHeight() { // (void) -> int
-              return this._stageHeight;
+              return this._stageHeight / 20;
             },
             set: function stageHeight(value) { // (value:int) -> void
               notImplemented("Stage.stageHeight");
-              this._stageHeight = value;
+              this._stageHeight = value * 20|0;
             }
           },
           showDefaultContextMenu: {

@@ -89,11 +89,11 @@ SWF.embed = function(file, doc, container, options) {
       });
     } else {
       if (canvasHolder) {
-        canvasHolder.style.width = stage._stageWidth + 'px';
-        canvasHolder.style.height = stage._stageHeight + 'px';
+        canvasHolder.style.width = (stage._stageWidth / 20) + 'px';
+        canvasHolder.style.height = (stage._stageHeight / 20) + 'px';
       }
-      ctx.width = canvas.width = stage._stageWidth * pixelRatio;
-      ctx.height = canvas.height = stage._stageHeight * pixelRatio;
+      ctx.width = canvas.width = stage._stageWidth * pixelRatio / 20;
+      ctx.height = canvas.height = stage._stageHeight * pixelRatio / 20;
     }
 
     container.setAttribute("style", "position: relative");
@@ -134,8 +134,8 @@ SWF.embed = function(file, doc, container, options) {
 
       if (mouseX !== stage._mouseX || mouseY !== stage._mouseY) {
         stage._mouseMoved = true;
-        stage._mouseX = mouseX;
-        stage._mouseY = mouseY;
+        stage._mouseX = mouseX * 20;
+        stage._mouseY = mouseY * 20;
       }
     });
     canvas.addEventListener('mouseup', function () {

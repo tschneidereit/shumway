@@ -80,43 +80,43 @@ function visitContainer(container, visitor, context) {
 }
 
 function getBlendModeName(blendMode) {
-  var blendModeCanvas;
   var blendModeClass = flash.display.BlendMode.class;
-  if (blendMode !== blendModeClass.NORMAL) {
-
-    // TODO:
-
-    // These Flash blend modes have no canvas equivalent:
-    // - blendModeClass.SUBTRACT
-    // - blendModeClass.INVERT
-    // - blendModeClass.SHADER
-    // - blendModeClass.ADD
-
-    // These blend modes are actually Porter-Duff compositing operators.
-    // The backdrop is the nearest parent with blendMode set to LAYER.
-    // When there is no LAYER parent, they are ignored (treated as NORMAL).
-    // - blendModeClass.ALPHA (destination-in)
-    // - blendModeClass.ERASE (destination-out)
-    // - blendModeClass.LAYER [defines backdrop]
-
-    var blendModeCanvas;
-    switch (blendMode) {
-      case blendModeClass.MULTIPLY:   blendModeCanvas = "multiply";        break;
-      case blendModeClass.SCREEN:     blendModeCanvas = "screen";          break;
-      case blendModeClass.LIGHTEN:    blendModeCanvas = "lighten";         break;
-      case blendModeClass.DARKEN:     blendModeCanvas = "darken";          break;
-      case blendModeClass.DIFFERENCE: blendModeCanvas = "difference";      break;
-      case blendModeClass.OVERLAY:    blendModeCanvas = "overlay";         break;
-      case blendModeClass.HARDLIGHT:  blendModeCanvas = "hard-light";      break;
-    }
+  if (blendMode === blendModeClass.NORMAL) {
+    return 'normal';
   }
-  return (blendModeCanvas !== undefined) ? blendModeCanvas : "normal";
+
+  // TODO:
+
+  // These Flash blend modes have no canvas equivalent:
+  // - blendModeClass.SUBTRACT
+  // - blendModeClass.INVERT
+  // - blendModeClass.SHADER
+  // - blendModeClass.ADD
+
+  // These blend modes are actually Porter-Duff compositing operators.
+  // The backdrop is the nearest parent with blendMode set to LAYER.
+  // When there is no LAYER parent, they are ignored (treated as NORMAL).
+  // - blendModeClass.ALPHA (destination-in)
+  // - blendModeClass.ERASE (destination-out)
+  // - blendModeClass.LAYER [defines backdrop]
+
+  switch (blendMode) {
+    case blendModeClass.MULTIPLY:   return  "multiply";
+    case blendModeClass.SCREEN:     return  "screen";
+    case blendModeClass.LIGHTEN:    return  "lighten";
+    case blendModeClass.DARKEN:     return  "darken";
+    case blendModeClass.DIFFERENCE: return  "difference";
+    case blendModeClass.OVERLAY:    return  "overlay";
+    case blendModeClass.HARDLIGHT:  return  "hard-light";
+  }
+  return "normal";
 }
 
-function RenderVisitor(root, ctx, refreshStage) {
+function RenderVisitor(root, ctx, invalidPath, refreshStage) {
   this.root = root;
   this.ctx = ctx;
   this.depth = 0;
+  this.invalidPath = invalidPath;
   this.refreshStage = refreshStage;
 
   this.clipDepth = null;
@@ -125,14 +125,16 @@ function RenderVisitor(root, ctx, refreshStage) {
 RenderVisitor.prototype = {
   ignoreVisibleAttribute: false,
   start: function () {
-    visitContainer(this.root, this, new RenderingContext(this.refreshStage, this.root._invalidPath));
+    visitContainer(this.root, this,
+                   new RenderingContext(this.refreshStage, this.invalidPath));
   },
   startFragment: function() {
     var isContainer = flash.display.DisplayObjectContainer.class.isInstanceOf(this.root) ||
                       flash.display.SimpleButton.class.isInstanceOf(this.root);
 
     // HACK compensate for visit()/renderDisplayObject() transform
-    var t = this.root._currentTransform, inverse;
+    var t = this.root._currentTransform;
+    var inverse;
     if (t) {
       inverse = new flash.geom.Matrix(t.a, t.b, t.c, t.d, t.tx, t.ty);
       inverse.invert();
@@ -140,9 +142,11 @@ RenderVisitor.prototype = {
       inverse = new flash.geom.Matrix();
     }
     this.ctx.save();
-    this.ctx.transform(inverse.a, inverse.b, inverse.c, inverse.d, inverse.tx, inverse.ty);
+    this.ctx.transform(inverse.a, inverse.b, inverse.c, inverse.d,
+                       inverse.tx/20, inverse.ty/20);
 
-    this.visit(this.root, isContainer, visitContainer, new RenderingContext(this.refreshStage));
+    this.visit(this.root, isContainer, visitContainer,
+               new RenderingContext(this.refreshStage, this.invalidPath));
 
     this.ctx.restore();
   },
@@ -152,8 +156,8 @@ RenderVisitor.prototype = {
 
       ctx.save();
 
-      if (this.root._invalidPath && !this.refreshStage && !renderAsWireframe.value) {
-        this.root._invalidPath.draw(ctx);
+      if (this.invalidPath && !this.refreshStage && !renderAsWireframe.value) {
+        this.invalidPath.draw(ctx);
         ctx.clip();
       }
 
@@ -164,7 +168,7 @@ RenderVisitor.prototype = {
         }
         if (bgcolor.alpha > 0) {
           ctx.fillStyle = rgbaObjToStr(bgcolor);
-          if (this.root._invalidPath) {
+          if (this.invalidPath && !this.refreshStage && !renderAsWireframe.value) {
             ctx.fill();
           } else {
             ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -204,7 +208,7 @@ RenderVisitor.prototype = {
     this.depth--;
     if (this.depth === 0) {
       this.ctx.restore();
-      this.root._invalidPath = null;
+      this.invalidPath = null;
     }
   },
   visit: function (child, isContainer, visitContainer, context) {
@@ -418,11 +422,9 @@ function renderDisplayObject(child, ctx, transform, context) {
       ctx.rect(0, 0, 0, 0);
       ctx.clip();
     } else {
-      ctx.transform(m.a, m.b, m.c, m.d, m.tx, m.ty);
+      ctx.transform(m.a, m.b, m.c, m.d, m.tx/20, m.ty/20);
     }
   }
-
-  child._wireframeStrokeStyle = null;
 
   if (!renderAsWireframe.value) {
 
@@ -430,7 +432,7 @@ function renderDisplayObject(child, ctx, transform, context) {
       ctx.globalAlpha *= child._alpha;
     }
 
-    if (context.invalidPath && !context.refreshStage && !child._invalid) {
+    if (context.invalidPath && !child._invalid && !context.refreshStage) {
       return;
     }
 
@@ -440,12 +442,13 @@ function renderDisplayObject(child, ctx, transform, context) {
 
       if (graphics._bitmap) {
         ctx.save();
-        ctx.translate(child._bbox.xMin, child._bbox.yMin);
+        ctx.translate(child._bbox.xMin/20, child._bbox.yMin/20);
         context.colorTransform.setAlpha(ctx, true);
         ctx.drawImage(graphics._bitmap, 0, 0);
         ctx.restore();
       } else {
-        graphics.draw(ctx, context.isClippingMask, child.ratio, context.colorTransform);
+        graphics.draw(ctx, context.isClippingMask, child.ratio,
+                      context.colorTransform);
       }
     }
 
@@ -455,18 +458,21 @@ function renderDisplayObject(child, ctx, transform, context) {
 
   } else {
 
-    if (!context.refreshStage && !child._invalid) {
+    if (!child._invalid && !context.refreshStage) {
       return;
     }
 
     if (child.getBounds) {
       var b = child.getBounds(child);
       if (b && b.xMax - b.xMin > 0 && b.yMax - b.yMin > 0) {
-        child._wireframeStrokeStyle = randomStyle();
+        if (!child._wireframeStrokeStyle) {
+          child._wireframeStrokeStyle = randomStyle();
+        }
         ctx.save();
         ctx.strokeStyle = child._wireframeStrokeStyle;
-        ctx.strokeRect(b.xMin + 0.5, b.yMin + 0.5, b.xMax - b.xMin - 1,
-                       b.yMax - b.yMin - 1);
+        var x = b.xMin / 20;
+        var y = b.yMin / 20;
+        ctx.strokeRect(x + 0.5, y + 0.5, b.xMax/20 - x - 1, b.yMax/20 - y - 1);
         ctx.restore();
       }
     }
@@ -477,7 +483,7 @@ function renderDisplayObject(child, ctx, transform, context) {
 }
 
 function renderQuadTree(ctx, qtree) {
-  ctx.strokeRect(qtree.x, qtree.y, qtree.width, qtree.height);
+  ctx.strokeRect(qtree.x/20, qtree.y/20, qtree.width/20, qtree.height/20);
   var nodes = qtree.nodes;
   for (var i = 0; i < nodes.length; i++) {
     renderQuadTree(ctx, nodes[i]);
@@ -525,8 +531,8 @@ function renderStage(stage, ctx, events) {
     frameWidth = ctx.canvas.width;
     frameHeight = ctx.canvas.height;
 
-    var scaleX = frameWidth / stage._stageWidth;
-    var scaleY = frameHeight / stage._stageHeight;
+    var scaleX = frameWidth / stage._stageWidth * 20;
+    var scaleY = frameHeight / stage._stageHeight * 20;
 
     switch (stage._scaleMode) {
     case 'exactFit':
@@ -557,16 +563,16 @@ function renderStage(stage, ctx, events) {
     if (align.indexOf('L') >= 0) {
       offsetX = 0;
     } else if (align.indexOf('R') >= 0) {
-      offsetX = frameWidth - scaleX * stage._stageWidth;
+      offsetX = frameWidth - scaleX * stage._stageWidth / 20;
     } else {
-      offsetX = (frameWidth - scaleX * stage._stageWidth) / 2;
+      offsetX = (frameWidth - scaleX * stage._stageWidth / 20) / 2;
     }
     if (align.indexOf('T') >= 0) {
       offsetY = 0;
     } else if (align.indexOf('B') >= 0) {
-      offsetY = frameHeight - scaleY * stage._stageHeight;
+      offsetY = frameHeight - scaleY * stage._stageHeight / 20;
     } else {
-      offsetY = (frameHeight - scaleY * stage._stageHeight) / 2;
+      offsetY = (frameHeight - scaleY * stage._stageHeight / 20) / 2;
     }
 
     ctx.setTransform(scaleX, 0, 0, scaleY, offsetX, offsetY);
@@ -749,8 +755,7 @@ function renderStage(stage, ctx, events) {
         if (!disablePreVisitor.value) {
           traceRenderer.value && frameWriter.enter("> Pre Visitor");
           timelineEnter("PRE");
-          stage._processInvalidRegions(ctx);
-          invalidPath = stage._invalidPath;
+          invalidPath = stage._processInvalidRegions();
           timelineLeave("PRE");
           traceRenderer.value && frameWriter.leave("< Pre Visitor");
         }
@@ -760,10 +765,10 @@ function renderStage(stage, ctx, events) {
           traceRenderer.value && frameWriter.enter("> Render Visitor");
           if (ctx instanceof CanvasWebGLContext) {
             ctx.clear && ctx.clear();
-            (new RenderVisitor(stage, ctx, refreshStage)).start();
+            (new RenderVisitor(stage, ctx, invalidPath, refreshStage)).start();
             ctx.flush && ctx.flush();
           } else {
-            (new RenderVisitor(stage, ctx, refreshStage)).start();
+            (new RenderVisitor(stage, ctx, invalidPath, refreshStage)).start();
           }
           traceRenderer.value && frameWriter.leave("< Render Visitor");
           timelineLeave("RENDER");
