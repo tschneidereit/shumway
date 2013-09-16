@@ -5,7 +5,7 @@ var FPS = (function () {
   var barColor = "rgba(255,255,255, 0.075)";
   var barOverColor = "rgba(255,255,255, 0.2)";
   var backgroundColor = "rgb(61, 61, 61)";
-  var backgroundColorInfo = "rgba(0,0,0, 0.35)";
+  var backgroundColorInfo = "rgba(0,0,0, 0.75)";
   var fpsLineColor = "rgb(255,64,0)";
   var textColor = "#ccc";
 
