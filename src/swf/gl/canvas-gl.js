@@ -9,7 +9,7 @@ var CanvasWebGLContext = CanvasWebGLContext || (function (document, undefined) {
   };
 
   var CanvasWebGLContext = (function () {
-    var debug = true;
+    var debug = false;
     function matrixTranspose(r, c, m) {
       assert (r * c === m.length);
       var result = new Float32Array(m.length);
@@ -258,7 +258,7 @@ var CanvasWebGLContext = CanvasWebGLContext || (function (document, undefined) {
     };
 
     canvasWebGLContext.prototype.save = function save() {
-      debug && writer.leave("save");
+      debug && writer.enter("save");
       var m = this._currentTransformStack;
       var o = this._currentTransformStackOffset;
       m[o + 6]  = m[o + 0];
