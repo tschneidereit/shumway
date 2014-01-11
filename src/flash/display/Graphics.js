@@ -35,6 +35,11 @@ var GraphicsDefinition = (function () {
       this._parent = 0;
       this.bbox = null;
       this.strokeBbox = null;
+      this.isRenderable = true;
+    },
+
+    getRenderData: function() {
+      return this._paths;
     },
 
     _invalidate: function () {

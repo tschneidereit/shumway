@@ -119,9 +119,47 @@ function getBlendModeName(blendMode) {
   return BlendModeNameMap[blendMode] || 'normal';
 }
 
-function RenderVisitor(root, ctx, invalidPath, refreshStage) {
+function CreateObjectIdProvider() {
+  var nextId = 0;
+  var idMap = new WeakMap();
+  return function idProvider(object) {
+    var id = idMap.get(object);
+    if (id) {
+      return id;
+    }
+    idMap.set(object, ++nextId);
+    return nextId;
+  }
+}
+
+function RenderListEntry(id, command) {
+  assert(typeof id === 'number');
+  assert(id|0 === id);
+  assert(id > 0);
+  assert(command);
+  this.id = id;
+  this.command = command;
+  this.transform = null;
+  this.data = data = null;
+}
+
+function RenderList() {
+  this.entries = [];
+}
+RenderList.prototype = {
+  add: function(id) {
+    assert(typeof id === 'number');
+    var entry = new RenderListEntry(id, 'keep');
+    this.entries.push(entry);
+    return entry;
+  }
+};
+
+function RenderVisitor(root, ctx, idProvider, invalidPath, refreshStage) {
   this.root = root;
   this.ctx = ctx;
+  this.idProvider = idProvider;
+  this.renderList = new RenderList();
   this.depth = 0;
   this.invalidPath = invalidPath;
   this.refreshStage = refreshStage;
@@ -131,11 +169,12 @@ function RenderVisitor(root, ctx, invalidPath, refreshStage) {
 }
 RenderVisitor.prototype = {
   ignoreVisibleAttribute: false,
-  start: function () {
+  render: function () {
     visitContainer(this.root, this,
                    new RenderingContext(this.refreshStage, this.invalidPath));
+    return this.renderList;
   },
-  startFragment: function(matrix) {
+  renderFragment: function(matrix) {
     var root = this.root;
     // HACK: temporarily set the root DisplayObject's currentTransform
     //       to the matrix passed in via BitmapData.draw(), to make masks
@@ -290,7 +329,8 @@ RenderVisitor.prototype = {
 
     if (clippingMask && child._isContainer) {
       ctx.save();
-      renderDisplayObject(child, ctx, context);
+      renderDisplayObject(child, ctx, context,
+                          this.idProvider, this.renderList);
       for (var i = 0, n = child._children.length; i < n; i++) {
         var child1 = child._children[i];
         if (!child1) {
@@ -320,11 +360,13 @@ RenderVisitor.prototype = {
       var savedClipDepth = this.clipDepth;
       this.clipDepth = null;
       this.ctx = mask.ctx;
-      this.visit(child._mask, visitContainer, new RenderingContext(this.refreshStage));
+      this.visit(child._mask, visitContainer,
+                 new RenderingContext(this.refreshStage, null));
       this.ctx = ctx;
       this.clipDepth = savedClipDepth;
 
-      renderDisplayObject(child, maskee.ctx, context);
+      renderDisplayObject(child, maskee.ctx, context,
+                          this.idProvider, this.renderList);
 
       if (child._isContainer) {
         this.ctx = maskee.ctx;
@@ -335,7 +377,8 @@ RenderVisitor.prototype = {
       context.parentCtxs.pop();
       this.clipEnd(clipInfo);
     } else {
-      renderDisplayObject(child, ctx, context);
+      renderDisplayObject(child, ctx, context,
+                          this.idProvider, this.renderList);
 
       if (child._isContainer) {
         visitContainer(child, this, context);
@@ -503,7 +546,24 @@ function RenderingContext(refreshStage, invalidPath) {
   this.parentCtxs = [];
 }
 
-function renderDisplayObject(child, ctx, context) {
+function renderDisplayObject(child, ctx, context, idProvider, renderList) {
+
+  if (child.isRenderable) {
+    var entry = renderList.add(idProvider(child));
+    if (child._invalid) {
+      entry.command = 'update';
+      entry.transform = child._concatenatedTransform;
+      entry.data = child.getRenderData();
+    }
+  }
+  if (child._graphics) {
+    var entry = renderList.add(idProvider(child._graphics));
+    if (child._invalid) {
+      entry.command = 'update';
+      entry.transform = child._concatenatedTransform;
+      entry.data = child._graphics.getRenderData();
+    }
+  }
   var m = child._currentTransform;
   if (m) {
     ctx.transform(m.a, m.b, m.c, m.d, m.tx/20, m.ty/20);
@@ -511,12 +571,12 @@ function renderDisplayObject(child, ctx, context) {
 
   if (!renderAsWireframe.value) {
 
-    if (child._alpha !== 1) {
-      ctx.globalAlpha *= child._alpha;
-    }
-
     if (context.invalidPath && !child._invalid && !context.refreshStage) {
       return;
+    }
+
+    if (child._alpha !== 1) {
+      ctx.globalAlpha *= child._alpha;
     }
 
     // TODO: move into Graphics class
@@ -530,10 +590,7 @@ function renderDisplayObject(child, ctx, context) {
         ctx.drawImage(graphics._bitmap, 0, 0);
         ctx.restore();
       } else {
-        var ratio = child.ratio;
-        if (ratio === undefined) {
-          ratio = 0;
-        }
+        var ratio = child.ratio || 0;
         graphics.draw(ctx, context.isClippingMask, ratio,
                       context.colorTransform);
       }
@@ -647,6 +704,8 @@ function initializeHUD(stage, parentCanvas) {
 
 function renderStage(stage, ctx, events) {
   var frameWidth, frameHeight;
+
+  var idProvider = CreateObjectIdProvider();
 
   if (!timeline && hud.value) {
     initializeHUD(stage, ctx.canvas);
@@ -842,7 +901,10 @@ function renderStage(stage, ctx, events) {
         if (!disableRenderVisitor.value && !invalidPath.isEmpty) {
           timelineEnter("render");
           traceRenderer.value && frameWriter.enter("> Rendering");
-          (new RenderVisitor(stage, ctx, invalidPath, refreshStage)).start();
+          var visitor = new RenderVisitor(stage, ctx, idProvider,
+                                          invalidPath, refreshStage);
+          var renderList = visitor.render();
+          console.log(renderList);
           traceRenderer.value && frameWriter.leave("< Rendering");
           timelineLeave("render");
         }
