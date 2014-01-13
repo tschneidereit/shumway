@@ -132,16 +132,16 @@ function CreateObjectIdProvider() {
   }
 }
 
-function RenderListEntry(id, command) {
+function RenderListEntry(id) {
   assert(typeof id === 'number');
   assert(id|0 === id);
   assert(id > 0);
-  assert(command);
   this.id = id;
   this.type = '';
-  this.command = command;
+  this.command = 'keep';
   this.transform = null;
   this.data = null;
+  this.region = null;
 }
 
 function RenderList(idProvider) {
@@ -149,11 +149,20 @@ function RenderList(idProvider) {
   this.entries = [];
 }
 RenderList.prototype = {
-  add: function(element) {
+  add: function(element, region, transform, invalid) {
     var id = this.getId(element);
     assert(typeof id === 'number');
-    var entry = new RenderListEntry(id, 'keep');
+    var entry = new RenderListEntry(id);
     this.entries.push(entry);
+    if (invalid) {
+      entry.command = 'update';
+      entry.type = element.renderType;
+      assert(entry.type);
+      entry.colorTransform = new RenderingColorTransform();
+      entry.region = region;
+      entry.transform = transform;
+      entry.data = element.getRenderData();
+    }
     return entry;
   }
 };
@@ -871,12 +880,9 @@ function renderStage(stage, ctx, events) {
       if (isCanvasVisible(ctx.canvas) && (refreshStage || renderFrame) &&
           frameRequested) {
 
-        var invalidPath;
-
         traceRenderer.value && frameWriter.enter("> Invalidation");
         timelineEnter("invalidate");
-        var renderList = new RenderList(idProvider);
-        invalidPath = stage._processInvalidations(refreshStage, renderList);
+        var renderList = stage.createRenderList(refreshStage, idProvider);
         timelineLeave("invalidate");
         traceRenderer.value && frameWriter.leave("< Invalidation");
 
@@ -888,7 +894,7 @@ function renderStage(stage, ctx, events) {
 //          visitor.render();
           for (element of stage._removedChildren) {
             var entry = renderList.add(element);
-            entry.command = 'remove';
+            entry.command = 'drop';
           }
           stage._removedChildren.clear();
           renderBackend.render(renderList);
@@ -899,12 +905,6 @@ function renderStage(stage, ctx, events) {
         if (showQuadTree.value) {
           ctx.strokeStyle = 'green';
           renderQuadTree(ctx, stage._qtree);
-        }
-
-        if (invalidPath && !refreshStage && showRedrawRegions.value) {
-          ctx.strokeStyle = 'red';
-          invalidPath.draw(ctx);
-          ctx.stroke();
         }
       }
 
@@ -1009,6 +1009,7 @@ function renderStage(stage, ctx, events) {
 function RenderBackend(ctx) {
   this.ctx = ctx;
   this.assets = Object.create(null);
+  this.regions = Object.create(null);
 }
 RenderBackend.prototype = {
   render: function(renderList) {
@@ -1026,15 +1027,17 @@ RenderBackend.prototype = {
           assert(element.data);
           this.assets[element.id] = element.data;
           this.drawElement(element, ctx);
+          this.regions[element.id] = element.region;
           break;
         }
         case 'keep': {
           assert(this.assets[element.id]);
           break;
         }
-        case 'remove': {
+        case 'drop': {
 //          assert(this.assets[element.id]);
           delete this.assets[element.id];
+          delete this.regions[element.id];
         }
       }
     }
@@ -1057,3 +1060,81 @@ RenderBackend.prototype = {
     }
   }
 };
+
+
+//var qtree = this._qtree;
+//var invalidRegions = this._invalidRegions;
+//var zindex = 0;
+
+//if (node._invalid) {
+//  if (invalidRegion) {
+//    invalidRegions.insert(invalidRegion);
+//  }
+//
+//  if (!hidden && (!invalidRegion ||
+//                  currentRegion.xMin !== invalidRegion.xMin ||
+//                  currentRegion.yMin !== invalidRegion.yMin ||
+//                  currentRegion.xMax !== invalidRegion.xMax ||
+//                  currentRegion.yMax !== invalidRegion.yMax))
+//  {
+//    invalidRegions.insert(currentRegion);
+//  }
+//}
+//
+//if (hidden) {
+//  if (invalidRegion) {
+//    qtree.remove(invalidRegion);
+//    node._region = null;
+//  }
+//} else if (invalidRegion) {
+//  invalidRegion.xMin = currentRegion.xMin;
+//  invalidRegion.xMax = currentRegion.xMax;
+//  invalidRegion.yMin = currentRegion.yMin;
+//  invalidRegion.yMax = currentRegion.yMax;
+//  qtree.update(invalidRegion);
+//} else {
+//  currentRegion.obj = node;
+//  qtree.insert(currentRegion);
+//
+//  node._region = currentRegion;
+//}
+//
+//node._zindex = zindex++;
+
+//var invalidPath = new ShapePath();
+//if (refreshStage) {
+//  invalidPath.rect(0, 0, this._stageWidth, this._stageHeight);
+//  invalidRegions.reset();
+//  return invalidPath;
+//}
+//
+//var redrawRegions = invalidRegions.retrieve();
+//
+//for (var i = 0; i < redrawRegions.length; i++) {
+//  var region = redrawRegions[i];
+//  var xMin = region.xMin - region.xMin % 20 - 40;
+//  var yMin = region.yMin - region.yMin % 20 - 40;
+//  var xMax = region.xMax - region.xMax % 20 + 80;
+//  var yMax = region.yMax - region.yMax % 20 + 80;
+//
+//  var intersectees = qtree.retrieve(xMin, xMax, yMin, yMax);
+//  for (var j = 0; j < intersectees.length; j++) {
+//    var item = intersectees[j];
+////          item.obj._invalid = true;
+//  }
+//
+//  invalidPath.rect(xMin, yMin, xMax - xMin, yMax - yMin);
+//}
+//
+//invalidRegions.reset();
+//
+//return invalidPath;
+
+
+
+
+//if (invalidPath && !refreshStage && showRedrawRegions.value) {
+//  ctx.strokeStyle = 'red';
+//  invalidPath.draw(ctx);
+//  ctx.stroke();
+//}
