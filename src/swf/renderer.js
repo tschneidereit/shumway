@@ -1015,8 +1015,7 @@ RenderBackend.prototype = {
   render: function(renderList) {
     console.log('start');
     var ctx = this.ctx;
-    ctx.fillStyle = 'transparent';
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    var invalidRegions = new RegionCluster();
     for (var i = 0; i < renderList.entries.length; i++) {
       var element = renderList.entries[i];
       assert(element);
@@ -1028,6 +1027,7 @@ RenderBackend.prototype = {
           this.assets[element.id] = element.data;
           this.drawElement(element, ctx);
           this.regions[element.id] = element.region;
+          invalidRegions.insert(element.region);
           break;
         }
         case 'keep': {
@@ -1036,6 +1036,9 @@ RenderBackend.prototype = {
         }
         case 'drop': {
 //          assert(this.assets[element.id]);
+          if (this.regions[element.id]) {
+            invalidRegions.insert(this.regions[element.id]);
+          }
           delete this.assets[element.id];
           delete this.regions[element.id];
         }
@@ -1063,8 +1066,6 @@ RenderBackend.prototype = {
 
 
 //var qtree = this._qtree;
-//var invalidRegions = this._invalidRegions;
-//var zindex = 0;
 
 //if (node._invalid) {
 //  if (invalidRegion) {
@@ -1099,14 +1100,8 @@ RenderBackend.prototype = {
 //  node._region = currentRegion;
 //}
 //
-//node._zindex = zindex++;
 
 //var invalidPath = new ShapePath();
-//if (refreshStage) {
-//  invalidPath.rect(0, 0, this._stageWidth, this._stageHeight);
-//  invalidRegions.reset();
-//  return invalidPath;
-//}
 //
 //var redrawRegions = invalidRegions.retrieve();
 //
@@ -1130,6 +1125,11 @@ RenderBackend.prototype = {
 //
 //return invalidPath;
 
+//if (refreshStage) {
+//  invalidPath.rect(0, 0, this._stageWidth, this._stageHeight);
+//  invalidRegions.reset();
+//  return invalidPath;
+//}
 
 
 

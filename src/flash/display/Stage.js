@@ -41,7 +41,6 @@ var StageDefinition = (function () {
       this._root = null;
       this._qtree = null;
       this._removedChildren = new Set();
-      this._invalidRegions = new RegionCluster();
       this._mouseMoved = false;
       this._mouseTarget = this;
       this._mouseEvents = [];
@@ -92,7 +91,6 @@ var StageDefinition = (function () {
 
       if (displayObject._region) {
         this._qtree.remove(displayObject._region);
-        this._invalidRegions.insert(displayObject._region);
         displayObject._region = null;
       }
       this._removedChildren.add(displayObject);
@@ -101,11 +99,14 @@ var StageDefinition = (function () {
     createRenderList: function(refreshStage, idProvider) {
       var renderList = new RenderList(idProvider);
       var stack = [];
+      var qtree = this._qtree;
+      var zindex = 0;
 
       var children = this._children;
+      var child;
       var i = children.length;
       while (i--) {
-        var child = children[i];
+        child = children[i];
         if (refreshStage) {
           child._invalid = true;
         }
@@ -114,34 +115,34 @@ var StageDefinition = (function () {
       }
 
       while (stack.length) {
-        var node = stack.pop();
+        var element = stack.pop();
 
-        var m = node._concatenatedTransform;
+        var m = element._concatenatedTransform;
 
-        var children = node._children;
-        var i = children.length;
+        children = element._children;
+        i = children.length;
         while (i--) {
-          var child = children[i];
+          child = children[i];
 
           if (!flash.display.DisplayObject.class.isInstanceOf(child)) {
             continue;
           }
 
-          if (node._invalid) {
+          if (element._invalid) {
             child._invalid = true;
           }
           if (m.invalid) {
             child._concatenatedTransform.invalid = true;
           }
-          child._invisible = node._invisible || !child._visible;
+          child._invisible = element._invisible || !child._visible;
           stack.push(child);
         }
 
         var transformInvalid = false;
 
-        if (node._level && m.invalid) {
-          var m2 = node._currentTransform;
-          var m3 = node._parent._concatenatedTransform;
+        if (element._level && m.invalid) {
+          var m2 = element._currentTransform;
+          var m3 = element._parent._concatenatedTransform;
           m.a = m2.a * m3.a + m2.b * m3.c;
           m.b = m2.a * m3.b + m2.b * m3.d;
           m.c = m2.c * m3.a + m2.d * m3.c;
@@ -152,9 +153,10 @@ var StageDefinition = (function () {
           transformInvalid = true;
         }
 
-        var region = node._getRegion(m);
+        var previousRegion = element._region;
+        var region = element._getRegion(m);
 
-        var hidden = node._invisible ||
+        var hidden = element._invisible ||
                      !region ||
                      region.xMax - region.xMin === 0 ||
                      region.yMax - region.yMin === 0 ||
@@ -163,17 +165,35 @@ var StageDefinition = (function () {
                      region.yMax <= 0 ||
                      region.yMin >= this._stageHeight;
 
-        if (!hidden) {
-          var invalid = node._invalid || transformInvalid;
-          var transform = node._concatenatedTransform;
-          if (node.isRenderable) {
-            renderList.add(node, region, transform, invalid);
+        if (hidden) {
+          if (previousRegion) {
+            qtree.remove(previousRegion);
+            node._region = null;
           }
-          if (node._graphics) {
-            renderList.add(node._graphics, region, transform, invalid);
+        } else {
+          var invalid = element._invalid || transformInvalid;
+          var transform = element._concatenatedTransform;
+          if (element.isRenderable) {
+            renderList.add(element, region, transform, invalid);
+          }
+          if (element._graphics) {
+            renderList.add(element._graphics, region, transform, invalid);
+          }
+          if (previousRegion) {
+            previousRegion.xMin = region.xMin;
+            previousRegion.xMax = region.xMax;
+            previousRegion.yMin = region.yMin;
+            previousRegion.yMax = region.yMax;
+            qtree.update(previousRegion);
+          } else {
+            region.obj = element;
+            qtree.insert(region);
+            element._region = region;
           }
         }
-        node._invalid = false;
+
+          element._zindex = zindex++;
+        element._invalid = false;
       }
       return renderList;
     },
