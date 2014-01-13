@@ -138,16 +138,19 @@ function RenderListEntry(id, command) {
   assert(id > 0);
   assert(command);
   this.id = id;
+  this.type = '';
   this.command = command;
   this.transform = null;
-  this.data = data = null;
+  this.data = null;
 }
 
-function RenderList() {
+function RenderList(idProvider) {
+  this.getId = idProvider;
   this.entries = [];
 }
 RenderList.prototype = {
-  add: function(id) {
+  add: function(element) {
+    var id = this.getId(element);
     assert(typeof id === 'number');
     var entry = new RenderListEntry(id, 'keep');
     this.entries.push(entry);
@@ -158,8 +161,6 @@ RenderList.prototype = {
 function RenderVisitor(root, ctx, idProvider, invalidPath, refreshStage) {
   this.root = root;
   this.ctx = ctx;
-  this.idProvider = idProvider;
-  this.renderList = new RenderList();
   this.depth = 0;
   this.invalidPath = invalidPath;
   this.refreshStage = refreshStage;
@@ -172,7 +173,6 @@ RenderVisitor.prototype = {
   render: function () {
     visitContainer(this.root, this,
                    new RenderingContext(this.refreshStage, this.invalidPath));
-    return this.renderList;
   },
   renderFragment: function(matrix) {
     var root = this.root;
@@ -329,8 +329,7 @@ RenderVisitor.prototype = {
 
     if (clippingMask && child._isContainer) {
       ctx.save();
-      renderDisplayObject(child, ctx, context,
-                          this.idProvider, this.renderList);
+      renderDisplayObject(child, ctx, context);
       for (var i = 0, n = child._children.length; i < n; i++) {
         var child1 = child._children[i];
         if (!child1) {
@@ -365,8 +364,7 @@ RenderVisitor.prototype = {
       this.ctx = ctx;
       this.clipDepth = savedClipDepth;
 
-      renderDisplayObject(child, maskee.ctx, context,
-                          this.idProvider, this.renderList);
+      renderDisplayObject(child, maskee.ctx, context);
 
       if (child._isContainer) {
         this.ctx = maskee.ctx;
@@ -377,8 +375,7 @@ RenderVisitor.prototype = {
       context.parentCtxs.pop();
       this.clipEnd(clipInfo);
     } else {
-      renderDisplayObject(child, ctx, context,
-                          this.idProvider, this.renderList);
+      renderDisplayObject(child, ctx, context);
 
       if (child._isContainer) {
         visitContainer(child, this, context);
@@ -546,24 +543,7 @@ function RenderingContext(refreshStage, invalidPath) {
   this.parentCtxs = [];
 }
 
-function renderDisplayObject(child, ctx, context, idProvider, renderList) {
-
-  if (child.isRenderable) {
-    var entry = renderList.add(idProvider(child));
-    if (child._invalid) {
-      entry.command = 'update';
-      entry.transform = child._concatenatedTransform;
-      entry.data = child.getRenderData();
-    }
-  }
-  if (child._graphics) {
-    var entry = renderList.add(idProvider(child._graphics));
-    if (child._invalid) {
-      entry.command = 'update';
-      entry.transform = child._concatenatedTransform;
-      entry.data = child._graphics.getRenderData();
-    }
-  }
+function renderDisplayObject(child, ctx, context) {
   var m = child._currentTransform;
   if (m) {
     ctx.transform(m.a, m.b, m.c, m.d, m.tx/20, m.ty/20);
@@ -706,6 +686,7 @@ function renderStage(stage, ctx, events) {
   var frameWidth, frameHeight;
 
   var idProvider = CreateObjectIdProvider();
+  window.renderBackend = new RenderBackend(ctx);
 
   if (!timeline && hud.value) {
     initializeHUD(stage, ctx.canvas);
@@ -890,21 +871,27 @@ function renderStage(stage, ctx, events) {
       if (isCanvasVisible(ctx.canvas) && (refreshStage || renderFrame) &&
           frameRequested) {
 
-        var invalidPath = null;
+        var invalidPath;
 
         traceRenderer.value && frameWriter.enter("> Invalidation");
         timelineEnter("invalidate");
-        invalidPath = stage._processInvalidations(refreshStage);
+        var renderList = new RenderList(idProvider);
+        invalidPath = stage._processInvalidations(refreshStage, renderList);
         timelineLeave("invalidate");
         traceRenderer.value && frameWriter.leave("< Invalidation");
 
-        if (!disableRenderVisitor.value && !invalidPath.isEmpty) {
+        if (!disableRenderVisitor.value) {
           timelineEnter("render");
           traceRenderer.value && frameWriter.enter("> Rendering");
-          var visitor = new RenderVisitor(stage, ctx, idProvider,
-                                          invalidPath, refreshStage);
-          var renderList = visitor.render();
-          console.log(renderList);
+//          var visitor = new RenderVisitor(stage, ctx, idProvider,
+//                                          invalidPath, refreshStage);
+//          visitor.render();
+          for (element of stage._removedChildren) {
+            var entry = renderList.add(element);
+            entry.command = 'remove';
+          }
+          stage._removedChildren.clear();
+          renderBackend.render(renderList);
           traceRenderer.value && frameWriter.leave("< Rendering");
           timelineLeave("render");
         }
@@ -1018,3 +1005,55 @@ function renderStage(stage, ctx, events) {
     requestAnimationFrame(frame);
   })();
 }
+
+function RenderBackend(ctx) {
+  this.ctx = ctx;
+  this.assets = Object.create(null);
+}
+RenderBackend.prototype = {
+  render: function(renderList) {
+    console.log('start');
+    var ctx = this.ctx;
+    ctx.fillStyle = 'transparent';
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    for (var i = 0; i < renderList.entries.length; i++) {
+      var element = renderList.entries[i];
+      assert(element);
+      assert(element.id);
+      assert(element.command);
+      switch (element.command) {
+        case 'update': {
+          assert(element.data);
+          this.assets[element.id] = element.data;
+          this.drawElement(element, ctx);
+          break;
+        }
+        case 'keep': {
+          assert(this.assets[element.id]);
+          break;
+        }
+        case 'remove': {
+//          assert(this.assets[element.id]);
+          delete this.assets[element.id];
+        }
+      }
+    }
+  },
+  drawElement: function(element, ctx) {
+    switch (element.type) {
+      case 'graphics': {
+        var t = element.transform;
+        ctx.setTransform(t.a, t.b, t.c, t.d, t.tx/20, t.ty/20);
+        var paths = element.data;
+        for (var i = 0; i < paths.length; i++) {
+          paths[i].draw(ctx, false, 0, element.colorTransform);
+        }
+        console.log('draw graphics');
+        break;
+      }
+      default: {
+        assert(false, 'unexpected render list element type: ' + element.type);
+      }
+    }
+  }
+};

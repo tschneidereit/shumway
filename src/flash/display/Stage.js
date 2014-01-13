@@ -40,6 +40,7 @@ var StageDefinition = (function () {
       this._wmodeGPU = false;
       this._root = null;
       this._qtree = null;
+      this._removedChildren = new Set();
       this._invalidRegions = new RegionCluster();
       this._mouseMoved = false;
       this._mouseTarget = this;
@@ -71,6 +72,7 @@ var StageDefinition = (function () {
           this._addToStage(child);
         }
       }
+      this._removedChildren.delete(displayObject);
 
       displayObject._dispatchEvent('addedToStage');
     },
@@ -93,9 +95,10 @@ var StageDefinition = (function () {
         this._invalidRegions.insert(displayObject._region);
         displayObject._region = null;
       }
+      this._removedChildren.add(displayObject);
     },
 
-    _processInvalidations: function processInvalidations(refreshStage) {
+    _processInvalidations: function(refreshStage, renderList) {
       var qtree = this._qtree;
       var invalidRegions = this._invalidRegions;
       var stack = [];
@@ -136,6 +139,8 @@ var StageDefinition = (function () {
           stack.push(child);
         }
 
+        var transformInvalid = false;
+
         if (node._level && m.invalid) {
           var m2 = node._currentTransform;
           var m3 = node._parent._concatenatedTransform;
@@ -146,6 +151,7 @@ var StageDefinition = (function () {
           m.tx = m2.tx * m3.a + m3.tx + m2.ty * m3.c;
           m.ty = m2.ty * m3.d + m3.ty + m2.tx * m3.b;
           m.invalid = false;
+          transformInvalid = true;
         }
 
         var invalidRegion = node._region;
@@ -159,6 +165,30 @@ var StageDefinition = (function () {
                      currentRegion.xMin >= this._stageWidth ||
                      currentRegion.yMax <= 0 ||
                      currentRegion.yMin >= this._stageHeight;
+
+        if (!hidden && node.isRenderable) {
+          var entry = renderList.add(node);
+          if (node._invalid || transformInvalid) {
+            entry.command = 'update';
+            entry.type = node.renderType;
+            assert(entry.type);
+            entry.transform = node._concatenatedTransform;
+            entry.colorTransform = new RenderingColorTransform();
+            entry.data = node.getRenderData();
+          }
+        }
+        if (!hidden && node._graphics) {
+          var entry = renderList.add(node._graphics);
+          if (node._invalid || transformInvalid) {
+            entry.command = 'update';
+            entry.type = node._graphics.renderType;
+            assert(entry.type);
+            entry.transform = node._concatenatedTransform;
+            entry.colorTransform = new RenderingColorTransform();
+            entry.data = node._graphics.getRenderData();
+          }
+        }
+        node._invalid = false;
 
         if (node._invalid) {
           if (invalidRegion) {
@@ -215,7 +245,7 @@ var StageDefinition = (function () {
         var intersectees = qtree.retrieve(xMin, xMax, yMin, yMax);
         for (var j = 0; j < intersectees.length; j++) {
           var item = intersectees[j];
-          item.obj._invalid = true;
+//          item.obj._invalid = true;
         }
 
         invalidPath.rect(xMin, yMin, xMax - xMin, yMax - yMin);

@@ -36,6 +36,7 @@ var GraphicsDefinition = (function () {
       this.bbox = null;
       this.strokeBbox = null;
       this.isRenderable = true;
+      this.renderType = 'graphics';
     },
 
     getRenderData: function() {
