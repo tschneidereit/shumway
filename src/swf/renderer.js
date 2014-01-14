@@ -153,15 +153,18 @@ RenderList.prototype = {
     var id = this.getId(element);
     assert(typeof id === 'number');
     var entry = new RenderListEntry(id);
+    entry.type = element.renderType;
+    entry.transform = transform;
+    assert(entry.type);
+    assert(entry.transform);
     this.entries.push(entry);
     if (invalid) {
       entry.command = 'update';
-      entry.type = element.renderType;
-      assert(entry.type);
-      entry.colorTransform = new RenderingColorTransform();
       entry.region = region;
-      entry.transform = transform;
-      entry.data = element.getRenderData();
+      entry.data = {
+        paths: element.getRenderData(),
+        colorTransform : new RenderingColorTransform()
+      }
     }
     return entry;
   }
@@ -893,8 +896,10 @@ function renderStage(stage, ctx, events) {
 //                                          invalidPath, refreshStage);
 //          visitor.render();
           for (element of stage._removedChildren) {
-            var entry = renderList.add(element);
-            entry.command = 'drop';
+            if (element.isRenderable) {
+              var entry = renderList.add(element);
+              entry.command = 'drop';
+            }
           }
           stage._removedChildren.clear();
           renderBackend.render(renderList);
@@ -1006,6 +1011,11 @@ function renderStage(stage, ctx, events) {
   })();
 }
 
+function regionsIntersect(regionA, regionB) {
+  return !(regionA.xMax < regionB.xMin || regionA.xMin > regionB.xMax ||
+           regionA.yMax < regionB.yMin || regionA.yMin > regionB.yMax);
+}
+
 function RenderBackend(ctx) {
   this.ctx = ctx;
   this.assets = Object.create(null);
@@ -1015,7 +1025,11 @@ RenderBackend.prototype = {
   render: function(renderList) {
     console.log('start');
     var ctx = this.ctx;
-    var invalidRegions = new RegionCluster();
+    ctx.save();
+    var invalidRegions = [];
+    var invalidPath = new ShapePath();
+    var cleanElements = [];
+    var drawables = [];
     for (var i = 0; i < renderList.entries.length; i++) {
       var element = renderList.entries[i];
       assert(element);
@@ -1024,35 +1038,65 @@ RenderBackend.prototype = {
       switch (element.command) {
         case 'update': {
           assert(element.data);
+          assert(element.region);
           this.assets[element.id] = element.data;
-          this.drawElement(element, ctx);
-          this.regions[element.id] = element.region;
-          invalidRegions.insert(element.region);
+          var region = element.region;
+          this.regions[element.id] = region;
+          invalidRegions.push(region);
+          drawables.push(element);
+          invalidPath.rect(region.xMin, region.yMin, region.xMax - region.xMin,
+                           region.yMax - region.yMin);
+          element.render = true;
           break;
         }
         case 'keep': {
           assert(this.assets[element.id]);
+          cleanElements.push(element);
+          drawables.push(element);
           break;
         }
         case 'drop': {
 //          assert(this.assets[element.id]);
-          if (this.regions[element.id]) {
-            invalidRegions.insert(this.regions[element.id]);
+          region = this.regions[element.id];
+          if (region) {
+            invalidRegions.push(region);
+            invalidPath.rect(region.xMin/20, region.yMin/20,
+                             (region.xMax - region.xMin)/20,
+                             (region.yMax - region.yMin)/20);
           }
           delete this.assets[element.id];
           delete this.regions[element.id];
+          break;
         }
       }
     }
+    for (i = cleanElements.length; i--;) {
+      element = cleanElements[i];
+      for (var j = invalidRegions.length; j--;) {
+        if (regionsIntersect(element, invalidRegions[j])) {
+          element.render = true;
+          element.data = this.assets[element.id];
+          break;
+        }
+      }
+    }
+    invalidPath.draw(ctx, true);
+    for (i = 0; i < drawables.length; i++) {
+      element = drawables[i];
+      if (element.render) {
+        this.drawElement(element, ctx);
+      }
+    }
+    ctx.restore();
   },
   drawElement: function(element, ctx) {
     switch (element.type) {
       case 'graphics': {
         var t = element.transform;
         ctx.setTransform(t.a, t.b, t.c, t.d, t.tx/20, t.ty/20);
-        var paths = element.data;
+        var paths = element.data.paths;
         for (var i = 0; i < paths.length; i++) {
-          paths[i].draw(ctx, false, 0, element.colorTransform);
+          paths[i].draw(ctx, false, 0, element.data.colorTransform);
         }
         console.log('draw graphics');
         break;
