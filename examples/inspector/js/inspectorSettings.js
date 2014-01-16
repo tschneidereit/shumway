@@ -34,6 +34,52 @@ var DEFAULT_SETTINGS = {
   mute: false,
   turbo: true
 };
+var c4Options = systemOptions.register(new OptionSet("C4 Options"));
+var enableC4 = c4Options.register(new Option("c4", "c4", "boolean", false, "Enable the C4 compiler."));
+var c4TraceLevel = c4Options.register(new Option("tc4", "tc4", "number", 0, "Compiler Trace Level"));
+var enableRegisterAllocator = c4Options.register(new Option("ra", "ra", "boolean", false, "Enable register allocator."));
+var rendererOptions = coreOptions.register(new OptionSet("Renderer Options"));
+var traceRenderer = rendererOptions.register(new Option("tr", "traceRenderer", "number", 0, "trace renderer execution"));
+var disableRenderVisitor = rendererOptions.register(new Option("drv", "disableRenderVisitor", "boolean", false, "disable render visitor"));
+var disableMouseVisitor = rendererOptions.register(new Option("dmv", "disableMouseVisitor", "boolean", false, "disable mouse visitor"));
+var showRedrawRegions = rendererOptions.register(new Option("rr", "showRedrawRegions", "boolean", false, "show redraw regions"));
+var renderAsWireframe = rendererOptions.register(new Option("raw", "renderAsWireframe", "boolean", false, "render as wireframe"));
+var showQuadTree = rendererOptions.register(new Option("qt", "showQuadTree", "boolean", false, "show quad tree"));
+var turboMode = rendererOptions.register(new Option("", "turbo", "boolean", false, "turbo mode"));
+var forceHidpi = rendererOptions.register(new Option("", "forceHidpi", "boolean", false, "force hidpi"));
+var skipFrameDraw = rendererOptions.register(new Option("", "skipFrameDraw", "boolean", true, "skip frame when not on time"));
+var hud = rendererOptions.register(new Option("", "hud", "boolean", false, "show hud mode"));
+
+var enableConstructChildren = rendererOptions.register(new Option("", "constructChildren", "boolean", true, "Construct Children"));
+var enableEnterFrame = rendererOptions.register(new Option("", "enterFrame", "boolean", true, "Enter Frame"));
+var enableAdvanceFrame = rendererOptions.register(new Option("", "advanceFrame", "boolean", true, "Advance Frame"));
+
+var runtimeOptions = systemOptions.register(new OptionSet("Runtime Options"));
+
+var traceScope = runtimeOptions.register(new Option("ts", "traceScope", "boolean", false, "trace scope execution"));
+var traceExecution = runtimeOptions.register(new Option("tx", "traceExecution", "number", 0, "trace script execution"));
+var traceCallExecution = runtimeOptions.register(new Option("txc", "traceCallExecution", "number", 0, "trace call execution"));
+
+var functionBreak = runtimeOptions.register(new Option("fb", "functionBreak", "number", -1, "Inserts a debugBreak at function index #."));
+var compileOnly = runtimeOptions.register(new Option("co", "compileOnly", "number", -1, "Compiles only function number."));
+var compileUntil = runtimeOptions.register(new Option("cu", "compileUntil", "number", -1, "Compiles only until a function number."));
+var debuggerMode = runtimeOptions.register(new Option("dm", "debuggerMode", "boolean", false, "matches avm2 debugger build semantics"));
+var enableVerifier = runtimeOptions.register(new Option("verify", "verify", "boolean", false, "Enable verifier."));
+
+var globalMultinameAnalysis = runtimeOptions.register(new Option("ga", "globalMultinameAnalysis", "boolean", false, "Global multiname analysis."));
+var traceInlineCaching = runtimeOptions.register(new Option("tic", "traceInlineCaching", "boolean", false, "Trace inline caching execution."));
+
+var compilerEnableExceptions = runtimeOptions.register(new Option("cex", "exceptions", "boolean", false, "Compile functions with catch blocks."));
+var compilerMaximumMethodSize = runtimeOptions.register(new Option("cmms", "maximumMethodSize", "number", 4 * 1024, "Compiler maximum method size."));
+
+var domainOptions = systemOptions.register(new OptionSet("ApplicationDomain Options"));
+var traceClasses = domainOptions.register(new Option("tc", "traceClasses", "boolean", false, "trace class creation"));
+var traceDomain = domainOptions.register(new Option("td", "traceDomain", "boolean", false, "trace domain property access"));
+
+var EXECUTION_MODE = {
+  INTERPRET: 0x1,
+  COMPILE: 0x2
+};
 
 function loadState() {
   var settings = {};
@@ -77,57 +123,57 @@ function updateAVM2State() {
 
 var lastCounts = {};
 
-setTimeout(function displayInfo() {
-  var output = "";
-  var pairs = [];
-
-  for (var name in Counter.counts) {
-    pairs.push([name, Counter.counts[name]]);
-  }
-
-  pairs.sort(function (a, b) {
-    return b[1] - a[1];
-  });
-
-  var totalCount = 0;
-  pairs.forEach(function (pair) {
-    var color;
-    if (pair[1] > 100000) {
-      color = "magenta";
-    } else if (pair[1] > 10000) {
-      color = "purple";
-    } else if (pair[1] > 1000) {
-      color = "red";
-    } else if (pair[1] > 100) {
-      color = "orange";
-    } else {
-      color = "green";
-    }
-    output += "<div style='padding: 2px; background-color: " + color + "'>" + pair[0] + ": " + pair[1] + " " + (pair[1] - lastCounts[pair[0]]) + "</div>";
-    totalCount += pair[1];
-  });
-  if (totalCount > 30000000) {
-    // Don't delete me, this is meant to be annoying.
-    throw "The Counters Are Too Damn High (> 30,000,000).";
-  }
-
-  document.getElementById("info").innerHTML = output;
-
-  copyProperties(lastCounts, Counter.counts);
-
-  output = "";
-  for (var name in Timer.flat.timers) {
-    var timer = Timer.flat.timers[name];
-    var str = timer.name + ": " + timer.total.toFixed(2) + " ms" +
-      ", count: " + timer.count +
-      ", avg: " + (timer.total / timer.count).toFixed(2) + " ms" +
-      ", last: " + timer.last.toFixed(2) + " ms";
-    output += str + "<br>";
-  }
-  document.getElementById("timerInfo").innerHTML = output;
-
-  setTimeout(displayInfo, 500);
-}, 500);
+//setTimeout(function displayInfo() {
+//  var output = "";
+//  var pairs = [];
+//
+//  for (var name in Counter.counts) {
+//    pairs.push([name, Counter.counts[name]]);
+//  }
+//
+//  pairs.sort(function (a, b) {
+//    return b[1] - a[1];
+//  });
+//
+//  var totalCount = 0;
+//  pairs.forEach(function (pair) {
+//    var color;
+//    if (pair[1] > 100000) {
+//      color = "magenta";
+//    } else if (pair[1] > 10000) {
+//      color = "purple";
+//    } else if (pair[1] > 1000) {
+//      color = "red";
+//    } else if (pair[1] > 100) {
+//      color = "orange";
+//    } else {
+//      color = "green";
+//    }
+//    output += "<div style='padding: 2px; background-color: " + color + "'>" + pair[0] + ": " + pair[1] + " " + (pair[1] - lastCounts[pair[0]]) + "</div>";
+//    totalCount += pair[1];
+//  });
+//  if (totalCount > 30000000) {
+//    // Don't delete me, this is meant to be annoying.
+//    throw "The Counters Are Too Damn High (> 30,000,000).";
+//  }
+//
+//  document.getElementById("info").innerHTML = output;
+//
+//  copyProperties(lastCounts, Counter.counts);
+//
+//  output = "";
+//  for (var name in Timer.flat.timers) {
+//    var timer = Timer.flat.timers[name];
+//    var str = timer.name + ": " + timer.total.toFixed(2) + " ms" +
+//      ", count: " + timer.count +
+//      ", avg: " + (timer.total / timer.count).toFixed(2) + " ms" +
+//      ", last: " + timer.last.toFixed(2) + " ms";
+//    output += str + "<br>";
+//  }
+//  document.getElementById("timerInfo").innerHTML = output;
+//
+//  setTimeout(displayInfo, 500);
+//}, 500);
 
 Array.prototype.forEach.call(document.querySelectorAll(".avm2Option"), function(element) {
   function setElementState(pressed) {

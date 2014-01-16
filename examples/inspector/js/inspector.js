@@ -64,32 +64,6 @@ function createAVM2(builtinPath, libraryPath, avm1Path, sysMode, appMode, next) 
     initLibraryEagerly: libraryPath === shellAbcPath
   };
   avm2 = new AVM2(config, next);
-  return;
-
-
-  assert (builtinPath);
-  new BinaryFileReader(builtinPath).readAll(null, function (buffer) {
-    avm2 = new AVM2(sysMode, appMode, avm1Path && loadAVM1);
-    console.time("Execute builtin.abc");
-    avm2.loadedAbcs = {};
-    // Avoid loading more Abcs while the builtins are loaded
-    avm2.builtinsLoaded = false;
-    avm2.systemDomain.onMessage.register('classCreated', Stubs.onClassCreated);
-    avm2.systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer), "builtin.abc"));
-    avm2.builtinsLoaded = true;
-    console.timeEnd("Execute builtin.abc");
-
-    new BinaryFileReader(libraryPath).readAll(null, function (buffer) {
-      // If library is shell.abc, then just go ahead and run it now since
-      // it's not worth doing it lazily given that it is so small.
-      if (libraryPath === shellAbcPath) {
-        avm2.systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer), libraryPath));
-      } else {
-        libraryAbcs = buffer;
-      }
-      next(avm2);
-    });
-  });
 }
 
 var avm2Root = "../../src/avm2/";
@@ -169,7 +143,7 @@ function executeFile(file, buffer, movieParams) {
       }
     });
   } else if (filename.endsWith(".swf")) {
-    libraryScripts = playerGlobalScripts;
+//    libraryScripts = playerGlobalScripts;
     createAVM2(builtinPath, playerGlobalAbcPath, avm1Path, sysMode, appMode, function (avm2) {
       function runSWF(file, buffer) {
         var swfURL = FileLoadingService.resolveUrl(file);
