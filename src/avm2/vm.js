@@ -18,11 +18,14 @@
 
 var isWorker = typeof window === 'undefined';
 
-var scripts = [
+var earlyScripts = [
   "options.js",
   "settings.js",
   "avm2Util.js",
   "metrics.js",
+  "../../lib/ByteArray.js",
+];
+var scripts = [
   "constants.js",
   "errors.js",
   "opcodes.js",
@@ -56,6 +59,7 @@ var scripts = [
   "../avm1/stream.js",
   "../avm1/interpreter.js",
 
+  "../flash/util.js",
   "../flash/accessibility/Accessibility.js",
   "../flash/avm1lib/AS2Button.js",
   "../flash/avm1lib/AS2Globals.js",
@@ -163,13 +167,36 @@ var scripts = [
 
 if (isWorker) {
   print = function() {};
+  console = {
+    time: function (name) {
+      Timer.start(name)
+    },
+    timeEnd: function (name) {
+      Timer.stop(name)
+    },
+    warn: function (s) {
+      if (traceWarnings.value) {
+        print(s);
+      }
+    },
+    info: function (s) {
+      print(s);
+    }
+  };
+  importScripts.apply(null, earlyScripts);
+  // OMTTODO: clean up these export
+  var Counter = new metrics.Counter(true);
+  var FrameCounter = new metrics.Counter(true);
+  var CanvasCounter = new metrics.Counter(true);
+  var Timer = metrics.Timer;
+  var disassemble = systemOptions.register(new Option("d", "disassemble", "boolean", false, "disassemble"));
+  var traceLevel = systemOptions.register(new Option("t", "traceLevel", "number", 0, "trace level"));
   importScripts.apply(null, scripts);
 }
 
 var instances = {};
 
 self.addEventListener('message', function createVMListener(e) {
-    console.error(e);
   if (e.data.type === 'createVM') {
     instances[e.data.id] = new AVM2(e.data.id, e.data.config);
   }

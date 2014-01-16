@@ -21,7 +21,8 @@ var CapabilitiesDefinition = (function () {
   var def = {};
 
   var os;
-  var userAgent = window.navigator.userAgent;
+  // OMTTODO: send ua to the worker before initializing this
+  var userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:29.0) Gecko/20100101 Firefox/29.0';
   if (userAgent.indexOf("Macintosh") > 0) {
     os = "Mac OS 10.5.2";
   } else if (userAgent.indexOf("Windows") > 0) {

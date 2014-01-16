@@ -22,7 +22,8 @@ var pauseExecution = getQueryVariable("paused") === "true";
 var remoteFile = getQueryVariable("rfile");
 var yt = getQueryVariable('yt');
 
-var swfController = new SWFController(timeline, pauseExecution);
+//OMTTODO: fix timeline
+var swfController = new SWFController(null/*timeline*/, pauseExecution);
 
 var libraryAbcs;
 var libraryScripts;

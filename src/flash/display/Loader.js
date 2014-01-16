@@ -32,9 +32,9 @@ var LoaderDefinition = (function () {
   var WORKERS_ENABLED = true;
   var LOADER_PATH = $RELEASE ? 'shumway-worker.js' : 'swf/resourceloader.js';
 
-  var head = document.head;
-  head.insertBefore(document.createElement('style'), head.firstChild);
-  var style = document.styleSheets[0];
+//  var head = document.head;
+//  head.insertBefore(document.createElement('style'), head.firstChild);
+//  var style = document.styleSheets[0];
 
   var def = {
     __class__: 'flash.display.Loader',
@@ -560,34 +560,35 @@ var LoaderDefinition = (function () {
         props.buttonActions = symbol.buttonActions;
         break;
       case 'font':
-        var charset = fromCharCode.apply(null, symbol.codes);
-        if (charset) {
-          style.insertRule(
-            '@font-face{' +
-              'font-family:"' + symbol.uniqueName + '";' +
-              'src:url(data:font/opentype;base64,' + btoa(symbol.data) + ')' +
-              '}',
-            style.cssRules.length
-          );
-
-          // HACK non-Gecko browsers need time to load fonts
-          if (!/Mozilla\/5.0.*?rv:(\d+).*? Gecko/.test(window.navigator.userAgent)) {
-            var testDiv = document.createElement('div');
-            testDiv.setAttribute('style', 'position: absolute; top: 0; right: 0;' +
-                                          'visibility: hidden; z-index: -500;' +
-                                          'font-family:"' + symbol.uniqueName + '";');
-            testDiv.textContent = 'font test';
-            document.body.appendChild(testDiv);
-
-            var fontPromise = new Promise(function (resolve) {
-              setTimeout(function () {
-                resolve();
-                document.body.removeChild(testDiv);
-              }, 200);
-            });
-            promiseQueue.push(fontPromise);
-          }
-        }
+        // OMTTODO: move font-loading to mainthread, probably by postMessaging the need
+//        var charset = fromCharCode.apply(null, symbol.codes);
+//        if (charset) {
+//          style.insertRule(
+//            '@font-face{' +
+//              'font-family:"' + symbol.uniqueName + '";' +
+//              'src:url(data:font/opentype;base64,' + btoa(symbol.data) + ')' +
+//              '}',
+//            style.cssRules.length
+//          );
+//
+//          // HACK non-Gecko browsers need time to load fonts
+//          if (!/Mozilla\/5.0.*?rv:(\d+).*? Gecko/.test(window.navigator.userAgent)) {
+//            var testDiv = document.createElement('div');
+//            testDiv.setAttribute('style', 'position: absolute; top: 0; right: 0;' +
+//                                          'visibility: hidden; z-index: -500;' +
+//                                          'font-family:"' + symbol.uniqueName + '";');
+//            testDiv.textContent = 'font test';
+//            document.body.appendChild(testDiv);
+//
+//            var fontPromise = new Promise(function (resolve) {
+//              setTimeout(function () {
+//                resolve();
+//                document.body.removeChild(testDiv);
+//              }, 200);
+//            });
+//            promiseQueue.push(fontPromise);
+//          }
+//        }
         className = 'flash.text.Font';
         props.name = symbol.name;
         props.uniqueName = symbol.uniqueName;

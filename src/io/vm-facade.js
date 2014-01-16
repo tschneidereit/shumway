@@ -34,7 +34,6 @@ function AVM2(config, initCallback)
 AVM2.instanceId = 0;
 AVM2.prototype = {
   _onmessage: function(event) {
-    console.log(event);
     switch (event.data.type) {
       case 'ready':
         if (this.onReady) {

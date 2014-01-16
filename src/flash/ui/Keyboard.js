@@ -58,9 +58,10 @@ var ShumwayKeyboardListener = {
   }
 };
 
-window.addEventListener('keydown', ShumwayKeyboardListener);
-window.addEventListener('keypress', ShumwayKeyboardListener);
-window.addEventListener('keyup', ShumwayKeyboardListener);
+// OMTTODO: relay from mainthread
+//window.addEventListener('keydown', ShumwayKeyboardListener);
+//window.addEventListener('keypress', ShumwayKeyboardListener);
+//window.addEventListener('keyup', ShumwayKeyboardListener);
 
 var KeyboardDefinition = (function () {
   var def = {

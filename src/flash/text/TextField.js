@@ -20,10 +20,12 @@
 
 var TextFieldDefinition = (function () {
 
-  var htmlParser = document.createElement('p');
+  // OMTTODO: either do our own parsing after all, or relay this to mainthread
+  var htmlParser = null; //document.createElement('p');
 
   // Used for measuring text runs, not for rendering
-  var measureCtx = document.createElement('canvas').getContext('2d');
+  // OMTTODO: relay to mainthread
+  var measureCtx = null; //document.createElement('canvas').getContext('2d');
 
   function TextLine(y) {
     this.x = 0;
