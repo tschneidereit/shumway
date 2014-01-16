@@ -16,83 +16,31 @@
  * limitations under the License.
  */
 
-function AVM2(runInWorker, sysMode, appMode, findDefiningAbc, loadAVM1,
-              onReadyCallback)
+function AVM2(config, initCallback)
 {
-  this.onReady = onReadyCallback;
+  this.instanceId = AVM2.instanceId++;
+  var runInWorker = true;
+  this.onReady = initCallback;
   if (runInWorker) {
-    this.worker = new Worker('../../src/avm2/vm.js');
-    this.worker.onmessage = function() {
-      if (this.onReady) {
-        this.onReady();
-      }
-    }
+    this._worker = new Worker('../../src/avm2/vm.js');
+    this._worker.onmessage = this._onmessage.bind(this);
+    this._worker.postMessage({
+                               type: 'createVM',
+                               id: this.instanceId,
+                               config: config
+                             });
   }
 }
+AVM2.instanceId = 0;
 AVM2.prototype = {
-
-};
-var AVM2 = (function () {
-
-  function avm2(runInWorker, sysMode, appMode, findDefiningAbc, loadAVM1,
-                onReadyCallback)
-  {
-    this.onReady = onReadyCallback;
-    if (runInWorker) {
-      this.worker = new Worker('../../src/avm2/vm.js');
-      this.worker.onmessage = function() {
+  _onmessage: function(event) {
+    console.log(event);
+    switch (event.data.type) {
+      case 'ready':
         if (this.onReady) {
           this.onReady();
         }
-      }
-    }
-    // TODO: this will change when we implement security domains.
-    this.systemDomain = new ApplicationDomain(this, null, sysMode, true);
-    this.applicationDomain = new ApplicationDomain(this, this.systemDomain, appMode, false);
-    this.findDefiningAbc = findDefiningAbc;
-    this.loadAVM1 = loadAVM1;
-    this.isAVM1Loaded = false;
-
-    /**
-     * All runtime exceptions are boxed in this object to tag them as having
-     * originated from within the VM.
-     */
-    this.exception = { value: undefined };
-    this.exceptions = [];
-  }
-
-  // We sometimes need to know where we came from, such as in
-  // |ApplicationDomain.currentDomain|.
-
-  avm2.currentAbc = function () {
-    var caller = arguments.callee;
-    var maxDepth = 20;
-    var abc = null;
-    for (var i = 0; i < maxDepth && caller; i++) {
-      var mi = caller.methodInfo;
-      if (mi) {
-        abc = mi.abc;
         break;
-      }
-      caller = caller.caller;
     }
-    return abc;
-  };
-
-  avm2.currentDomain = function () {
-    var abc = this.currentAbc();
-    assert (abc && abc.applicationDomain,
-            "No domain environment was found on the stack, increase STACK_DEPTH or " +
-            "make sure that a compiled / interpreted function is on the call stack.");
-    return abc.applicationDomain;
-  };
-
-  avm2.prototype = {
-    notifyConstruct: function notifyConstruct (instanceConstructor, args) {
-      // REMOVEME
-    }
-  };
-
-  return avm2;
-
-})();
+  }
+};

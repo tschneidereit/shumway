@@ -105,12 +105,6 @@ limitations under the License.
     <script src="../../src/avm2/options.js"></script>
     <script src="../../src/swf/Timeline.js"></script>
 
-    <script>
-      var Option = options.Option;
-      var OptionSet = options.OptionSet;
-      var coreOptions = new OptionSet("Core Options");
-    </script>
-
     <script> console.time("Load SWF Dependencies"); </script>
     <!-- Load SWF Dependencies -->
     <script src="../../src/swf/config.js"></script>
@@ -179,7 +173,6 @@ limitations under the License.
       var FrameCounter = new metrics.Counter(true);
       var CanvasCounter = new metrics.Counter(true);
       var Timer = metrics.Timer;
-      var systemOptions = new OptionSet("System Options");
       var disassemble = systemOptions.register(new Option("d", "disassemble", "boolean", false, "disassemble"));
       var traceLevel = systemOptions.register(new Option("t", "traceLevel", "number", 0, "trace level"));
 
@@ -220,7 +213,7 @@ limitations under the License.
     <script src="../../src/avm2/native.js"></script>
     <script src="../../src/avm2/disassembler.js"></script>
     <script src="../../src/avm2/interpreter.js"></script>
-    <script src="../../src/avm2/vm.js"></script>
+    <script src="../../src/io/vm-facade.js"></script>
     <script> console.timeEnd("Load AVM2 Dependencies"); </script>
 
 

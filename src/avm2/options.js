@@ -196,3 +196,9 @@
   exports.ArgumentParser = ArgumentParser;
 
 })(typeof exports === "undefined" ? (options = {}) : exports);
+
+
+Option = options.Option;
+OptionSet = options.OptionSet;
+coreOptions = new OptionSet("Core Options");
+systemOptions = new OptionSet("System Options");

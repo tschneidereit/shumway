@@ -895,12 +895,12 @@ function renderStage(stage, ctx, events) {
 //          var visitor = new RenderVisitor(stage, ctx, idProvider,
 //                                          invalidPath, refreshStage);
 //          visitor.render();
-          for (element of stage._removedChildren) {
-            if (element.isRenderable) {
-              var entry = renderList.add(element);
-              entry.command = 'drop';
-            }
-          }
+//          for (element of stage._removedChildren) {
+//            if (element.isRenderable) {
+//              var entry = renderList.add(element);
+//              entry.command = 'drop';
+//            }
+//          }
           stage._removedChildren.clear();
           renderBackend.render(renderList);
           traceRenderer.value && frameWriter.leave("< Rendering");

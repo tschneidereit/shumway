@@ -49,6 +49,23 @@ function createAVM2(builtinPath, libraryPath, avm1Path, sysMode, appMode, next) 
     });
   }
 
+  var config = {
+    paths: {
+      builtins: builtinPath,
+      library: libraryPath,
+      avm1: avm1Path,
+    },
+    modes: {
+      sys: sysMode,
+      app: appMode
+    },
+    loadAVM1: !!(avm1Path && loadAVM1),
+    initLibraryEagerly: libraryPath === shellAbcPath
+  };
+  avm2 = new AVM2(config, next);
+  return;
+
+
   assert (builtinPath);
   new BinaryFileReader(builtinPath).readAll(null, function (buffer) {
     avm2 = new AVM2(sysMode, appMode, avm1Path && loadAVM1);
