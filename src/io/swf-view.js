@@ -16,30 +16,28 @@
  * limitations under the License.
  */
 
-function AVM2(config, initCallback)
-{
-  this.instanceId = AVM2.instanceId++;
-  var runInWorker = true;
-  this.onReady = initCallback;
-  if (runInWorker) {
-    this._worker = new Worker('../../src/avm2/vm.js');
-    this._worker.onmessage = this._onmessage.bind(this);
-    this._worker.postMessage({
-                               type: 'createVM',
-                               id: this.instanceId,
-                               config: config
-                             });
-  }
+function SWFView(file, doc, container, config) {
+  this._canvas = doc.createElement('canvas');
+  this._ctx = this._canvas.getContext('2d');
+  this._runtime = new Worker(config.paths.runtime);
+  this._runtime.addEventListener('message', this._onRuntimeMessage.bind(this));
+  this._init(config);
+  this._file = file;
 }
-AVM2.instanceId = 0;
-AVM2.prototype = {
-  _onmessage: function(event) {
-    switch (event.data.type) {
+SWFView.prototype = {
+  _init: function(config) {
+    this._runtime.postMessage({type: 'init', config: config});
+  },
+  runSWF: function(file) {
+    this._runtime.postMessage({type: 'runSWF', file: file});
+  },
+  _onRuntimeMessage: function(event) {
+    console.log(event.data);
+    var message = event.data;
+    switch (message.type) {
       case 'ready':
-        if (this.onReady) {
-          this.onReady();
-        }
-        break;
+        this.runSWF(this._file);
+        this._file = null;
     }
   }
 };

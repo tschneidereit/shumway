@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+/* global SWFView */
+
 var asyncLoading = getQueryVariable("async") === "true";
 var simpleMode = getQueryVariable("simpleMode") === "true";
 var pauseExecution = getQueryVariable("paused") === "true";
@@ -40,31 +42,31 @@ function grabAbc(abcName) {
 /** Global sanityTests array, sanity tests add themselves to this */
 var sanityTests = [];
 
-// avm2 must be global.
-var avm2;
-function createAVM2(builtinPath, libraryPath, avm1Path, sysMode, appMode, next) {
-  function loadAVM1(next) {
-    new BinaryFileReader(avm1Path).readAll(null, function (buffer) {
-      avm2.systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer), "avm1.abc"));
-      next();
-    });
-  }
-
-  var config = {
-    paths: {
-      builtins: builtinPath,
-      library: libraryPath,
-      avm1: avm1Path,
-    },
-    modes: {
-      sys: sysMode,
-      app: appMode
-    },
-    loadAVM1: !!(avm1Path && loadAVM1),
-    initLibraryEagerly: libraryPath === shellAbcPath
-  };
-  avm2 = new AVM2(config, next);
-}
+//// avm2 must be global.
+//var avm2;
+//function createAVM2(builtinPath, libraryPath, avm1Path, sysMode, appMode, next) {
+//  function loadAVM1(next) {
+//    new BinaryFileReader(avm1Path).readAll(null, function (buffer) {
+//      avm2.systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer), "avm1.abc"));
+//      next();
+//    });
+//  }
+//
+//  var config = {
+//    paths: {
+//      builtins: builtinPath,
+//      library: libraryPath,
+//      avm1: avm1Path,
+//    },
+//    modes: {
+//      sys: sysMode,
+//      app: appMode
+//    },
+//    loadAVM1: !!(avm1Path && loadAVM1),
+//    initLibraryEagerly: libraryPath === shellAbcPath
+//  };
+//  avm2 = new AVM2(config, next);
+//}
 
 var avm2Root = "../../src/avm2/";
 var builtinPath = avm2Root + "generated/builtin/builtin.abc";
@@ -90,34 +92,7 @@ function parseQueryString(qs) {
   return obj;
 }
 
-/**
- * You can also specify a remote file as a query string parameters, ?rfile=... to load it automatically
- * when the page loads.
- */
-if (remoteFile) {
-  document.getElementById('openFile').setAttribute('hidden', true);
-  executeFile(remoteFile, null, parseQueryString(window.location.search));
-}
-
-if (yt) {
-  requestYT(yt).then(function (config) {
-    var swf = config.url;
-
-    document.getElementById('openFile').setAttribute('hidden', true);
-    executeFile(swf, null, config.args);
-  });
-}
-if (remoteFile) {
-  configureMocks(remoteFile);
-}
-
-if (simpleMode) {
-  document.body.setAttribute('class', 'simple');
-}
-
-function showMessage(msg) {
-  document.getElementById('message').textContent = "(" + msg + ")";
-}
+var swfView;
 
 function executeFile(file, buffer, movieParams) {
   // All execution paths must now load AVM2.
@@ -128,83 +103,112 @@ function executeFile(file, buffer, movieParams) {
   var appMode = state.appCompiler ? EXECUTION_MODE.COMPILE : EXECUTION_MODE.INTERPRET;
 
   var filename = file.split('?')[0].split('#')[0];
-  if (filename.endsWith(".abc")) {
-    libraryScripts = {};
-    createAVM2(builtinPath, shellAbcPath, null, sysMode, appMode, function (avm2) {
-      function runAbc(file, buffer) {
-        avm2.applicationDomain.executeAbc(new AbcFile(new Uint8Array(buffer), file));
-      }
+//  if (filename.endsWith(".abc")) {
+//    libraryScripts = {};
+//    createAVM2(builtinPath, shellAbcPath, null, sysMode, appMode, function (avm2) {
+//      function runAbc(file, buffer) {
+//        avm2.applicationDomain.executeAbc(new AbcFile(new Uint8Array(buffer), file));
+//      }
+//      if (!buffer) {
+//        new BinaryFileReader(file).readAll(null, function(buffer) {
+//          runAbc(file, buffer);
+//        });
+//      } else {
+//        runAbc(file, buffer);
+//      }
+//    });
+//  } else
+  if (filename.lastIndexOf('.swf') === filename.length - 4) {
+    FileLoadingService.setBaseUrl(file);
+    var swfURL = FileLoadingService.resolveUrl(file);
+    var loaderURL = getQueryVariable("loaderURL") || swfURL;
+    new BinaryFileReader(swfURL).readAll(null, function(buffer, error) {
       if (!buffer) {
-        new BinaryFileReader(file).readAll(null, function(buffer) {
-          runAbc(file, buffer);
-        });
-      } else {
-        runAbc(file, buffer);
+        throw "Unable to open the file " + file + ": " + error;
       }
+      var config = {
+        paths: {
+          runtime: '../../src/swf/swf-runtime.js',
+          builtins: builtinPath,
+          library: playerGlobalAbcPath,
+          avm1: avm1Path,
+        },
+        modes: {
+          sys: sysMode,
+          app: appMode
+        },
+        movieParams: movieParams,
+        url: swfURL,
+        loaderURL: loaderURL,
+        loadAVM1: true,
+        initLibraryEagerly: false
+      };
+      swfView = new SWFView(buffer, document, document.getElementById('stage'),
+                            config);
     });
-  } else if (filename.endsWith(".swf")) {
 //    libraryScripts = playerGlobalScripts;
-    createAVM2(builtinPath, playerGlobalAbcPath, avm1Path, sysMode, appMode, function (avm2) {
-      function runSWF(file, buffer) {
-        var swfURL = FileLoadingService.resolveUrl(file);
-        var loaderURL = getQueryVariable("loaderURL") || swfURL;
-        SWF.embed(buffer || file, document, document.getElementById('stage'), {
-          onComplete: swfController.completeCallback.bind(swfController),
-          onBeforeFrame: swfController.beforeFrameCallback.bind(swfController),
-          onAfterFrame: swfController.afterFrameCallback.bind(swfController),
-          onStageInitialized: swfController.stageInitializedCallback.bind(swfController),
-          url: swfURL,
-          loaderURL: loaderURL,
-          movieParams: movieParams || {},
-        });
-      }
-      if (!buffer && asyncLoading) {
-        FileLoadingService.setBaseUrl(file);
-        runSWF(file);
-      } else if (!buffer) {
-        FileLoadingService.setBaseUrl(file);
-        new BinaryFileReader(file).readAll(null, function(buffer, error) {
-          if (!buffer) {
-            throw "Unable to open the file " + file + ": " + error;
-          }
-          runSWF(file, buffer);
-        });
-      } else {
-        runSWF(file, buffer);
-      }
-    });
-  } else if (filename.endsWith(".js") || filename.endsWith("/")) {
-    libraryScripts = playerGlobalScripts;
-    createAVM2(builtinPath, playerGlobalAbcPath, null, sysMode, appMode, function (avm2) {
-      if (file.endsWith("/")) {
-        readDirectoryListing(file, function (files) {
-          function loadNextScript(done) {
-            if (!files.length) {
-              done();
-              return;
-            }
-            var sanityTest = files.pop();
-            console.info("Loading Sanity Test: " + sanityTest);
-            loadScript(sanityTest, function () {
-              loadNextScript(done);
-            });
-          }
-          loadNextScript(function whenAllScriptsAreLoaded() {
-            console.info("Executing Sanity Test");
-            sanityTests.forEach(function (test) {
-              test(console, avm2);
-            });
-          });
-        });
-      } else {
-        loadScript(file, function () {
-          sanityTests.forEach(function (test) {
-            test(console, avm2);
-          });
-        });
-      }
-    });
+//    createAVM2(builtinPath, playerGlobalAbcPath, avm1Path, sysMode, appMode, function (avm2) {
+//      function runSWF(file, buffer) {
+//        var swfURL = FileLoadingService.resolveUrl(file);
+//        var loaderURL = getQueryVariable("loaderURL") || swfURL;
+//        SWF.embed(buffer || file, document, document.getElementById('stage'), {
+//          onComplete: swfController.completeCallback.bind(swfController),
+//          onBeforeFrame: swfController.beforeFrameCallback.bind(swfController),
+//          onAfterFrame: swfController.afterFrameCallback.bind(swfController),
+//          onStageInitialized: swfController.stageInitializedCallback.bind(swfController),
+//          url: swfURL,
+//          loaderURL: loaderURL,
+//          movieParams: movieParams || {},
+//        });
+//      }
+//      if (!buffer && asyncLoading) {
+//        FileLoadingService.setBaseUrl(file);
+//        runSWF(file);
+//      } else if (!buffer) {
+//        FileLoadingService.setBaseUrl(file);
+//        new BinaryFileReader(file).readAll(null, function(buffer, error) {
+//          if (!buffer) {
+//            throw "Unable to open the file " + file + ": " + error;
+//          }
+//          runSWF(file, buffer);
+//        });
+//      } else {
+//        runSWF(file, buffer);
+//      }
+//    });
   }
+//  else if (filename.endsWith(".js") || filename.endsWith("/")) {
+//    libraryScripts = playerGlobalScripts;
+//    createAVM2(builtinPath, playerGlobalAbcPath, null, sysMode, appMode, function (avm2) {
+//      if (file.endsWith("/")) {
+//        readDirectoryListing(file, function (files) {
+//          function loadNextScript(done) {
+//            if (!files.length) {
+//              done();
+//              return;
+//            }
+//            var sanityTest = files.pop();
+//            console.info("Loading Sanity Test: " + sanityTest);
+//            loadScript(sanityTest, function () {
+//              loadNextScript(done);
+//            });
+//          }
+//          loadNextScript(function whenAllScriptsAreLoaded() {
+//            console.info("Executing Sanity Test");
+//            sanityTests.forEach(function (test) {
+//              test(console, avm2);
+//            });
+//          });
+//        });
+//      } else {
+//        loadScript(file, function () {
+//          sanityTests.forEach(function (test) {
+//            test(console, avm2);
+//          });
+//        });
+//      }
+//    });
+//  }
 }
 
 (function setStageSize() {
@@ -373,3 +377,32 @@ HTMLCanvasElement.prototype.getContext = function getContext(contextId, args) {
   }
   return nativeGetContext.call(this, contextId, args);
 };
+
+/**
+ * You can also specify a remote file as a query string parameters, ?rfile=... to load it automatically
+ * when the page loads.
+ */
+if (remoteFile) {
+  document.getElementById('openFile').setAttribute('hidden', true);
+  executeFile(remoteFile, null, parseQueryString(window.location.search));
+}
+
+if (yt) {
+  requestYT(yt).then(function (config) {
+    var swf = config.url;
+
+    document.getElementById('openFile').setAttribute('hidden', true);
+    executeFile(swf, null, config.args);
+  });
+}
+if (remoteFile) {
+  configureMocks(remoteFile);
+}
+
+if (simpleMode) {
+  document.body.setAttribute('class', 'simple');
+}
+
+function showMessage(msg) {
+  document.getElementById('message').textContent = "(" + msg + ")";
+}

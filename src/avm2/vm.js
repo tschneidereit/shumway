@@ -16,206 +16,27 @@
  * limitations under the License.
  */
 
-var isWorker = typeof window === 'undefined';
-
-var earlyScripts = [
-  "options.js",
-  "settings.js",
-  "avm2Util.js",
-  "metrics.js",
-  "../../lib/ByteArray.js",
-];
-var scripts = [
-  "constants.js",
-  "errors.js",
-  "opcodes.js",
-  "parser.js",
-  "analyze.js",
-  "compiler/lljs/src/estransform.js",
-  "compiler/lljs/src/escodegen.js",
-  "compiler/inferrer.js",
-  "compiler/c4/ir.js",
-  "compiler/builder.js",
-  "compiler/c4/looper.js",
-  "compiler/c4/transform.js",
-  "compiler/c4/backend.js",
-  "domain.js",
-  "class.js",
-  "xregexp.js",
-  "runtime.js",
-  "hacks.js",
-  "array.js",
-  "vectors-numeric.js",
-  "vectors-generic.js",
-  "xml.js",
-  "json2.js",
-  "amf.js",
-  "proxy.js",
-  "dictionary.js",
-  "native.js",
-  "disassembler.js",
-  "interpreter.js",
-  
-  "../avm1/stream.js",
-  "../avm1/interpreter.js",
-
-  "../flash/util.js",
-  "../flash/accessibility/Accessibility.js",
-  "../flash/avm1lib/AS2Button.js",
-  "../flash/avm1lib/AS2Globals.js",
-  "../flash/avm1lib/AS2MovieClip.js",
-  "../flash/avm1lib/AS2MovieClipLoader.js",
-  "../flash/avm1lib/AS2TextField.js",
-  "../flash/avm1lib/AS2Utils.js",
-  "../flash/display/Bitmap.js",
-  "../flash/display/BitmapData.js",
-  "../flash/display/DisplayObject.js",
-  "../flash/display/DisplayObjectContainer.js",
-  "../flash/display/FrameLabel.js",
-  "../flash/display/Graphics.js",
-  "../flash/display/InteractiveObject.js",
-  "../flash/display/Loader.js",
-  "../flash/display/LoaderInfo.js",
-  "../flash/display/MorphShape.js",
-  "../flash/display/MovieClip.js",
-  "../flash/display/NativeMenu.js",
-  "../flash/display/NativeMenuItem.js",
-  "../flash/display/Scene.js",
-  "../flash/display/Shader.js",
-  "../flash/display/ShaderData.js",
-  "../flash/display/Shape.js",
-  "../flash/display/SimpleButton.js",
-  "../flash/display/Sprite.js",
-  "../flash/display/Stage.js",
-  "../flash/events/Event.js",
-  "../flash/events/EventDispatcher.js",
-  "../flash/events/KeyboardEvent.js",
-  "../flash/events/MouseEvent.js",
-  "../flash/events/TextEvent.js",
-  "../flash/events/TimerEvent.js",
-  "../flash/external/ExternalInterface.js",
-  "../flash/filters/BevelFilter.js",
-  "../flash/filters/BitmapFilter.js",
-  "../flash/filters/BlurFilter.js",
-  "../flash/filters/ColorMatrixFilter.js",
-  "../flash/filters/ConvolutionFilter.js",
-  "../flash/filters/DisplacementMapFilter.js",
-  "../flash/filters/DropShadowFilter.js",
-  "../flash/filters/GlowFilter.js",
-  "../flash/filters/GradientBevelFilter.js",
-  "../flash/filters/GradientGlowFilter.js",
-  "../flash/filters/ShaderFilter.js",
-  "../flash/geom/ColorTransform.js",
-  "../flash/geom/Matrix.js",
-  "../flash/geom/Matrix3D.js",
-  "../flash/geom/Point.js",
-  "../flash/geom/Rectangle.js",
-  "../flash/geom/Transform.js",
-  "../flash/geom/Vector3D.js",
-  "../flash/media/ID3Info.js",
-  "../flash/media/Microphone.js",
-  "../flash/media/Sound.js",
-  "../flash/media/SoundChannel.js",
-  "../flash/media/SoundMixer.js",
-  "../flash/media/SoundTransform.js",
-  "../flash/media/StageVideo.js",
-  "../flash/media/Video.js",
-  "../flash/net/FileFilter.js",
-  "../flash/net/LocalConnection.js",
-  "../flash/net/NetConnection.js",
-  "../flash/net/NetStream.js",
-  "../flash/net/ObjectEncoding.js",
-  "../flash/net/Responder.js",
-  "../flash/net/SharedObject.js",
-  "../flash/net/Socket.js",
-  "../flash/net/URLLoader.js",
-  "../flash/net/URLRequest.js",
-  "../flash/net/URLStream.js",
-  "../flash/system/ApplicationDomain.js",
-  "../flash/system/Capabilities.js",
-  "../flash/system/FSCommand.js",
-  "../flash/system/Security.js",
-  "../flash/system/SecurityDomain.js",
-  "../flash/system/System.js",
-  "../flash/text/engine/ContentElement.js",
-  "../flash/text/engine/ElementFormat.js",
-  "../flash/text/engine/FontDescription.js",
-  "../flash/text/engine/GroupElement.js",
-  "../flash/text/engine/SpaceJustifier.js",
-  "../flash/text/engine/TextBlock.js",
-  "../flash/text/engine/TextElement.js",
-  "../flash/text/engine/TextJustifier.js",
-  "../flash/text/engine/TextLine.js",
-  "../flash/text/Font.js",
-  "../flash/text/StaticText.js",
-  "../flash/text/StyleSheet.js",
-  "../flash/text/TextField.js",
-  "../flash/text/TextFormatClass.js",
-  "../flash/ui/ContextMenu.js",
-  "../flash/ui/ContextMenuItem.js",
-  "../flash/ui/Keyboard.js",
-  "../flash/ui/Mouse.js",
-  "../flash/ui/MouseCursorData.js",
-  "../flash/utils/Dictionary.js",
-  "../flash/utils/Timer.js",
-  
-  "../flash/stubs.js",
-  "../flash/playerglobal.js",
-  
-  "../io/BinaryFileReader.js"
-];
-
-if (isWorker) {
-  print = function() {};
-  console = {
-    time: function (name) {
-      Timer.start(name)
-    },
-    timeEnd: function (name) {
-      Timer.stop(name)
-    },
-    warn: function (s) {
-      if (traceWarnings.value) {
-        print(s);
-      }
-    },
-    info: function (s) {
-      print(s);
-    }
-  };
-  importScripts.apply(null, earlyScripts);
-  // OMTTODO: clean up these export
-  var Counter = new metrics.Counter(true);
-  var FrameCounter = new metrics.Counter(true);
-  var CanvasCounter = new metrics.Counter(true);
-  var Timer = metrics.Timer;
-  var disassemble = systemOptions.register(new Option("d", "disassemble", "boolean", false, "disassemble"));
-  var traceLevel = systemOptions.register(new Option("t", "traceLevel", "number", 0, "trace level"));
-  var c4Options = systemOptions.register(new OptionSet("C4 Options"));
-  var enableC4 = c4Options.register(new Option("c4", "c4", "boolean", false, "Enable the C4 compiler."));
-  var c4TraceLevel = c4Options.register(new Option("tc4", "tc4", "number", 0, "Compiler Trace Level"));
-  var enableRegisterAllocator = c4Options.register(new Option("ra", "ra", "boolean", false, "Enable register allocator."));
-  importScripts.apply(null, scripts);
-}
-
 var instances = {};
 
-self.addEventListener('message', function createVMListener(e) {
-  if (e.data.type === 'createVM') {
-    instances[e.data.id] = new AVM2(e.data.id, e.data.config);
+var libraryAbcs;
+var libraryScripts = playerGlobalScripts;
+function grabAbc(abcName) {
+  var entry = libraryScripts[abcName];
+  if (entry) {
+    var offset = entry.offset;
+    var length = entry.length;
+    return new AbcFile(new Uint8Array(libraryAbcs, offset, length), abcName);
   }
-//  self.removeEventListener('message', createVMListener);
-});
+  return null
+}
 
-
-//postMessage('foo');
-function AVM2(id, config) {
+function AVM2(id, config, onReady) {
   this._id = id;
   this._config = config;
+  this._onReady = onReady;
   this._global = isWorker ? self : window;
   // TODO: get rid of the global avm2, or set it when entering an instance
   this._global.avm2 = this;
-  this._global.addEventListener('message', this._onmessage.bind(this));
   this._init();
   this._loadAbcs();
 }
@@ -243,12 +64,6 @@ AVM2.currentDomain = function () {
   return abc.applicationDomain;
 };
 AVM2.prototype = {
-  _onmessage: function(event) {
-    this._postMessage(event);
-  },
-  _postMessage: function(message, transferList) {
-    this._global.postMessage(message, transferList);
-  },
   _init: function() {
     this.loadedAbcs = Object.create(null);
     // All runtime exceptions are boxed in this object to tag them as having
@@ -259,7 +74,8 @@ AVM2.prototype = {
     this.isAVM1Loaded = false;
   },
   _signalReady: function() {
-    this._postMessage({type: 'ready', id: this._id});
+    this._onReady(this);
+    this._onReady = null;
   },
   _loadAbcs: function() {
     var self = this;
@@ -282,7 +98,7 @@ AVM2.prototype = {
           systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer),
                                               path.library));
         } else {
-          self.libraryAbcs = buffer;
+          self._global.libraryAbcs = buffer;
         }
         if (!config.loadAVM1) {
           self._signalReady();

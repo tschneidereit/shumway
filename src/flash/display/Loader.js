@@ -78,7 +78,7 @@ var LoaderDefinition = (function () {
         }.bind(this));
 
         var stats = data.stats;
-        if (stats) {
+        if (stats && typeof TelemetryService !== 'undefined') {
           TelemetryService.reportTelemetry(stats);
         }
 
