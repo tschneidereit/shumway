@@ -28,6 +28,30 @@ var earlyScripts = [
     "../../lib/ByteArray.js",
 ];
 var scripts = [
+  "config.js",
+  "../flash/util.js",
+  "swf.js",
+  "inflate.js",
+  "stream.js",
+  "bitmap.js",
+  "button.js",
+  "font.js",
+  "image.js",
+  "label.js",
+  "shape.js",
+  "sound.js",
+  "text.js",
+  "mp3worker.js",
+
+  "types.js",
+  "structs.js",
+  "tags.js",
+  "templates.js",
+  "generator.js",
+  "handlers.js",
+  "parser.js",
+  "resourceloader.js",
+
   "../avm2/constants.js",
   "../avm2/errors.js",
   "../avm2/opcodes.js",
@@ -171,22 +195,24 @@ var scripts = [
 
 if (isWorker) {
   print = function() {};
-  console = {
-    time: function (name) {
-      Timer.start(name)
-    },
-    timeEnd: function (name) {
-      Timer.stop(name)
-    },
-    warn: function (s) {
-      if (traceWarnings.value) {
+  if (!console) {
+    console = {
+      time: function (name) {
+        Timer.start(name)
+      },
+      timeEnd: function (name) {
+        Timer.stop(name)
+      },
+      warn: function (s) {
+        if (traceWarnings.value) {
+          print(s);
+        }
+      },
+      info: function (s) {
         print(s);
       }
-    },
-    info: function (s) {
-      print(s);
-    }
-  };
+    };
+  }
   importScripts.apply(null, earlyScripts);
   // OMTTODO: clean up these export
   var Counter = new metrics.Counter(true);
@@ -200,6 +226,8 @@ if (isWorker) {
   var c4TraceLevel = c4Options.register(new Option("tc4", "tc4", "number", 0, "Compiler Trace Level"));
   var enableRegisterAllocator = c4Options.register(new Option("ra", "ra", "boolean", false, "Enable register allocator."));
   importScripts.apply(null, scripts);
+} else {
+  self = window;
 }
 
 var instances = {};

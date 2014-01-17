@@ -29,7 +29,7 @@
 var $RELEASE = false;
 
 var LoaderDefinition = (function () {
-  var WORKERS_ENABLED = true;
+  var WORKERS_ENABLED = !isWorker;
   var LOADER_PATH = $RELEASE ? 'shumway-worker.js' : 'swf/resourceloader.js';
 
 //  var head = document.head;
@@ -811,7 +811,7 @@ var LoaderDefinition = (function () {
       if (WORKERS_ENABLED) {
         worker = new Worker(SHUMWAY_ROOT + LOADER_PATH);
       } else {
-        worker = new ResourceLoader(window);
+        worker = new ResourceLoader(self);
       }
       var loader = this;
       loader._worker = worker;

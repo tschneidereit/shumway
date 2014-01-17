@@ -28,10 +28,13 @@ var ShapeDefinition = (function () {
       var s = this.symbol;
       if (s && s.paths) {
         graphics._paths = s.paths;
-        // TODO: this really should be done only once, but I don't know how I
-        // can know when all the required data has been loaded.
-        for (var i = 0; i < s.paths.length; i++) {
-          s.paths[i] = finishShapePath(s.paths[i], s.dictionaryResolved);
+        if (!isWorker) {
+          // OMTTODO: finish paths on render thread
+          // TODO: this really should be done only once, but I don't know how I
+          // can know when all the required data has been loaded.
+          for (var i = 0; i < s.paths.length; i++) {
+            s.paths[i] = finishShapePath(s.paths[i], s.dictionaryResolved);
+          }
         }
         graphics.bbox = s.bbox;
         graphics.strokeBbox = s.strokeBbox;
