@@ -17,27 +17,60 @@
  */
 
 function SWFView(file, doc, container, config) {
+  this._container = container;
   this._canvas = doc.createElement('canvas');
   this._ctx = this._canvas.getContext('2d');
+  this._file = file;
+
   this._runtime = new Worker(config.paths.runtime);
   this._runtime.addEventListener('message', this._onRuntimeMessage.bind(this));
-  this._init(config);
-  this._file = file;
+  this._initRuntime(config);
 }
 SWFView.prototype = {
-  _init: function(config) {
+  _initRuntime: function(config) {
     this._runtime.postMessage({type: 'init', config: config});
+  },
+  _initView: function() {
+    this._container.style.position = 'relative';
+
+    var mouseListener = this._onMouseEvent.bind(this);
+
+    this._canvas.addEventListener('click', mouseListener);
+    this._canvas.addEventListener('dblclick', mouseListener);
+    this._canvas.addEventListener('mousedown', mouseListener);
+    this._canvas.addEventListener('mousemove', mouseListener);
+    this._canvas.addEventListener('mouseup', mouseListener);
+    this._canvas.addEventListener('mouseover', mouseListener);
+    this._canvas.addEventListener('mouseout', mouseListener);
   },
   runSWF: function(file) {
     this._runtime.postMessage({type: 'runSWF', file: file});
   },
   _onRuntimeMessage: function(event) {
-    console.log(event.data);
     var message = event.data;
     switch (message.type) {
       case 'ready':
         this.runSWF(this._file);
         this._file = null;
+        this._initView();
     }
+  },
+  _onMouseEvent: function(event) {
+    var data = {type: event.type};
+    if (event.type === 'mousemove') {
+      var node = this._canvas;
+      var left = 0;
+      var top = 0;
+      if (node.offsetParent) {
+        do {
+          left += node.offsetLeft;
+          top += node.offsetTop;
+        } while ((node = node.offsetParent));
+      }
+
+      data.mouseX = event.pageX - left;
+      data.mouseY = event.pageY - top;
+    }
+    this._runtime.postMessage({type: 'mouseEvent', data: data});
   }
 };

@@ -255,6 +255,8 @@ SWFRuntime.prototype = {
       case 'runSWF':
         this._runSWF(message.file);
         break;
+      case 'mouseEvent':
+        this._onMouseEvent(message);
       default:
         throw new Error('Unknown SWFRuntime message: ' + message.type);
     }
@@ -280,24 +282,26 @@ SWFRuntime.prototype = {
     loader._parent = stage;
     loader._stage = stage;
 
-    loader._load(typeof file === 'string' ? new flash.net.URLRequest(file) : file);
-
-//    loaderInfo._addEventListener('init', function () {
-//      if (forceHidpiSetting || loaderInfo._swfVersion >= 18) {
-//        // Support of HiDPI displays  (for SWF version 18 and above only)
-//        pixelRatio = 'devicePixelRatio' in window ? window.devicePixelRatio : 1;
-//      }
-//      canvas._pixelRatio = pixelRatio;
-//      stage._contentsScaleFactor = pixelRatio;
-//
-//      if (container.clientHeight) {
-//        fitCanvas(container);
-//        window.addEventListener('resize', function () {
-//          fitCanvas(container);
-//        });
-//      } else {
-//        setCanvasSize(stage._stageWidth / 20, stage._stageHeight / 20);
-//      }
-//    });
+    loader._load(typeof file === 'string' ? new flash.net.URLRequest(file)
+                                          : file);
+  },
+  _onMouseEvent: function(event) {
+    var type = event.type;
+    if (type === 'mousemove') {
+      if (event.mouseX === this._stage._mouseX &&
+          event.mouseY === this._stage._mouseY)
+      {
+        return;
+      }
+      this._stage._mouseX = event.mouseX * 20;
+      this._stage._mouseY = event.mouseY * 20;
+    } else if (type === 'mouseup' || type === 'mousedown') {
+      this._stage._mouseEvents.push(type);
+    } else if (type === 'click') {
+      this._stage._mouseTarget._dispatchEvent('click');
+    }
+    this._stage._mouseOver = type !== 'mouseout';
+    this._stage._mouseMoved = type === 'mousemove' || type === 'mouseover' ||
+                              type === 'mouseout';
   }
 };
