@@ -32,6 +32,7 @@ SWFView.prototype = {
   },
   _initView: function() {
     this._container.style.position = 'relative';
+    this._container.appendChild(this._canvas);
 
     var mouseListener = this._onMouseEvent.bind(this);
 
@@ -49,10 +50,16 @@ SWFView.prototype = {
   _onRuntimeMessage: function(event) {
     var message = event.data;
     switch (message.type) {
-      case 'ready':
+      case 'vmInit':
         this.runSWF(this._file);
         this._file = null;
+        break;
+      case 'viewInit':
         this._initView();
+        break;
+      default:
+        throw new Error('Unknown message received from SWF runtime: ' +
+                        message.type);
     }
   },
   _onMouseEvent: function(event) {

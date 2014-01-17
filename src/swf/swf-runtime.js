@@ -268,7 +268,7 @@ SWFRuntime.prototype = {
     this._vm = new AVM2(this._id, this._config, this._onVMReady.bind(this));
   },
   _onVMReady: function(vm) {
-    this._postMessage({type: 'ready', id: this._id});
+    this._postMessage({type: 'vmInit', id: this._id});
   },
   _runSWF: function(file) {
     var stage = this._stage = new flash.display.Stage();
@@ -278,12 +278,20 @@ SWFRuntime.prototype = {
     loaderInfo._parameters = this._config.movieParams;
     loaderInfo._url = this._config.swfURL;
     loaderInfo._loaderURL = this._config.loaderURL || loaderInfo._url;
+    loaderInfo._addEventListener('init', this._onLoaderInfoInit.bind(this));
 
     loader._parent = stage;
     loader._stage = stage;
 
     loader._load(typeof file === 'string' ? new flash.net.URLRequest(file)
                                           : file);
+  },
+  _onLoaderInfoInit: function(event) {
+    var root = this._stageLoader._content;
+    root._dispatchEvent("added", undefined, true);
+    root._dispatchEvent("addedToStage");
+
+    this._postMessage({type: 'viewInit', id: this._id});
   },
   _onMouseEvent: function(event) {
     var type = event.type;
