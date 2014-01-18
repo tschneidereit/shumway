@@ -121,6 +121,9 @@ var StageDefinition = (function () {
 
       while (stack.length) {
         var element = stack.pop();
+        if (element.__class__ === 'flash.text.TextField') {
+          continue;
+        }
 
         var m = element._concatenatedTransform;
 
@@ -178,11 +181,13 @@ var StageDefinition = (function () {
         } else {
           var invalid = element._invalid || transformInvalid;
           var transform = element._concatenatedTransform;
+          var rect = {xMin: region.xMin, yMin: region.yMin,
+                      xMax: region.xMax, yMax: region.yMax};
           if (element.isRenderable) {
-            renderList.add(element, region, transform, invalid);
+            renderList.add(element, rect, transform, invalid);
           }
           if (element._graphics) {
-            renderList.add(element._graphics, region, transform, invalid);
+            renderList.add(element._graphics, rect, transform, invalid);
           }
           if (previousRegion) {
             previousRegion.xMin = region.xMin;

@@ -435,108 +435,6 @@ RenderVisitor.prototype = {
   }
 };
 
-function RenderingColorTransform() {
-  this.mode = null;
-  this.transform = [1, 1, 1, 1, 0, 0, 0, 0];
-}
-RenderingColorTransform.prototype = {
-  applyCXForm: function (cxform) {
-    var t = this.transform;
-    t = [
-      t[0] * cxform.redMultiplier / 256,
-      t[1] * cxform.greenMultiplier / 256,
-      t[2] * cxform.blueMultiplier / 256,
-      t[3] * cxform.alphaMultiplier / 256,
-      t[4] * cxform.redMultiplier / 256 + cxform.redOffset,
-      t[5] * cxform.greenMultiplier / 256 + cxform.greenOffset,
-      t[6] * cxform.blueMultiplier / 256 + cxform.blueOffset,
-      t[7] * cxform.alphaMultiplier / 256 + cxform.alphaOffset
-    ];
-
-    var mode;
-    var PRECISION = 1e-4;
-    if (Math.abs(t[0] - 1) < PRECISION && Math.abs(t[1] - 1) < PRECISION &&
-        Math.abs(t[2] - 1) < PRECISION && t[3] >= 0 &&
-        Math.abs(t[4]) < PRECISION && Math.abs(t[5]) < PRECISION &&
-        Math.abs(t[6]) < PRECISION && Math.abs(t[7]) < PRECISION) {
-      mode = Math.abs(t[3] - 1) < PRECISION ? null : 'simple';
-    } else {
-      mode = 'complex';
-    }
-    var clone = Object.create(RenderingColorTransform.prototype);
-    clone.mode = mode;
-    clone.transform = t;
-    return clone;
-  },
-  setFillStyle: function (ctx, style) {
-    if (this.mode === 'complex') {
-      style = typeof style === 'function' ? style(ctx, this) : this.convertColor(style);
-    } else if (typeof style === 'number') {
-      style = this.convertNumericColor(style);
-    } else if (typeof style === 'function') {
-      style = style.defaultFillStyle;
-    }
-    ctx.fillStyle = style;
-  },
-  setStrokeStyle: function (ctx, style) {
-    if (this.mode === 'complex') {
-      style = typeof style === 'function' ? style(ctx, this) : this.convertColor(style);
-    } else if (typeof style === 'number') {
-      style = this.convertNumericColor(style);
-    } else if (typeof style === 'function') {
-      style = style.defaultFillStyle;
-    }
-    ctx.strokeStyle = style;
-  },
-  addGradientColorStop: function (gradient, ratio, style) {
-    if (this.mode === 'complex') {
-      style = this.convertColor(style);
-    } else if (typeof style === 'number') {
-      style = this.convertNumericColor(style);
-    }
-    gradient.addColorStop(ratio, style);
-  },
-  setAlpha: function (ctx, force) {
-    if (this.mode === 'simple' || force) {
-      var t = this.transform;
-      ctx.globalAlpha = Math.min(1, Math.max(0, ctx.globalAlpha * t[3]));
-    }
-  },
-  convertNumericColor: function (num) {
-    return '#' + (num | 0x1000000).toString(16).substr(1);
-  },
-  convertColor: function (style) {
-    var t = this.transform;
-    var m;
-    switch (typeof style) {
-    case 'string':
-      if (style[0] === '#') {
-        m = [undefined, parseInt(style.substr(1, 2), 16),
-          parseInt(style.substr(3, 2), 16), parseInt(style.substr(5, 2), 16), 1.0];
-      }
-      m = m || /rgba\(([^,]+),([^,]+),([^,]+),([^)]+)\)/.exec(style);
-      if (!m) { // unknown string color
-        return style;
-      }
-      break;
-    case 'number':
-      m = [style, style >> 16 & 0xff, style >> 8 & 0xff, style & 0xff, 1.0];
-      break;
-    default:
-      return style;
-    }
-
-    var r = Math.min(255, Math.max(0, m[1] * t[0] + t[4])) | 0;
-    var g = Math.min(255, Math.max(0, m[2] * t[1] + t[5])) | 0;
-    var b = Math.min(255, Math.max(0, m[3] * t[2] + t[6])) | 0;
-    var a = Math.min(1, Math.max(0, m[4] * t[3] + (t[7] / 256)));
-    return "rgba(" + r + ',' + g + ',' + b + ',' + a + ')';
-  },
-  getTransformFingerprint: function () {
-    return this.transform.join('|');
-  }
-};
-
 function RenderingContext(refreshStage, invalidPath) {
   this.refreshStage = refreshStage === true;
   this.invalidPath = invalidPath;
@@ -684,11 +582,10 @@ function initializeHUD(stage, parentCanvas) {
   hudTimeline.refreshEvery(10);
 }
 
-function renderStage(stage, ctx, events) {
+function renderStage(stage, ctx, events, view) {
   var frameWidth, frameHeight;
 
   var idProvider = CreateObjectIdProvider();
-  self.renderBackend = new RenderBackend(ctx);
 
   if (!timeline && hud.value) {
     initializeHUD(stage, ctx.canvas);
@@ -841,7 +738,6 @@ function renderStage(stage, ctx, events) {
 //            }
 //          }
           stage._removedChildren.clear();
-          renderBackend.render(renderList);
           traceRenderer.value && frameWriter.leave("< Rendering");
           timelineLeave("render");
         }
@@ -880,6 +776,7 @@ function renderStage(stage, ctx, events) {
     }
 
     sampleEnd();
+    return renderList;
   }
 
   var frameRequested = true;
@@ -895,7 +792,11 @@ function renderStage(stage, ctx, events) {
 
     frameTime = now;
 
-    drawFrame(renderFrame, frameRequested && !skipNextFrameDraw);
+    var renderList = drawFrame(renderFrame,
+                               frameRequested && !skipNextFrameDraw);
+    if (renderList) {
+      view.updateRenderList(renderList);
+    }
     frameRequested = false;
 
     maxDelay = 1000 / stage._frameRate;
@@ -950,99 +851,6 @@ function regionsIntersect(regionA, regionB) {
   return !(regionA.xMax < regionB.xMin || regionA.xMin > regionB.xMax ||
            regionA.yMax < regionB.yMin || regionA.yMin > regionB.yMax);
 }
-
-function RenderBackend(ctx) {
-  this.ctx = ctx;
-  this.assets = Object.create(null);
-  this.regions = Object.create(null);
-}
-RenderBackend.prototype = {
-  render: function(renderList) {
-    console.log('start');
-    var ctx = this.ctx;
-    ctx.save();
-    var invalidRegions = [];
-    var invalidPath = new ShapePath();
-    var cleanElements = [];
-    var drawables = [];
-    for (var i = 0; i < renderList.entries.length; i++) {
-      var element = renderList.entries[i];
-      assert(element);
-      assert(element.id);
-      assert(element.command);
-      switch (element.command) {
-        case 'update': {
-          assert(element.data);
-          assert(element.region);
-          this.assets[element.id] = element.data;
-          var region = element.region;
-          this.regions[element.id] = region;
-          invalidRegions.push(region);
-          drawables.push(element);
-          invalidPath.rect(region.xMin, region.yMin, region.xMax - region.xMin,
-                           region.yMax - region.yMin);
-          element.render = true;
-          break;
-        }
-        case 'keep': {
-          assert(this.assets[element.id]);
-          cleanElements.push(element);
-          drawables.push(element);
-          break;
-        }
-        case 'drop': {
-//          assert(this.assets[element.id]);
-          region = this.regions[element.id];
-          if (region) {
-            invalidRegions.push(region);
-            invalidPath.rect(region.xMin/20, region.yMin/20,
-                             (region.xMax - region.xMin)/20,
-                             (region.yMax - region.yMin)/20);
-          }
-          delete this.assets[element.id];
-          delete this.regions[element.id];
-          break;
-        }
-      }
-    }
-    for (i = cleanElements.length; i--;) {
-      element = cleanElements[i];
-      for (var j = invalidRegions.length; j--;) {
-        if (regionsIntersect(element, invalidRegions[j])) {
-          element.render = true;
-          element.data = this.assets[element.id];
-          break;
-        }
-      }
-    }
-    invalidPath.draw(ctx, true);
-    for (i = 0; i < drawables.length; i++) {
-      element = drawables[i];
-      if (element.render) {
-        this.drawElement(element, ctx);
-      }
-    }
-    ctx.restore();
-  },
-  drawElement: function(element, ctx) {
-    switch (element.type) {
-      case 'graphics': {
-        var t = element.transform;
-        ctx.setTransform(t.a, t.b, t.c, t.d, t.tx/20, t.ty/20);
-        var paths = element.data.paths;
-        for (var i = 0; i < paths.length; i++) {
-          paths[i].draw(ctx, false, 0, element.data.colorTransform);
-        }
-        console.log('draw graphics');
-        break;
-      }
-      default: {
-        assert(false, 'unexpected render list element type: ' + element.type);
-      }
-    }
-  }
-};
-
 
 //var qtree = this._qtree;
 

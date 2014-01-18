@@ -39,6 +39,7 @@ var scripts = [
   "image.js",
   "label.js",
   "shape.js",
+  "rendering-color-transform.js",
   "sound.js",
   "text.js",
   "mp3worker.js",
@@ -196,7 +197,7 @@ var scripts = [
 
 if (isWorker) {
   print = function() {};
-  if (!console) {
+  if (typeof console === 'undefined') {
     console = {
       time: function (name) {
         Timer.start(name)
@@ -250,6 +251,9 @@ function SWFRuntime(id, config) {
   this._init();
 }
 SWFRuntime.prototype = {
+  updateRenderList: function(renderList) {
+    this._global.postMessage({type: 'render', list: renderList.entries});
+  },
   _onmessage: function(event) {
     var message = event.data;
     switch (message.type) {
@@ -295,12 +299,13 @@ SWFRuntime.prototype = {
                                           : file);
   },
   _onLoaderInfoInit: function(event) {
+    this._postMessage({type: 'viewInit', id: this._id});
+
     var root = this._stageLoader._content;
     root._dispatchEvent("added", undefined, true);
     root._dispatchEvent("addedToStage");
-    renderStage(this._stage, null, {});
 
-    this._postMessage({type: 'viewInit', id: this._id});
+    renderStage(this._stage, null, {}, this);
   },
   _onMouseEvent: function(event) {
     var type = event.type;
