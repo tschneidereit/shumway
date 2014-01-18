@@ -63,6 +63,11 @@ SWFView.prototype = {
     this._canvas.addEventListener('mouseup', mouseListener);
     this._canvas.addEventListener('mouseover', mouseListener);
     this._canvas.addEventListener('mouseout', mouseListener);
+    
+    var keyboardListener = this._onKeyboardEvent.bind(this);
+    window.addEventListener('keydown', keyboardListener);
+    window.addEventListener('keypress', keyboardListener);
+    window.addEventListener('keyup', keyboardListener);
   },
   runSWF: function(file) {
     this._runtime.postMessage({
@@ -109,6 +114,18 @@ SWFView.prototype = {
     }
     this._runtime.postMessage({type: 'mouseEvent', data: data});
   },
+  _onKeyboardEvent: function(event) {
+    var data = {
+      type: event.type, 
+      keyCode: event.keyCode, 
+      charCode: event.charCode,
+      keyLocation: event.keyLocation,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      shiftKey: event.shiftKey
+    };
+    this._runtime.postMessage({type: 'keyboardEvent', data: data});
+  },
   _onWindowResize: function(event) {
     var width = container.clientWidth;
     var height = container.clientHeight;
@@ -134,6 +151,7 @@ SWFView.prototype = {
 function RenderBackend(ctx) {
   this.ctx = ctx;
   this.assets = Object.create(null);
+  this.transforms = Object.create(null);
   this.regions = Object.create(null);
 }
 RenderBackend.prototype = {
@@ -153,8 +171,10 @@ RenderBackend.prototype = {
       switch (element.command) {
         case 'update': {
           assert(element.data);
+          assert(element.transform);
           assert(element.region);
           this.assets[element.id] = element.data;
+          this.transforms[element.id] = element.transform;
           var region = element.region;
           this.regions[element.id] = region;
           invalidRegions.push(region);
@@ -166,6 +186,9 @@ RenderBackend.prototype = {
         }
         case 'keep': {
           assert(this.assets[element.id]);
+          assert(this.regions[element.id]);
+          element.region = this.regions[element.id];
+          element.transform = this.transforms[element.id];
           cleanElements.push(element);
           drawables.push(element);
           break;
@@ -324,3 +347,8 @@ RenderingColorTransform.prototype = {
     return this.transform.join('|');
   }
 };
+
+function regionsIntersect(regionA, regionB) {
+  return !(regionA.xMax < regionB.xMin || regionA.xMin > regionB.xMax ||
+           regionA.yMax < regionB.yMin || regionA.yMin > regionB.yMax);
+}

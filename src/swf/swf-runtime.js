@@ -262,7 +262,10 @@ SWFRuntime.prototype = {
         this._runSWF(message.file, message.viewWidth, message.viewHeight);
         break;
       case 'mouseEvent':
-        this._onMouseEvent(message);
+        this._onMouseEvent(message.data);
+        break;
+      case 'keyboardEvent':
+        this._onKeyboardEvent(message.data);
         break;
       case 'viewResize':
         this._onViewResize(message.viewWidth, message.viewHeight);
@@ -329,11 +332,15 @@ SWFRuntime.prototype = {
     } else if (type === 'mouseup' || type === 'mousedown') {
       this._stage._mouseEvents.push(type);
     } else if (type === 'click') {
+      ShumwayKeyboardListener.focus = this._stage;
       this._stage._mouseTarget._dispatchEvent('click');
     }
     this._stage._mouseOver = type !== 'mouseout';
     this._stage._mouseMoved = type === 'mousemove' || type === 'mouseover' ||
                               type === 'mouseout';
+  },
+  _onKeyboardEvent: function(event) {
+    ShumwayKeyboardListener.handleEvent(event);
   },
   _onViewResize: function(width, height) {
     this._stage._swfFrameWidth = width;

@@ -755,7 +755,8 @@ function renderStage(stage, ctx, events, view) {
         traceRenderer.value && frameWriter.leave("< Mouse Handling");
         renderFrame && timelineLeave("mouse");
 
-        ctx.canvas.style.cursor = stage._cursor;
+        // OMTTODO: transmit cursor changes to mainthread
+//        ctx.canvas.style.cursor = stage._cursor;
       }
 
       if (traceRenderer.value) {
@@ -845,11 +846,6 @@ function renderStage(stage, ctx, events, view) {
     frameRequested = true;
     requestAnimationFrame(frame);
   })();
-}
-
-function regionsIntersect(regionA, regionB) {
-  return !(regionA.xMax < regionB.xMin || regionA.xMin > regionB.xMax ||
-           regionA.yMax < regionB.yMin || regionA.yMin > regionB.yMax);
 }
 
 //var qtree = this._qtree;
