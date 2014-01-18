@@ -60,16 +60,6 @@ var CanvasCache = {
   }
 };
 
-function isCanvasVisible(canvas) {
-  if (canvas.ownerDocument.hidden) { // Page Visibility API
-    return false;
-  }
-  if (canvas.mozVisible === false) { // HACK Canvas Visibility API
-    return false;
-  }
-  return true;
-}
-
 function visitContainer(container, visitor, context) {
   var children = container._children;
 
@@ -698,15 +688,15 @@ function renderStage(stage, ctx, events) {
   var frameWidth, frameHeight;
 
   var idProvider = CreateObjectIdProvider();
-  window.renderBackend = new RenderBackend(ctx);
+  self.renderBackend = new RenderBackend(ctx);
 
   if (!timeline && hud.value) {
     initializeHUD(stage, ctx.canvas);
   }
 
   function updateRenderTransform() {
-    frameWidth = ctx.canvas.width;
-    frameHeight = ctx.canvas.height;
+    frameWidth = stage._swfFrameWidth;
+    frameHeight = stage._swfFrameHeight;
 
     var scaleX = frameWidth / stage._stageWidth * 20;
     var scaleY = frameHeight / stage._stageHeight * 20;
@@ -752,7 +742,8 @@ function renderStage(stage, ctx, events) {
       offsetY = (frameHeight - scaleY * stage._stageHeight / 20) / 2;
     }
 
-    ctx.setTransform(scaleX, 0, 0, scaleY, offsetX, offsetY);
+    // OMTTODO: apply stage transform
+//    ctx.setTransform(scaleX, 0, 0, scaleY, offsetX, offsetY);
 
     var m = stage._concatenatedTransform;
     m.a = scaleX;
@@ -767,59 +758,7 @@ function renderStage(stage, ctx, events) {
   var maxDelay = 1000 / stage._frameRate;
   var nextRenderAt = performance.now();
 
-  var requestAnimationFrame = window.requestAnimationFrame ||
-                              window.mozRequestAnimationFrame ||
-                              window.webkitRequestAnimationFrame ||
-                              window.oRequestAnimationFrame ||
-                              window.msRequestAnimationFrame ||
-                              window.setTimeout;
-
-  var renderDummyBalls;
-
-  var dummyBalls;
-  if (typeof FirefoxCom !== 'undefined' &&
-    FirefoxCom.requestSync('getBoolPref', {pref: 'shumway.dummyMode', def: false})) {
-    var radius = 10;
-    var speed = 1;
-    var m = stage._concatenatedTransform;
-    var scaleX = m.a, scaleY = m.d;
-    dummyBalls = [];
-    for (var i = 0; i < 10; i++) {
-      dummyBalls.push({
-        position: {
-          x: radius + Math.random() * ((ctx.canvas.width - 2 * radius) / scaleX),
-          y: radius + Math.random() * ((ctx.canvas.height - 2 * radius) / scaleY)
-        },
-        velocity: {x: speed * (Math.random() - 0.5), y: speed * (Math.random() - 0.5)}
-      });
-    }
-    ctx.fillStyle = "black";
-    ctx.lineWidth = 2;
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-    renderDummyBalls = function () {
-      ctx.fillStyle = "black";
-      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      ctx.strokeStyle = "green";
-      dummyBalls.forEach(function (ball) {
-        var position = ball.position;
-        var velocity = ball.velocity;
-        ctx.beginPath();
-        ctx.arc(position.x, position.y, radius, 0, Math.PI * 2, true);
-        ctx.stroke();
-        var x = (position.x + velocity.x);
-        var y = (position.y + velocity.y);
-        if (x < radius || x > ctx.canvas.width / scaleX - radius) {
-          velocity.x *= -1;
-        }
-        if (y < radius || y > ctx.canvas.height / scaleY - radius) {
-          velocity.y *= -1;
-        }
-        position.x += velocity.x;
-        position.y += velocity.y;
-      });
-    };
-  }
+  var requestAnimationFrame = self.setTimeout;
 
   console.timeEnd("Initialize Renderer");
   console.timeEnd("Total");
@@ -880,7 +819,7 @@ function renderStage(stage, ctx, events) {
         domain.broadcastMessage("render", "render");
       }
 
-      if (isCanvasVisible(ctx.canvas) && (refreshStage || renderFrame) &&
+      if (!stage._viewHidden && (refreshStage || renderFrame) &&
           frameRequested) {
 
         traceRenderer.value && frameWriter.enter("> Invalidation");
@@ -955,10 +894,6 @@ function renderStage(stage, ctx, events) {
     }
 
     frameTime = now;
-    if (renderFrame && renderDummyBalls) {
-      renderDummyBalls();
-      return;
-    }
 
     drawFrame(renderFrame, frameRequested && !skipNextFrameDraw);
     frameRequested = false;

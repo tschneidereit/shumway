@@ -17,6 +17,7 @@
  */
 
 function SWFView(file, doc, container, config) {
+  this._doc = doc;
   this._container = container;
   this._canvas = doc.createElement('canvas');
   this._ctx = this._canvas.getContext('2d');
@@ -30,9 +31,26 @@ SWFView.prototype = {
   _initRuntime: function(config) {
     this._runtime.postMessage({type: 'init', config: config});
   },
-  _initView: function() {
-    this._container.style.position = 'relative';
-    this._container.appendChild(this._canvas);
+  _initView: function(intrinsicWidth, intrinsicHeight) {
+    var container = this._container;
+    container.style.position = 'relative';
+    container.appendChild(this._canvas);
+
+    var width = intrinsicWidth / 20;
+    var height = intrinsicHeight / 20;
+
+    if (container.clientHeight) {
+      width = container.clientWidth;
+      height = container.clientHeight;
+      // TODO: also detect other reasons for canvas resizing
+      window.addEventListener('resize', this._onWindowResize.bind(this));
+    }
+
+    this._canvas.width = width;
+    this._canvas.height = height;
+
+    this._doc.addEventListener('visibilitychange',
+                               this._onVisibilityChange.bind(this));
 
     var mouseListener = this._onMouseEvent.bind(this);
 
@@ -45,7 +63,12 @@ SWFView.prototype = {
     this._canvas.addEventListener('mouseout', mouseListener);
   },
   runSWF: function(file) {
-    this._runtime.postMessage({type: 'runSWF', file: file});
+    this._runtime.postMessage({
+                                type: 'runSWF',
+                                file: file,
+                                viewWidth: this._container.clientWidth,
+                                viewHeight: this._container.clientHeight
+                              });
   },
   _onRuntimeMessage: function(event) {
     var message = event.data;
@@ -55,7 +78,7 @@ SWFView.prototype = {
         this._file = null;
         break;
       case 'viewInit':
-        this._initView();
+        this._initView(message.width, message.height);
         break;
       default:
         throw new Error('Unknown message received from SWF runtime: ' +
@@ -79,5 +102,24 @@ SWFView.prototype = {
       data.mouseY = event.pageY - top;
     }
     this._runtime.postMessage({type: 'mouseEvent', data: data});
+  },
+  _onWindowResize: function(event) {
+    var width = container.clientWidth;
+    var height = container.clientHeight;
+    if (width !== this._canvas.width || height !== this._canvas.height) {
+      this._canvas.width = width;
+      this._canvas.height = height;
+      this._runtime.postMessage({
+                                  type: 'viewResize',
+                                  viewWidth: width,
+                                  viewHeight: height
+                                });
+    }
+  },
+  _onVisibilityChange: function(event) {
+    this._runtime.postMessage({
+                                type: 'visibilityChange',
+                                hidden: this._doc.hidden
+                              });
   }
 };

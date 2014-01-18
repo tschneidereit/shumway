@@ -191,6 +191,7 @@ var scripts = [
   "../io/BinaryFileReader.js",
 
   "../avm2/vm.js",
+  "renderer.js",
 ];
 
 if (isWorker) {
@@ -257,6 +258,13 @@ SWFRuntime.prototype = {
         break;
       case 'mouseEvent':
         this._onMouseEvent(message);
+        break;
+      case 'viewResize':
+        this._onViewResize(message.viewWidth, message.viewHeight);
+        break;
+      case 'visibilityChange':
+        this._onVisibilityChange(message.hidden);
+        break;
       default:
         throw new Error('Unknown SWFRuntime message: ' + message.type);
     }
@@ -290,6 +298,7 @@ SWFRuntime.prototype = {
     var root = this._stageLoader._content;
     root._dispatchEvent("added", undefined, true);
     root._dispatchEvent("addedToStage");
+    renderStage(this._stage, null, {});
 
     this._postMessage({type: 'viewInit', id: this._id});
   },
@@ -311,5 +320,12 @@ SWFRuntime.prototype = {
     this._stage._mouseOver = type !== 'mouseout';
     this._stage._mouseMoved = type === 'mousemove' || type === 'mouseover' ||
                               type === 'mouseout';
+  },
+  _onViewResize: function(width, height) {
+    this._stage._swfFrameWidth = width;
+    this._stage._swfFrameHeight = height;
+  },
+  _onVisibilityChange: function(hidden) {
+    this._stage._viewHidden = hidden;
   }
 };
