@@ -35,10 +35,9 @@ SWFView.prototype = {
     this._renderBackend = new RenderBackend(this._ctx);
     var container = this._container;
     container.style.position = 'relative';
-    container.appendChild(this._canvas);
 
-    var width = intrinsicWidth / 20;
-    var height = intrinsicHeight / 20;
+    var width = intrinsicWidth;
+    var height = intrinsicHeight;
 
     if (container.clientHeight) {
       width = container.clientWidth;
@@ -49,6 +48,8 @@ SWFView.prototype = {
 
     this._canvas.width = width;
     this._canvas.height = height;
+
+    container.appendChild(this._canvas);
 
     this._doc.addEventListener('visibilitychange',
                                this._onVisibilityChange.bind(this));
@@ -73,6 +74,7 @@ SWFView.prototype = {
   },
   _onRuntimeMessage: function(event) {
     var message = event.data;
+//    console.log('received by view: ' + message.type);
     switch (message.type) {
       case 'vmInit':
         this.runSWF(this._file);
@@ -136,7 +138,7 @@ function RenderBackend(ctx) {
 }
 RenderBackend.prototype = {
   render: function(renderList) {
-    console.log('start');
+//    console.log('start');
     var ctx = this.ctx;
     ctx.save();
     var invalidRegions = [];
@@ -212,7 +214,6 @@ RenderBackend.prototype = {
           ShapePath.prototype.draw.call(paths[i], ctx, false, 0,
                                         new RenderingColorTransform());
         }
-        console.log('draw graphics');
         break;
       }
       default: {

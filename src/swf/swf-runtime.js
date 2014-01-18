@@ -256,9 +256,10 @@ SWFRuntime.prototype = {
   },
   _onmessage: function(event) {
     var message = event.data;
+//    console.log('received by runtime: ' + message.type);
     switch (message.type) {
       case 'runSWF':
-        this._runSWF(message.file);
+        this._runSWF(message.file, message.viewWidth, message.viewHeight);
         break;
       case 'mouseEvent':
         this._onMouseEvent(message);
@@ -282,11 +283,13 @@ SWFRuntime.prototype = {
   _onVMReady: function(vm) {
     this._postMessage({type: 'vmInit', id: this._id});
   },
-  _runSWF: function(file) {
+  _runSWF: function (file, viewWidth, viewHeight) {
     var stage = this._stage = new flash.display.Stage();
     var loader = this._stageLoader = new flash.display.Loader();
     var loaderInfo = loader._contentLoaderInfo;
     stage._loader = loader;
+    stage._swfFrameWidth = viewWidth;
+    stage._swfFrameHeight = viewHeight;
     loaderInfo._parameters = this._config.movieParams;
     loaderInfo._url = this._config.swfURL;
     loaderInfo._loaderURL = this._config.loaderURL || loaderInfo._url;
@@ -299,7 +302,13 @@ SWFRuntime.prototype = {
                                           : file);
   },
   _onLoaderInfoInit: function(event) {
-    this._postMessage({type: 'viewInit', id: this._id});
+    var stage = this._stage;
+    this._postMessage({
+                        type: 'viewInit',
+                        id: this._id,
+                        width: stage._stageWidth / 20,
+                        height: stage._stageHeight / 20
+                      });
 
     var root = this._stageLoader._content;
     root._dispatchEvent("added", undefined, true);
