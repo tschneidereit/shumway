@@ -18,21 +18,29 @@
 /*global toKeyValueArray */
 
 var CapabilitiesDefinition = (function () {
-  var def = {};
 
   var os;
-  var userAgent = window.navigator.userAgent;
-  if (userAgent.indexOf("Macintosh") > 0) {
-    os = "Mac OS 10.5.2";
-  } else if (userAgent.indexOf("Windows") > 0) {
-    os = "Windows XP";
-  } else if (userAgent.indexOf("Linux") > 0) {
-    os = "Linux";
-  } else if (/(iPad|iPhone|iPod|Android)/.test(userAgent)) {
-    os = "iPhone3,1";
-  } else {
-    notImplemented();
-  }
+  var screenWidth;
+  var screenHeight;
+
+  var def = {
+    setSystemInfo: function(systemInfo) {
+      screenWidth = systemInfo.screenWidth;
+      screenHeight = systemInfo.screenHeight;
+      var userAgent = systemInfo.ua;
+      if (userAgent.indexOf("Macintosh") > 0) {
+        os = "Mac OS 10.5.2";
+      } else if (userAgent.indexOf("Windows") > 0) {
+        os = "Windows XP";
+      } else if (userAgent.indexOf("Linux") > 0) {
+        os = "Linux";
+      } else if (/(iPad|iPhone|iPod|Android)/.test(userAgent)) {
+        os = "iPhone3,1";
+      } else {
+        notImplemented();
+      }
+    }
+  };
 
   def.__glue__ = {
     native: {
@@ -71,12 +79,12 @@ var CapabilitiesDefinition = (function () {
         },
         screenResolutionX: {
           get: function screenResolutionX() { // (void) -> Number
-            return window.screen.width;
+            return screenWidth;
           }
         },
         screenResolutionY: {
           get: function screenResolutionY() { // (void) -> Number
-            return window.screen.height;
+            return screenHeight;
           }
         },
         manufacturer: {

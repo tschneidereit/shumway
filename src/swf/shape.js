@@ -640,8 +640,7 @@ function ShapePath(fillStyle, lineStyle, commandsCount, dataLength, isMorph,
   // worker#postMessage under some conditions. To work around this while still
   // being able to move buffers instead of copying them, we have to store the
   // buffers themselves, too, and restore the typed arrays after postMessage.
-  if (inWorker) {
-    assert(transferables);
+  if (inWorker && transferables) {
     this.buffers = [this.commands.buffer, this.data.buffer];
     transferables.push(this.commands.buffer, this.data.buffer);
     if (isMorph) {

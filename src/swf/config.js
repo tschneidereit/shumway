@@ -20,3 +20,27 @@ var $RELEASE = false; // exist in src/flash/display/Loader.js as well
 var $DEBUG = true;
 var $EXTENSION = false;
 
+// OMTTODO: move the rest of this script to somewhere more sensible
+if (typeof window === 'undefined') {
+  print = function() {};
+  if (typeof console === 'undefined') {
+    console = {
+      time: function (name) {
+        Timer.start(name)
+      },
+      timeEnd: function (name) {
+        Timer.stop(name)
+      },
+      warn: function (s) {
+        if (traceWarnings.value) {
+          print(s);
+        }
+      },
+      info: function (s) {
+        print(s);
+      }
+    };
+  }
+} else {
+  self = window;
+}

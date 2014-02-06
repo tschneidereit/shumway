@@ -23,7 +23,7 @@ module Shumway.Util {
       var rgb = getComputedStyle(span).backgroundColor;
       document.body.removeChild(span);
       var m = /^rgb\((\d+), (\d+), (\d+)\)$/.exec(rgb);
-      if (!m) m = /^rgba\((\d+), (\d+), (\d+), ([\d.]+)\)$/.exec(rgb);
+      if (!m) m = /^rgba\((\d+), (\d+), (\d+), ([\d.]+)\)$/.exec(rgb) || [];
       var result = new Float32Array(4);
       result[0] = parseFloat(m[1]) / 255;
       result[1] = parseFloat(m[2]) / 255;

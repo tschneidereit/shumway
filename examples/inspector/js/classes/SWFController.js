@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-var SWFController = (function() {
+define([], function() {
 
   var STATE_INIT = 0;
   var STATE_PAUSED = 1;
@@ -140,8 +140,8 @@ var SWFController = (function() {
       }
     }
 
-  }
+  };
 
   return SWFController;
 
-}());
+});

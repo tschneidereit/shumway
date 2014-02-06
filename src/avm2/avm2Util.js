@@ -22,7 +22,7 @@ if (!this.performance) {
   this.performance = {};
 }
 if (!this.performance.now) {
-  this.performance.now = dateNow;
+  this.performance.now = this.dateNow || Date.now;
 }
 
 function backtrace() {

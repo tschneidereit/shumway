@@ -15,7 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var DisplayListTree = (function() {
+
+define([], function() {
 
   var containerElement;
   var rootElement;
@@ -299,4 +300,4 @@ var DisplayListTree = (function() {
 
   return DisplayListTree;
 
-})();
+});

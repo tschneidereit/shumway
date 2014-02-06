@@ -29,6 +29,8 @@ var StageDefinition = (function () {
       this._align = '';
       this._stageWidth = 0;
       this._stageHeight = 0;
+      this._swfFrameWidth = 0;
+      this._swfFrameHeight = 0;
       this._quality = 'high';
       this._color = 0xFFFFFFFF;
       this._stage = this;
@@ -44,6 +46,8 @@ var StageDefinition = (function () {
       this._mouseMoved = false;
       this._mouseTarget = this;
       this._mouseEvents = [];
+      this._mouseX = 0;
+      this._mouseY = 0;
       this._cursor = 'auto';
       this._stageVideos = [];
 
@@ -172,7 +176,7 @@ var StageDefinition = (function () {
 
       Shumway.GL.SHADER_ROOT = "../../src/stage/shaders/";
 
-      if (bgcolor) {
+      if (bgcolor !== 'undefined') {
         canvas.style.backgroundColor = rgbaObjToStr(bgcolor);
       }
 

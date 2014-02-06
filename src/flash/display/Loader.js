@@ -74,7 +74,7 @@ var LoaderDefinition = (function () {
         }.bind(this));
 
         var stats = data.stats;
-        if (stats) {
+        if (stats && typeof TelemetryService !== 'undefined') {
           TelemetryService.reportTelemetry(stats);
         }
 
@@ -751,15 +751,20 @@ var LoaderDefinition = (function () {
         this._contentLoaderInfo._url = request._url;
       }
       var worker;
-      if (WORKERS_ENABLED) {
+      if (WORKERS_ENABLED && typeof Worker !== 'undefined') {
         worker = new Worker(SHUMWAY_ROOT + LOADER_PATH);
       } else {
-        worker = new ResourceLoader(window);
+        worker = new ResourceLoader(self);
       }
       var loader = this;
       loader._worker = worker;
       worker.onmessage = function (evt) {
-        loader._commitData(evt.data);
+        if (evt.data.type === 'exception') {
+          avm2.exceptions.push({source: 'parser', message: evt.data.message,
+                                stack: evt.data.stack});
+        } else {
+          loader._commitData(evt.data);
+        }
       };
       if (flash.net.URLRequest.class.isInstanceOf(request)) {
         var session = FileLoadingService.createSession();

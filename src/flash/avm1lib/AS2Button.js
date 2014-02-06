@@ -16,7 +16,8 @@
  * limitations under the License.
  */
 /*global initDefaultListeners */
-var AS2ButtonDefinition = (function () {
+
+define([], function() {
   var def = {
     __class__: 'avm1lib.AS2Button',
 
@@ -46,5 +47,7 @@ var AS2ButtonDefinition = (function () {
     }
   };
 
+  this.AS2ButtonDefinition = def;
+
   return def;
-}).call(this);
+});

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-(function (exports) {
+define([], function() {
   var Timer = (function () {
     var base = new timer(null, "Total"), top = base;
     var flat = new timer(null, "Flat"), flatStack = [];
@@ -162,8 +162,9 @@
     return average;
   })();
 
-  exports.Timer = Timer;
-  exports.Counter = Counter;
-  exports.Average = Average;
-
-})(typeof exports === "undefined" ? (metrics = {}) : exports);
+  this.metrics = {
+    Timer: Timer,
+    Counter: Counter,
+    Average: Average
+  };
+});

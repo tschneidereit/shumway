@@ -51,3 +51,15 @@ var c4CoerceNonPrimitiveParameters = false;
 var c4CoerceNonPrimitive = false;
 
 var c4AsTypeLate = true;
+
+// OMTTODO: clean up these export
+var Counter = new metrics.Counter(true);
+var FrameCounter = new metrics.Counter(true);
+var CanvasCounter = new metrics.Counter(true);
+var Timer = metrics.Timer;
+var disassemble = systemOptions.register(new Option("d", "disassemble", "boolean", false, "disassemble"));
+var traceLevel = systemOptions.register(new Option("t", "traceLevel", "number", 0, "trace level"));
+var c4Options = systemOptions.register(new OptionSet("C4 Options"));
+var enableC4 = c4Options.register(new Option("c4", "c4", "boolean", false, "Enable the C4 compiler."));
+var c4TraceLevel = c4Options.register(new Option("tc4", "tc4", "number", 0, "Compiler Trace Level"));
+var enableRegisterAllocator = c4Options.register(new Option("ra", "ra", "boolean", false, "Enable register allocator."));

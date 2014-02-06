@@ -16,14 +16,79 @@
  * limitations under the License.
  */
 
-var asyncLoading = getQueryVariable("async") === "true";
-var simpleMode = getQueryVariable("simpleMode") === "true";
-var pauseExecution = getQueryVariable("paused") === "true";
-var remoteFile = getQueryVariable("rfile");
-var yt = getQueryVariable('yt');
+/* global SWFView */
 
-var swfController = new SWFController(timeline, pauseExecution);
+requirejs.config({
+  paths: {
+    shumway: '../../../src'
+  },
+  shim: {
+    "classes/dat.gui.min": {
+      exports: 'dat'
+    },
+    inspectorSettings: ['classes/dat.gui.min', 'shumway/swf/options'],
+  }
+});
+define([
+  "require",
+  "shumway/swf-view",
+  "classes/BinaryFileReader",
+  "classes/DisplayListTree",
+  "classes/SWFController",
+  "classes/dat.gui.min",
+  "inspectorSettings",
+  "shumway/avm2/metrics",
+  "inspectorLogging",
+  "inspectorMocks",
+  ], function(require, SWFView, BinaryFileReader, DisplayListTree,
+              SWFController, dat)
+{
+  this.Counter = new metrics.Counter(true);
+  this.FrameCounter = new metrics.Counter(true);
+  this.CanvasCounter = new metrics.Counter(true);
+  this.Timer = metrics.Timer;
 
+  var nativeCreateElement = document.createElement;
+  document.createElement = function (x) {
+    Counter.count("createElement: " + x);
+    return nativeCreateElement.call(document, x);
+  }
+
+var window = this.window;
+window.stats = new Stats();
+window.asyncLoading = getQueryVariable("async") === "true";
+window.simpleMode = getQueryVariable("simpleMode") === "true";
+window.pauseExecution = getQueryVariable("paused") === "true";
+window.remoteFile = getQueryVariable("rfile");
+window.yt = getQueryVariable('yt');
+
+//OMTTODO: fix timeline
+window.swfController = new SWFController(null/*timeline*/, pauseExecution);
+
+swfController.onStateChange = function onStateChange(newState, oldState) {
+  if (oldState === swfController.STATE_INIT) {
+    initUI();
+  }
+  var pauseButton = document.getElementById("pauseButton");
+  var stepButton = document.getElementById("stepButton");
+  switch (newState) {
+    case swfController.STATE_PLAYING:
+      pauseButton.classList.remove("icon-play");
+      pauseButton.classList.add("icon-pause");
+      stepButton.classList.add("disabled");
+      break;
+    case swfController.STATE_PAUSED:
+      pauseButton.classList.add("icon-play");
+      pauseButton.classList.remove("icon-pause");
+      stepButton.classList.remove("disabled");
+      updateDisplayListTree();
+      break;
+  }
+};
+
+function showMessage(msg) {
+  document.getElementById('message').textContent = "(" + msg + ")";
+}
 var libraryAbcs;
 var libraryScripts;
 function grabAbc(abcName) {
@@ -36,67 +101,59 @@ function grabAbc(abcName) {
   return null
 }
 
-function findDefiningAbc(mn) {
-  if (!avm2.builtinsLoaded) {
-    return null;
-  }
-  var name;
-  for (var i = 0; i < mn.namespaces.length; i++) {
-    var name = mn.namespaces[i].originalURI + ":" + mn.name;
-    var abcName = playerGlobalNames[name];
-    if (abcName) {
-      break;
-    }
-  }
-  if (abcName) {
-    return grabAbc(abcName);
-  }
-  return null;
-}
-
 /** Global sanityTests array, sanity tests add themselves to this */
 var sanityTests = [];
 
-// avm2 must be global.
-var avm2;
-function createAVM2(builtinPath, libraryPath, avm1Path, sysMode, appMode, next) {
-  function loadAVM1(next) {
-    new BinaryFileReader(avm1Path).readAll(null, function (buffer) {
-      avm2.systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer), "avm1.abc"));
-      next();
-    });
-  }
-
-  assert (builtinPath);
-  new BinaryFileReader(builtinPath).readAll(null, function (buffer) {
-    avm2 = new AVM2(sysMode, appMode, findDefiningAbc, avm1Path && loadAVM1);
-    console.time("Execute builtin.abc");
-    avm2.loadedAbcs = {};
-    // Avoid loading more Abcs while the builtins are loaded
-    avm2.builtinsLoaded = false;
-    avm2.systemDomain.onMessage.register('classCreated', Stubs.onClassCreated);
-    avm2.systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer), "builtin.abc"));
-    avm2.builtinsLoaded = true;
-    console.timeEnd("Execute builtin.abc");
-
-    new BinaryFileReader(libraryPath).readAll(null, function (buffer) {
-      // If library is shell.abc, then just go ahead and run it now since
-      // it's not worth doing it lazily given that it is so small.
-      if (libraryPath === shellAbcPath) {
-        avm2.systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer), libraryPath));
-      } else {
-        libraryAbcs = buffer;
-      }
-      next(avm2);
-    });
-  });
-}
+//// avm2 must be global.
+//var avm2;
+//function createAVM2(builtinPath, libraryPath, avm1Path, sysMode, appMode, next) {
+//  function loadAVM1(next) {
+//    new BinaryFileReader(avm1Path).readAll(null, function (buffer) {
+//      avm2.systemDomain.executeAbc(new AbcFile(new Uint8Array(buffer), "avm1.abc"));
+//      next();
+//    });
+//  }
+//
+//  var config = {
+//    paths: {
+//      builtins: builtinPath,
+//      library: libraryPath,
+//      avm1: avm1Path,
+//    },
+//    modes: {
+//      sys: sysMode,
+//      app: appMode
+//    },
+//    loadAVM1: !!(avm1Path && loadAVM1),
+//    initLibraryEagerly: libraryPath === shellAbcPath
+//  };
+//  avm2 = new AVM2(config, next);
+//}
 
 var avm2Root = "../../src/avm2/";
 var builtinPath = avm2Root + "generated/builtin/builtin.abc";
 var shellAbcPath = avm2Root + "generated/shell/shell.abc";
 var avm1Path = avm2Root + "generated/avm1lib/avm1lib.abc";
 var playerGlobalAbcPath = "../../src/flash/playerglobal.abc";
+
+if (typeof window === 'undefined') {
+  var window = this;
+}
+window.print = function (msg) {
+  console.log.apply(console, arguments);
+};
+var webShell = true;
+function getQueryVariable(variable) {
+  var query = window.location.search.substring(1);
+  var vars = query.split("&");
+  for (var i = 0; i < vars.length; i++) {
+    var pair = vars[i].split("=");
+    if (pair[0] == variable) {
+      return unescape(pair[1]);
+    }
+  }
+  return undefined;
+}
 
 function parseQueryString(qs) {
   if (!qs)
@@ -116,36 +173,9 @@ function parseQueryString(qs) {
   return obj;
 }
 
-/**
- * You can also specify a remote file as a query string parameters, ?rfile=... to load it automatically
- * when the page loads.
- */
-if (remoteFile) {
-  document.getElementById('openFile').setAttribute('hidden', true);
-  executeFile(remoteFile, null, parseQueryString(window.location.search));
-}
+var swfView;
 
-if (yt) {
-  requestYT(yt).then(function (config) {
-    var swf = config.url;
-
-    document.getElementById('openFile').setAttribute('hidden', true);
-    executeFile(swf, null, config.args);
-  });
-}
-if (remoteFile) {
-  configureMocks(remoteFile);
-}
-
-if (simpleMode) {
-  document.body.setAttribute('class', 'simple');
-}
-
-function showMessage(msg) {
-  document.getElementById('message').textContent = "(" + msg + ")";
-}
-
-function executeFile(file, buffer, movieParams) {
+function executeFile(file, buffer, movieParams, objectParams) {
   // All execution paths must now load AVM2.
   if (!state.appCompiler) {
     showMessage("Running in the Interpreter");
@@ -154,83 +184,113 @@ function executeFile(file, buffer, movieParams) {
   var appMode = state.appCompiler ? EXECUTION_MODE.COMPILE : EXECUTION_MODE.INTERPRET;
 
   var filename = file.split('?')[0].split('#')[0];
-  if (filename.endsWith(".abc")) {
-    libraryScripts = {};
-    createAVM2(builtinPath, shellAbcPath, null, sysMode, appMode, function (avm2) {
-      function runAbc(file, buffer) {
-        avm2.applicationDomain.executeAbc(new AbcFile(new Uint8Array(buffer), file));
-      }
+//  if (filename.endsWith(".abc")) {
+//    libraryScripts = {};
+//    createAVM2(builtinPath, shellAbcPath, null, sysMode, appMode, function (avm2) {
+//      function runAbc(file, buffer) {
+//        avm2.applicationDomain.executeAbc(new AbcFile(new Uint8Array(buffer), file));
+//      }
+//      if (!buffer) {
+//        new BinaryFileReader(file).readAll(null, function(buffer) {
+//          runAbc(file, buffer);
+//        });
+//      } else {
+//        runAbc(file, buffer);
+//      }
+//    });
+//  } else
+  if (filename.lastIndexOf('.swf') === filename.length - 4) {
+    FileLoadingService.setBaseUrl(file);
+    var swfURL = FileLoadingService.resolveUrl(file);
+    var loaderURL = getQueryVariable("loaderURL") || swfURL;
+    new BinaryFileReader(swfURL).readAll(null, function(buffer, error) {
       if (!buffer) {
-        new BinaryFileReader(file).readAll(null, function(buffer) {
-          runAbc(file, buffer);
-        });
-      } else {
-        runAbc(file, buffer);
+        throw "Unable to open the file " + file + ": " + error;
       }
+      var config = {
+        paths: {
+          runtime: '../../src/swf-runtime.js',
+          builtins: builtinPath,
+          library: playerGlobalAbcPath,
+          avm1: avm1Path,
+        },
+        modes: {
+          sys: sysMode,
+          app: appMode
+        },
+        movieParams: movieParams,
+        objectParams: objectParams,
+        url: swfURL,
+        loaderURL: loaderURL,
+        loadAVM1: true,
+        initLibraryEagerly: false
+      };
+      swfView = new SWFView(buffer, document, document.getElementById('stage'),
+                            config);
     });
-  } else if (filename.endsWith(".swf")) {
-    libraryScripts = playerGlobalScripts;
-    createAVM2(builtinPath, playerGlobalAbcPath, avm1Path, sysMode, appMode, function (avm2) {
-      function runSWF(file, buffer) {
-        var swfURL = FileLoadingService.resolveUrl(file);
-        var loaderURL = getQueryVariable("loaderURL") || swfURL;
-        SWF.embed(buffer || file, document, document.getElementById('stage'), {
-          onComplete: swfController.completeCallback.bind(swfController),
-          onBeforeFrame: swfController.beforeFrameCallback.bind(swfController),
-          onAfterFrame: swfController.afterFrameCallback.bind(swfController),
-          onStageInitialized: swfController.stageInitializedCallback.bind(swfController),
-          url: swfURL,
-          loaderURL: loaderURL,
-          movieParams: movieParams || {},
-        });
-      }
-      if (!buffer && asyncLoading) {
-        FileLoadingService.setBaseUrl(file);
-        runSWF(file);
-      } else if (!buffer) {
-        FileLoadingService.setBaseUrl(file);
-        new BinaryFileReader(file).readAll(null, function(buffer, error) {
-          if (!buffer) {
-            throw "Unable to open the file " + file + ": " + error;
-          }
-          runSWF(file, buffer);
-        });
-      } else {
-        runSWF(file, buffer);
-      }
-    });
-  } else if (filename.endsWith(".js") || filename.endsWith("/")) {
-    libraryScripts = playerGlobalScripts;
-    createAVM2(builtinPath, playerGlobalAbcPath, null, sysMode, appMode, function (avm2) {
-      if (file.endsWith("/")) {
-        readDirectoryListing(file, function (files) {
-          function loadNextScript(done) {
-            if (!files.length) {
-              done();
-              return;
-            }
-            var sanityTest = files.pop();
-            console.info("Loading Sanity Test: " + sanityTest);
-            loadScript(sanityTest, function () {
-              loadNextScript(done);
-            });
-          }
-          loadNextScript(function whenAllScriptsAreLoaded() {
-            console.info("Executing Sanity Test");
-            sanityTests.forEach(function (test) {
-              test(console, avm2);
-            });
-          });
-        });
-      } else {
-        loadScript(file, function () {
-          sanityTests.forEach(function (test) {
-            test(console, avm2);
-          });
-        });
-      }
-    });
+//    libraryScripts = playerGlobalScripts;
+//    createAVM2(builtinPath, playerGlobalAbcPath, avm1Path, sysMode, appMode, function (avm2) {
+//      function runSWF(file, buffer) {
+//        var swfURL = FileLoadingService.resolveUrl(file);
+//        var loaderURL = getQueryVariable("loaderURL") || swfURL;
+//        SWF.embed(buffer || file, document, document.getElementById('stage'), {
+//          onComplete: swfController.completeCallback.bind(swfController),
+//          onBeforeFrame: swfController.beforeFrameCallback.bind(swfController),
+//          onAfterFrame: swfController.afterFrameCallback.bind(swfController),
+//          onStageInitialized: swfController.stageInitializedCallback.bind(swfController),
+//          url: swfURL,
+//          loaderURL: loaderURL,
+//          movieParams: movieParams || {},
+//        });
+//      }
+//      if (!buffer && asyncLoading) {
+//        FileLoadingService.setBaseUrl(file);
+//        runSWF(file);
+//      } else if (!buffer) {
+//        FileLoadingService.setBaseUrl(file);
+//        new BinaryFileReader(file).readAll(null, function(buffer, error) {
+//          if (!buffer) {
+//            throw "Unable to open the file " + file + ": " + error;
+//          }
+//          runSWF(file, buffer);
+//        });
+//      } else {
+//        runSWF(file, buffer);
+//      }
+//    });
   }
+//  else if (filename.endsWith(".js") || filename.endsWith("/")) {
+//    libraryScripts = playerGlobalScripts;
+//    createAVM2(builtinPath, playerGlobalAbcPath, null, sysMode, appMode, function (avm2) {
+//      if (file.endsWith("/")) {
+//        readDirectoryListing(file, function (files) {
+//          function loadNextScript(done) {
+//            if (!files.length) {
+//              done();
+//              return;
+//            }
+//            var sanityTest = files.pop();
+//            console.info("Loading Sanity Test: " + sanityTest);
+//            loadScript(sanityTest, function () {
+//              loadNextScript(done);
+//            });
+//          }
+//          loadNextScript(function whenAllScriptsAreLoaded() {
+//            console.info("Executing Sanity Test");
+//            sanityTests.forEach(function (test) {
+//              test(console, avm2);
+//            });
+//          });
+//        });
+//      } else {
+//        loadScript(file, function () {
+//          sanityTests.forEach(function (test) {
+//            test(console, avm2);
+//          });
+//        });
+//      }
+//    });
+//  }
 }
 
 (function setStageSize() {
@@ -342,27 +402,6 @@ Array.prototype.forEach.call(document.querySelectorAll(panelToggleButtonSelector
   element.addEventListener("click", panelToggleButtonClickHandler);
 });
 
-swfController.onStateChange = function onStateChange(newState, oldState) {
-  if (oldState === swfController.STATE_INIT) {
-    initUI();
-  }
-  var pauseButton = document.getElementById("pauseButton");
-  var stepButton = document.getElementById("stepButton");
-  switch (newState) {
-    case swfController.STATE_PLAYING:
-      pauseButton.classList.remove("icon-play");
-      pauseButton.classList.add("icon-pause");
-      stepButton.classList.add("disabled");
-      break;
-    case swfController.STATE_PAUSED:
-      pauseButton.classList.add("icon-play");
-      pauseButton.classList.remove("icon-pause");
-      stepButton.classList.remove("disabled");
-      updateDisplayListTree();
-      break;
-  }
-}
-
 function initUI() {
   document.querySelector("#debugInfoToolbar > .toolbarButtonBar").classList.add("active");
   document.getElementById("ctrlLogToConsole").classList.add("active");
@@ -387,15 +426,34 @@ function updateDisplayListTree() {
   displayList.update(swfController.stage, document.getElementById("displayListContainer"));
 }
 
-var nativeGetContext = HTMLCanvasElement.prototype.getContext;
-var INJECT_DEBUG_CANVAS = false;
-HTMLCanvasElement.prototype.getContext = function getContext(contextId, args) {
-  if (INJECT_DEBUG_CANVAS && contextId === "2d") {
-    if (args && args.original) {
-      return nativeGetContext.call(this, contextId, args);
-    }
-    var target = nativeGetContext.call(this, contextId, args);
-    return new DebugCanvasRenderingContext2D(target, FrameCounter, DebugCanvasRenderingContext2D.Options);
-  }
-  return nativeGetContext.call(this, contextId, args);
-};
+
+/**
+ * You can also specify a remote file as a query string parameters, ?rfile=... to load it automatically
+ * when the page loads.
+ */
+if (remoteFile) {
+  document.getElementById('openFile').setAttribute('hidden', true);
+  executeFile(remoteFile, null, parseQueryString(window.location.search));
+}
+
+if (yt) {
+  requestYT(yt).then(function (config) {
+    var swf = config.url;
+
+    document.getElementById('openFile').setAttribute('hidden', true);
+    executeFile(swf, null, config.args);
+  });
+}
+if (remoteFile) {
+  configureMocks(remoteFile);
+}
+
+if (simpleMode) {
+  document.body.setAttribute('class', 'simple');
+}
+//  require(['inspectorLoader']);
+
+  return {
+    executeFile: executeFile
+  };
+});

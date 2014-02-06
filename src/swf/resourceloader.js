@@ -42,9 +42,10 @@
  SWF_TAG_CODE_DEFINE_BINARY_DATA, SWF_TAG_CODE_EXPORT_ASSETS */
 
 var $RELEASE = false;
-var isWorker = typeof window === 'undefined';
+var isResourceWorker = typeof window === 'undefined' &&
+                       typeof isWorker === 'undefined';
 
-if (isWorker && !$RELEASE) {
+if (isResourceWorker && !$RELEASE) {
   importScripts.apply(null, [
     // TODO: drop DataView, probably
     '../../lib/DataView.js/DataView.js',
@@ -346,6 +347,9 @@ function createParsingContext(commitData) {
       }
 
       commitData({command: 'complete', stats: stats});
+    },
+    onexception: function(e) {
+      commitData({type: 'exception', message: e.message, stack: e.stack});
     }
   };
 }
@@ -357,7 +361,7 @@ function ResourceLoader(scope) {
   this.subscription = null;
 
   var self = this;
-  if (!isWorker) {
+  if (!isResourceWorker) {
     this.messenger = {
       postMessage : function(data) {
         self.onmessage({data:data});
@@ -438,6 +442,6 @@ ResourceLoader.prototype = {
   }
 };
 
-if (isWorker) {
+if (isResourceWorker) {
   var loader = new ResourceLoader(this);
 }

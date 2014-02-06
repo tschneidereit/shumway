@@ -17,6 +17,9 @@
  */
 /*global SWF, renderStage, rgbaObjToStr, ShumwayKeyboardListener, forceHidpi */
 
+if (typeof SWF === 'undefined') {
+  SWF = {};
+}
 SWF.embed = function(file, doc, container, options) {
   var canvas = doc.createElement('canvas');
   var loader = new flash.display.Loader();

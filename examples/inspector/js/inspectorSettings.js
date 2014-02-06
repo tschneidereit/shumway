@@ -26,12 +26,76 @@ var DEFAULT_SETTINGS = {
   allocator: false,
   render: true,
   mouse: true,
-  //redraw: false,
-  //wireframe: false,
+//    redraw: false,
+//    wireframe: false,
   release: true,
-  logToConsole: false,
+  logToConsole: true,
   mute: false,
   turbo: true
+};
+var systemOptions = new OptionSet("System Options");
+var disassemble = systemOptions.register(new Option("d", "disassemble", "boolean", false, "disassemble"));
+var traceLevel = systemOptions.register(new Option("t", "traceLevel", "number", 0, "trace level"));
+var c4Options = systemOptions.register(new OptionSet("C4 Options"));
+var enableC4 = c4Options.register(new Option("c4", "c4", "boolean", false, "Enable the C4 compiler."));
+var c4TraceLevel = c4Options.register(new Option("tc4", "tc4", "number", 0, "Compiler Trace Level"));
+var enableRegisterAllocator = c4Options.register(new Option("ra", "ra", "boolean", false, "Enable register allocator."));
+var rendererOptions = coreOptions.register(new OptionSet("Renderer Options"));
+var traceRenderer = rendererOptions.register(new Option("tr", "traceRenderer", "number", 0, "trace renderer execution"));
+var disableRenderVisitor = rendererOptions.register(new Option("drv", "disableRenderVisitor", "boolean", false, "disable render visitor"));
+var disableMouseVisitor = rendererOptions.register(new Option("dmv", "disableMouseVisitor", "boolean", false, "disable mouse visitor"));
+var showRedrawRegions = rendererOptions.register(new Option("rr", "showRedrawRegions", "boolean", false, "show redraw regions"));
+var renderAsWireframe = rendererOptions.register(new Option("raw", "renderAsWireframe", "boolean", false, "render as wireframe"));
+var showQuadTree = rendererOptions.register(new Option("qt", "showQuadTree", "boolean", false, "show quad tree"));
+var turboMode = rendererOptions.register(new Option("", "turbo", "boolean", false, "turbo mode"));
+var forceHidpi = rendererOptions.register(new Option("", "forceHidpi", "boolean", false, "force hidpi"));
+var skipFrameDraw = rendererOptions.register(new Option("", "skipFrameDraw", "boolean", true, "skip frame when not on time"));
+var hud = rendererOptions.register(new Option("", "hud", "boolean", false, "show hud mode"));
+
+var enableConstructChildren = rendererOptions.register(new Option("", "constructChildren", "boolean", true, "Construct Children"));
+var enableEnterFrame = rendererOptions.register(new Option("", "enterFrame", "boolean", true, "Enter Frame"));
+var enableAdvanceFrame = rendererOptions.register(new Option("", "advanceFrame", "boolean", true, "Advance Frame"));
+
+var runtimeOptions = systemOptions.register(new OptionSet("Runtime Options"));
+
+var traceScope = runtimeOptions.register(new Option("ts", "traceScope", "boolean", false, "trace scope execution"));
+var traceExecution = runtimeOptions.register(new Option("tx", "traceExecution", "number", 0, "trace script execution"));
+var traceCallExecution = runtimeOptions.register(new Option("txc", "traceCallExecution", "number", 0, "trace call execution"));
+
+var functionBreak = runtimeOptions.register(new Option("fb", "functionBreak", "number", -1, "Inserts a debugBreak at function index #."));
+var compileOnly = runtimeOptions.register(new Option("co", "compileOnly", "number", -1, "Compiles only function number."));
+var compileUntil = runtimeOptions.register(new Option("cu", "compileUntil", "number", -1, "Compiles only until a function number."));
+var debuggerMode = runtimeOptions.register(new Option("dm", "debuggerMode", "boolean", false, "matches avm2 debugger build semantics"));
+var enableVerifier = runtimeOptions.register(new Option("verify", "verify", "boolean", false, "Enable verifier."));
+
+function updateAVM2State() {
+  enableC4.value = true;
+  enableVerifier.value = state.verifier;
+  enableRegisterAllocator.value = state.allocator;
+  traceExecution.value = state.trace ? 2 : 0;
+  traceRenderer.value = state.trace ? 2 : 0;
+  disableRenderVisitor.value = state.render ? false : true;
+  disableMouseVisitor.value = state.mouse ? false : true;
+  turboMode.value = state.turbo ? true : false;
+  //  showRedrawRegions.value = state.redraw ? true : false;
+  //  renderAsWireframe.value = state.wireframe ? true : false;
+  traceCallExecution.value = state.traceCalls ? 1 : 0;
+  traceCallExecution.value = state.traceRuntime ? 2 : traceCallExecution.value;
+  debuggerMode.value = true;
+  release = state.release;
+  AVM1_TRACE_ENABLED = state.trace;
+}
+
+var compilerEnableExceptions = runtimeOptions.register(new Option("cex", "exceptions", "boolean", false, "Compile functions with catch blocks."));
+var compilerMaximumMethodSize = runtimeOptions.register(new Option("cmms", "maximumMethodSize", "number", 4 * 1024, "Compiler maximum method size."));
+
+var domainOptions = systemOptions.register(new OptionSet("ApplicationDomain Options"));
+var traceClasses = domainOptions.register(new Option("tc", "traceClasses", "boolean", false, "trace class creation"));
+var traceDomain = domainOptions.register(new Option("td", "traceDomain", "boolean", false, "trace domain property access"));
+
+var EXECUTION_MODE = {
+  INTERPRET: 0x1,
+  COMPILE: 0x2
 };
 
 function loadState() {
@@ -61,11 +125,12 @@ function updateAVM2State() {
   enableRegisterAllocator.value = state.allocator;
   traceExecution.value = state.trace ? 2 : 0;
   traceRenderer.value = state.trace ? 2 : 0;
-  disableRendering.value = state.render ? false : true;
-  disableMouse.value = state.mouse ? false : true;
+  disableRenderVisitor.value = state.render ? false : true;
+  disableMouseVisitor.value = state.mouse ? false : true;
+  showQuadTree.value = state.qtree ? true : false;
   turboMode.value = state.turbo ? true : false;
-  //showRedrawRegions.value = state.redraw ? true : false;
-  //renderAsWireframe.value = state.wireframe ? true : false;
+  showRedrawRegions.value = state.redraw ? true : false;
+  renderAsWireframe.value = state.wireframe ? true : false;
   traceCallExecution.value = state.traceCalls ? 1 : 0;
   traceCallExecution.value = state.traceRuntime ? 2 : traceCallExecution.value;
   debuggerMode.value = true;
@@ -140,9 +205,9 @@ Array.prototype.forEach.call(document.querySelectorAll(".avm2Option"), function(
     setElementState(state[id] = !state[id]);
     updateAVM2State();
     saveState(state);
-    //if (id === "wireframe" && swfController.stage) {
-    //  swfController.stage._invalid = true;
-    //}
+//      if (id === "wireframe" && swfController.stage) {
+//        swfController.stage._invalid = true;
+//      }
   });
   setElementState(state[id]);
 });
@@ -151,59 +216,47 @@ document.getElementById("sample").addEventListener("click", function () {
   triggerSampling(5);
 });
 
-(function() {
-  var chkLogToConsole = document.getElementById("chkLogToConsole")
-  chkLogToConsole.checked = state.logToConsole;
-  chkLogToConsole.addEventListener("click", function (event) {
-    state.logToConsole = event.target.checked;
-    saveState(state);
-  });
-})();
+var chkLogToConsole = document.getElementById("chkLogToConsole")
+chkLogToConsole.checked = state.logToConsole;
+chkLogToConsole.addEventListener("click", function (event) {
+  state.logToConsole = event.target.checked;
+  saveState(state);
+});
 
-(function() {
-  var muteButton = document.getElementById("muteButton");
-  function setElementState() {
-    if (state.mute) {
-      muteButton.classList.remove("icon-volume-up");
-      muteButton.classList.add("icon-volume-off");
-    } else {
-      muteButton.classList.add("icon-volume-up");
-      muteButton.classList.remove("icon-volume-off");
-    }
+var muteButton = document.getElementById("muteButton");
+function setElementState() {
+  if (state.mute) {
+    muteButton.classList.remove("icon-volume-up");
+    muteButton.classList.add("icon-volume-off");
+  } else {
+    muteButton.classList.add("icon-volume-up");
+    muteButton.classList.remove("icon-volume-off");
   }
-  muteButton.addEventListener("click", function (event) {
-    state.mute = !state.mute;
-    avm2.systemDomain.getClass("flash.media.SoundMixer").native.static._setMasterVolume(state.mute ? 0 : 1);
-    setElementState();
-    saveState(state);
-  });
+}
+muteButton.addEventListener("click", function (event) {
+  state.mute = !state.mute;
+  avm2.systemDomain.getClass("flash.media.SoundMixer").native.static._setMasterVolume(state.mute ? 0 : 1);
   setElementState();
-})();
+  saveState(state);
+});
+setElementState();
 
-(function () {
-  var gui = new dat.GUI({ autoPlace: false });
+var gui = new dat.GUI({ autoPlace: false });
 
-  function addOptionSet(parent, set, open) {
-    var folder = parent.addFolder(set.name);
-    set.options.forEach(function (option) {
-      if (option instanceof OptionSet) {
-        addOptionSet(folder, option);
-      } else {
-        folder.add(option, "value", option.details).name(option.longName);
-      }
-    });
-    open && folder.open();
-  }
+function addOptionSet(parent, set, open) {
+  var folder = parent.addFolder(set.name);
+  set.options.forEach(function (option) {
+    if (option instanceof OptionSet) {
+      addOptionSet(folder, option);
+    } else {
+      folder.add(option, "value", option.details).name(option.longName);
+    }
+  });
+  open && folder.open();
+}
 
-  addOptionSet(gui, stageOptions, true);
-  addOptionSet(gui, rendererOptions, true);
-  addOptionSet(gui, systemOptions);
+addOptionSet(gui, stageOptions, true);
+addOptionSet(gui, rendererOptions, true);
+addOptionSet(gui, systemOptions);
 
-  var folder = gui.addFolder("Debug Canvas");
-  for (var k in DebugCanvasRenderingContext2D.Options) {
-    folder.add(DebugCanvasRenderingContext2D.Options, k);
-  }
-  folder.open();
-
-  document.getElementById("settingsContainer").appendChild(gui.domElement);
-})();
+document.getElementById("settingsContainer").appendChild(gui.domElement);

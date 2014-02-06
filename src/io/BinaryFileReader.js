@@ -15,8 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-define([], function() {
+var BinaryFileReader = (function binaryFileReader() {
   function constructor(url, method, mimeType, data) {
     this.url = url;
     this.method = method;
@@ -90,4 +89,4 @@ define([], function() {
     }
   };
   return constructor;
-});
+})();

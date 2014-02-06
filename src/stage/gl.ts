@@ -501,7 +501,9 @@ module Shumway.GL {
       var request = new XMLHttpRequest();
       request.open("GET", path, false);
       request.send();
-      assert (request.status === 200, "File : " + path + " not found.");
+      assert(request.status === 200 ||
+             (request.status === 0 && request.response),
+             "File : " + path + " not found.");
       var shaderType;
       if (endsWith(path, ".vert")) {
         shaderType = gl.VERTEX_SHADER;

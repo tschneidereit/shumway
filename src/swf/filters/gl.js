@@ -122,7 +122,9 @@ var WebGLCanvas = (function () {
       var request = new XMLHttpRequest();
       request.open("GET", file, false);
       request.send();
-      assert (request.status === 200, "File : " + file + " not found.");
+      assert (request.status === 200 ||
+              (request.status === 0 && request.response),
+              "File : " + file + " not found.");
       var shaderType;
       if (file.endsWith(".vert")) {
         shaderType = gl.VERTEX_SHADER;
