@@ -15,7 +15,7 @@
  */
 
 /// <reference path='references.ts'/>
-module Shumway.SWF.Parser {
+module Shumway.SWF.Parser.LowLevel {
   function defineShape($bytes, $stream, output, swfVersion, tagCode) {
     output || (output = {});
     output.id = readUi16($bytes, $stream);
@@ -137,7 +137,7 @@ module Shumway.SWF.Parser {
     return $;
   }
 
-  function defineImage($bytes, $stream, $, swfVersion, tagCode) {
+  export function defineImage($bytes, $stream, $, swfVersion, tagCode) {
     var imgData;
     $ || ($ = {});
     $.id = readUi16($bytes, $stream);
@@ -265,7 +265,7 @@ module Shumway.SWF.Parser {
     return $;
   }
 
-  function defineFont($bytes, $stream, $, swfVersion, tagCode) {
+  export function defineFont($bytes, $stream, $, swfVersion, tagCode) {
     $ || ($ = {});
     $.id = readUi16($bytes, $stream);
     var firstOffset = readUi16($bytes, $stream);
@@ -365,7 +365,7 @@ module Shumway.SWF.Parser {
     return $;
   }
 
-  function defineBitmap($bytes, $stream, $, swfVersion, tagCode) {
+  export function defineBitmap($bytes, $stream, $, swfVersion, tagCode) {
     $ || ($ = {});
     $.id = readUi16($bytes, $stream);
     var format = $.format = readUi8($bytes, $stream);
@@ -436,7 +436,7 @@ module Shumway.SWF.Parser {
     return $;
   }
 
-  function defineFont2($bytes, $stream, $, swfVersion, tagCode) {
+  export function defineFont2($bytes, $stream, $, swfVersion, tagCode) {
     $ || ($ = {});
     $.id = readUi16($bytes, $stream);
     var hasLayout = $.hasLayout = readUb($bytes, $stream, 1);
@@ -535,7 +535,7 @@ module Shumway.SWF.Parser {
     return $;
   }
 
-  function defineFont4($bytes, $stream, $, swfVersion, tagCode) {
+  export function defineFont4($bytes, $stream, $, swfVersion, tagCode) {
     $ || ($ = {});
     $.id = readUi16($bytes, $stream);
     var reserved = readUb($bytes, $stream, 5);
@@ -549,7 +549,7 @@ module Shumway.SWF.Parser {
     return $;
   }
 
-  function fileAttributes($bytes, $stream, $, swfVersion, tagCode) {
+  export function fileAttributes($bytes, $stream, $) {
     $ || ($ = {});
     var reserved = readUb($bytes, $stream, 1);
     $.useDirectBlit = readUb($bytes, $stream, 1);
@@ -654,7 +654,7 @@ module Shumway.SWF.Parser {
     align($bytes, $stream);
   }
 
-  function rgb($bytes, $stream): number {
+  export function rgb($bytes, $stream): number {
     return ((readUi8($bytes, $stream) << 24) | (readUi8($bytes, $stream) <<16) |
             (readUi8($bytes, $stream) << 8) | 0xff) >>> 0;
   }
@@ -1443,10 +1443,9 @@ module Shumway.SWF.Parser {
   };
 
 
-  export function readHeader($bytes, $stream, $, swfVersion, tagCode) {
+  export function readHeader($bytes, $stream, $) {
     $ || ($ = {});
     var $0: any = $.bbox = {};
-    align($bytes, $stream);
     var bits = readUb($bytes, $stream, 5);
     var xMin = readSb($bytes, $stream, bits);
     var xMax = readSb($bytes, $stream, bits);

@@ -575,7 +575,6 @@ module Shumway.AVM2.AS.flash.display {
       }
 
       var rootSymbol = <Shumway.Timeline.SpriteSymbol>loaderInfo.getSymbolById(0);
-      var documentClass = rootSymbol.symbolClass;
       var frames = rootSymbol.frames;
       var frameIndex = frames.length;
 
@@ -587,39 +586,7 @@ module Shumway.AVM2.AS.flash.display {
 
       var root = this._content;
       if (!root) {
-        root = documentClass.initializeFrom(rootSymbol);
-        // The root object gets a default of 'rootN', which doesn't use up a DisplayObject instance
-        // ID.
-        flash.display.DisplayObject._instanceID--;
-        root._name = 'root1'; // TODO: make this increment for subsequent roots.
-
-        if (MovieClip.isType(root)) {
-          var mc = <MovieClip>root;
-          if (data.sceneData) {
-            var scenes = data.sceneData.scenes;
-            for (var i = 0, n = scenes.length; i < n; i++) {
-              var sceneInfo = scenes[i];
-              var offset = sceneInfo.offset;
-              var endFrame = i < n - 1 ? scenes[i + 1].offset : rootSymbol.numFrames;
-              mc.addScene(sceneInfo.name, [], offset, endFrame - offset);
-            }
-            var labels = data.sceneData.labels;
-            for (var i = 0; i < labels.length; i++) {
-              var labelInfo = labels[i];
-              mc.addFrameLabel(labelInfo.name, labelInfo.frame + 1);
-            }
-          } else {
-            mc.addScene('Scene 1', [], 0, rootSymbol.numFrames);
-          }
-        }
-
-        root._loaderInfo = loaderInfo;
-        if (loaderInfo._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2) {
-          root = this._content = this._initAvm1Root(root);
-        } else {
-          this._content = root;
-        }
-        this.addTimelineObjectAtDepth(this._content, 0);
+        root = this.createContentRoot(rootSymbol, data.sceneData);
       }
 
       // For AVM1 SWFs directly loaded into AVM2 ones (or as the top-level SWF), unwrap the
@@ -646,6 +613,44 @@ module Shumway.AVM2.AS.flash.display {
           rootMovie._addSoundStreamBlock(frameIndex + 1, data.soundStreamBlock);
         }
       }
+    }
+
+    private createContentRoot(symbol: Timeline.SpriteSymbol, sceneData) {
+      var root = symbol.symbolClass.initializeFrom(symbol);
+      // The root object gets a default of 'rootN', which doesn't use up a DisplayObject instance
+      // ID.
+      flash.display.DisplayObject._instanceID--;
+      root._name = 'root1'; // TODO: make this increment for subsequent roots.
+
+      if (MovieClip.isType(root)) {
+        var mc = <MovieClip>root;
+        if (sceneData) {
+          var scenes = sceneData.scenes;
+          for (var i = 0, n = scenes.length; i < n; i++) {
+            var sceneInfo = scenes[i];
+            var offset = sceneInfo.offset;
+            var endFrame = i < n - 1 ? scenes[i + 1].offset : symbol.numFrames;
+            mc.addScene(sceneInfo.name, [], offset, endFrame - offset);
+          }
+          var labels = sceneData.labels;
+          for (var i = 0; i < labels.length; i++) {
+            var labelInfo = labels[i];
+            mc.addFrameLabel(labelInfo.name, labelInfo.frame + 1);
+          }
+        } else {
+          mc.addScene('Scene 1', [], 0, symbol.numFrames);
+        }
+      }
+
+      var loaderInfo = this._contentLoaderInfo;
+      root._loaderInfo = loaderInfo;
+      if (loaderInfo._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2) {
+        root = this._content = this._initAvm1Root(root);
+      } else {
+        this._content = root;
+      }
+      this.addTimelineObjectAtDepth(this._content, 0);
+      return root;
     }
 
     /**
@@ -773,11 +778,35 @@ module Shumway.AVM2.AS.flash.display {
       }
     }
 
-    onLoadOpen() {
-      // Go away, TSLint.
+    onLoadOpen(file: SWFFile) {
+      if (useNewParserOption.value) {
+        this._contentLoaderInfo.setFile(file);
+        if (this === Loader.getRootLoader()) {
+          Loader.runtimeStartTime = Date.now();
+        }
+      }
     }
-    onLoadProgress(data) {
-      this._commitData(data);
+    onLoadProgress(update: LoadProgressUpdate) {
+      if (useNewParserOption.value) {
+        this._contentLoaderInfo.bytesLoaded = update.bytesLoaded;
+        if (!update.framesLoadedDelta) {
+          return;
+        }
+        var rootSymbol = this._contentLoaderInfo.getRootSymbol();
+        var frames = rootSymbol.frames;
+        for (var i = 0; i < update.framesLoadedDelta; i++) {
+          var frame = this._contentLoaderInfo.getFrameDelta(frames.length);
+          frames.push(frame);
+        }
+        if (!this._content) {
+          this.createContentRoot(rootSymbol, null);
+          this._codeExecutionPromise.resolve(undefined);
+          this._progressPromise.resolve(undefined);
+        }
+        //this._commitFrame(update);
+      } else {
+        this._commitData(update);
+      }
     }
     onLoadComplete() {
       // Go away, TSLint.
@@ -797,7 +826,8 @@ module Shumway.AVM2.AS.flash.display {
       this._loadingType = LoadingType.Bytes;
       this.close();
       this._fileLoader = new FileLoader(this);
-      this._fileLoader.loadBytes((<any>data).bytes);
+      // Just passing in the bytes won't do, because the buffer can contain slop at the end.
+      this._fileLoader.loadBytes(new Uint8Array((<any>data).bytes, 0, data.length));
 
       Loader._loadQueue.push(this);
     }

@@ -98,7 +98,7 @@ module Shumway.SWF.Parser {
         } else if (tagCode === 1) {
           nextTag.repeat = 1;
         } else {
-          var handler = tagHandler[tagCode];
+          var handler = LowLevel.tagHandler[tagCode];
           if (handler) {
             handler(subbytes, substream, nextTag, swfVersion, tagCode);
           }
@@ -281,7 +281,7 @@ module Shumway.SWF.Parser {
 
         stream = buffer.createStream();
         var bytes = stream.bytes;
-        readHeader(bytes, stream, swf, null, null);
+        LowLevel.readHeader(bytes, stream, swf);
 
         // reading FileAttributes tag, this tag shall be first in the file
         var nextTagHeader = readUi16(bytes, stream);
@@ -292,7 +292,7 @@ module Shumway.SWF.Parser {
           }
 
           var substream = stream.substream(stream.pos, stream.pos += FILE_ATTRIBUTES_LENGTH);
-          var handler = tagHandler[SwfTag.CODE_FILE_ATTRIBUTES];
+          var handler = LowLevel.tagHandler[SwfTag.CODE_FILE_ATTRIBUTES];
           var fileAttributesTag = {code: SwfTag.CODE_FILE_ATTRIBUTES};
           handler(substream.bytes, substream, fileAttributesTag, swfVersion, SwfTag.CODE_FILE_ATTRIBUTES);
           swf.fileAttributes = fileAttributesTag;
