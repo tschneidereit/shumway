@@ -189,6 +189,7 @@ module Shumway.ArrayUtilities {
       } else {
         this._state = InflateState.INIT;
       }
+      return false;
     }
     private _decodeInitState(): boolean {
       if (this._isFinalBlock) {
