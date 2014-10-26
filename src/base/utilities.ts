@@ -289,8 +289,8 @@ module Shumway {
       }
     }
 
-    export function warning(message: string) {
-      release || warn(message);
+    export function warning(...messages: any[]) {
+      release || warn.apply(window, messages);
     }
 
     export function notUsed(message: string) {
