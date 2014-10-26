@@ -473,8 +473,8 @@ module Shumway.Timeline {
         var cmd = commands[i];
         var depth = cmd.depth;
         switch (cmd.code) {
-          case 5: // SWF_TAG_CODE_REMOVE_OBJECT
-          case 28: // SWF_TAG_CODE_REMOVE_OBJECT2
+          case SwfTag.CODE_REMOVE_OBJECT:
+          case SwfTag.CODE_REMOVE_OBJECT2:
             states[depth] = null;
             break;
           case SwfTag.CODE_START_SOUND:
@@ -483,7 +483,9 @@ module Shumway.Timeline {
             }
             soundStarts.push(new SoundStart(cmd.soundId, cmd.soundInfo));
             break;
-          default:
+          case SwfTag.CODE_PLACE_OBJECT:
+          case SwfTag.CODE_PLACE_OBJECT2:
+          case SwfTag.CODE_PLACE_OBJECT3:
             var symbol: DisplaySymbol = null;
             var matrix: flash.geom.Matrix = null;
             var colorTransform: flash.geom.ColorTransform = null;
@@ -576,7 +578,10 @@ module Shumway.Timeline {
             );
             states[depth] = state;
             break;
+          default:
+            Debug.warning("Unhandled timeline control tag: " + cmd.code + ": " + SwfTag[cmd.code]);
         }
+
       }
       this._soundStarts = soundStarts;
       this.commands = null;

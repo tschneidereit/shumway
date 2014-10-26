@@ -37,10 +37,11 @@ module Shumway.AVM2.AS.flash.display {
     static instanceSymbols: string [] = null; // ["parameters", "uncaughtErrorEvents", "dispatchEvent"];
 
     constructor () {
-      false && super(undefined);
+      false && super();
       flash.events.EventDispatcher.instanceConstructorNoInitialize.call(this);
       this._loaderURL = '';
       this._url = '';
+      this._file = null;
       this._isURLInaccessible = false;
       this._bytesLoaded = 0;
       this._bytesLoadedChanged = false;
@@ -71,6 +72,27 @@ module Shumway.AVM2.AS.flash.display {
       this._colorRGBA = 0xFFFFFFFF;
     }
 
+    setFile(file: SWFFile) {
+      release || assert(!this._file);
+      this._file = file;
+      // TODO: remove these duplicated fields from LoaderInfo.
+      this._bytesTotal = file.bytesTotal;
+      this._swfVersion = file.swfVersion;
+      this._frameRate = file.frameRate;
+      var bbox = file.bounds;
+      this._width = bbox.xMax - bbox.xMin;
+      this._height = bbox.yMax - bbox.yMin;
+      this._colorRGBA = file.backgroundColor;
+
+      if (!file.attributes || !file.attributes.doAbc) {
+        this._actionScriptVersion = ActionScriptVersion.ACTIONSCRIPT2;
+      }
+
+      var rootSymbol = new Timeline.SpriteSymbol(0, true);
+      rootSymbol.numFrames = file.frameCount;
+      this.registerSymbol(rootSymbol);
+    }
+
     uncaughtErrorEvents: flash.events.UncaughtErrorEvents;
 
     static getLoaderInfoByDefinition(object: Object): flash.display.LoaderInfo {
@@ -80,6 +102,7 @@ module Shumway.AVM2.AS.flash.display {
 
     _loaderURL: string;
     _url: string;
+    _file: SWFFile;
     _isURLInaccessible: boolean;
     _bytesLoaded: number /*uint*/;
     _bytesLoadedChanged: boolean;
@@ -243,7 +266,60 @@ module Shumway.AVM2.AS.flash.display {
     }
 
     getSymbolById(id: number): Shumway.Timeline.Symbol {
-      return this._dictionary[id] || null;
+      var symbol = this._dictionary[id];
+      if (!symbol) {
+        var data = this._file.getSymbol(id);
+        switch (data.type) {
+          case 'shape':
+            symbol = Timeline.ShapeSymbol.FromData(data, this);
+            break;
+          case 'morphshape':
+            symbol = Timeline.MorphShapeSymbol.FromData(data, this);
+            break;
+          case 'image':
+            symbol = Timeline.BitmapSymbol.FromData(data);
+            break;
+          case 'label':
+          case 'text':
+            symbol = Timeline.TextSymbol.FromTextData(data);
+            break;
+          case 'button':
+            symbol = Timeline.ButtonSymbol.FromData(data, this);
+            break;
+          case 'sprite':
+            symbol = Timeline.SpriteSymbol.FromData(data, this);
+            break;
+          case 'font':
+            symbol = Timeline.FontSymbol.FromData(data);
+            var font = flash.text.Font.initializeFrom(symbol);
+            flash.text.Font.instanceConstructorNoInitialize.call(font);
+            break;
+          case 'sound':
+            symbol = Timeline.SoundSymbol.FromData(data);
+            break;
+          case 'binary':
+            symbol = Timeline.BinarySymbol.FromData(data);
+            break;
+        }
+        release || assert (symbol, "Unknown symbol type.");
+        this._dictionary[id] = symbol;
+      }
+      return this._dictionary[id] || this._file.getSymbol(id);
+    }
+
+    getRootSymbol(): Timeline.SpriteSymbol {
+      return <Timeline.SpriteSymbol>this._dictionary[0];
+    }
+
+    // TODO: deltas should be computed lazily when they're first needed, and this removed.
+    getFrameDelta(index: number) {
+      var frame = this._file.frames[index];
+      var unparsedCommands = frame.displayListCommands;
+      var commands = [];
+      for (var i = 0; i < unparsedCommands.length; i++) {
+        commands.push(this._file.getParsedTag(unparsedCommands[i]));
+      }
+      return new Timeline.FrameDelta(this, commands);
     }
   }
 }
