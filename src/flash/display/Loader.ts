@@ -324,7 +324,7 @@ module Shumway.AVM2.AS.flash.display {
           loaderInfo._width = bbox.xMax - bbox.xMin;
           loaderInfo._height = bbox.yMax - bbox.yMin;
 
-          var rootSymbol = new Timeline.SpriteSymbol(0, true);
+          var rootSymbol = new Timeline.SpriteSymbol(0, this._contentLoaderInfo);
           rootSymbol.numFrames = info.frameCount;
           loaderInfo.registerSymbol(rootSymbol);
 

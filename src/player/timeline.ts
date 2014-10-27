@@ -268,17 +268,19 @@ module Shumway.Timeline {
         var commands = states[stateName];
         if (commands.length === 1) {
           var cmd = commands[0];
-          character = loaderInfo.getSymbolById(cmd.symbolId);
+          if (!useNewParserOption.value) {
+            character = loaderInfo.getSymbolById(cmd.symbolId);
+          }
           matrix = flash.geom.Matrix.FromUntyped(cmd.matrix);
           if (cmd.cxform) {
             colorTransform = flash.geom.ColorTransform.FromCXForm(cmd.cxform);
           }
         } else {
-          character = new Timeline.SpriteSymbol(-1);
+          character = new Timeline.SpriteSymbol(-1, loaderInfo);
           character.frames.push(new FrameDelta(loaderInfo, commands));
         }
         symbol[stateName + 'State'] =
-          new Timeline.AnimationState(character, 0, matrix, colorTransform);
+          new Timeline.AnimationState(cmd.symbolId, character, 0, matrix, colorTransform);
       }
       return symbol;
     }
@@ -292,14 +294,15 @@ module Shumway.Timeline {
     isRoot: boolean;
     avm1Name: string;
     avm1SymbolClass;
+    loaderInfo: flash.display.LoaderInfo;
 
-    constructor(id: number, isRoot: boolean = false) {
+    constructor(id: number, loaderInfo: flash.display.LoaderInfo) {
       super(id, flash.display.MovieClip);
-      this.isRoot = isRoot;
+      this.loaderInfo = loaderInfo;
     }
 
     static FromData(data: any, loaderInfo: flash.display.LoaderInfo): SpriteSymbol {
-      var symbol = new SpriteSymbol(data.id);
+      var symbol = new SpriteSymbol(data.id, loaderInfo);
       symbol.numFrames = data.frameCount;
       if (loaderInfo.actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2) {
         symbol.isAVM1Object = true;
@@ -388,7 +391,8 @@ module Shumway.Timeline {
    * TODO document
    */
   export class AnimationState {
-    constructor(public symbol: DisplaySymbol = null,
+    constructor(public symbolId: number,
+                public symbol: DisplaySymbol = null,
                 public depth: number = 0,
                 public matrix: flash.geom.Matrix = null,
                 public colorTransform: flash.geom.ColorTransform = null,
@@ -491,7 +495,7 @@ module Shumway.Timeline {
             var colorTransform: flash.geom.ColorTransform = null;
             var filters: flash.filters.BitmapFilter[] = null;
             var events: any[] = null;
-            if (cmd.symbolId) {
+            if (cmd.symbolId && !useNewParserOption.value) {
               symbol = <DisplaySymbol>loaderInfo.getSymbolById(cmd.symbolId);
               if (!symbol) {
                 warning("Symbol " + cmd.symbolId + " is not defined.");
@@ -562,6 +566,7 @@ module Shumway.Timeline {
               }
             }
             var state = new Timeline.AnimationState (
+              cmd.symbolId,
               symbol,
               depth,
               matrix,
