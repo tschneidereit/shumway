@@ -88,7 +88,8 @@ module Shumway.AVM2.AS.flash.display {
         this._actionScriptVersion = ActionScriptVersion.ACTIONSCRIPT2;
       }
 
-      var rootSymbol = new Timeline.SpriteSymbol(0, true);
+      var rootSymbol = new Timeline.SpriteSymbol(0, this);
+      rootSymbol.isRoot = true;
       rootSymbol.numFrames = file.frameCount;
       this.registerSymbol(rootSymbol);
     }
