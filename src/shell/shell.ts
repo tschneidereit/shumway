@@ -413,7 +413,7 @@ module Shumway.Shell {
     if (file.endsWith(".swf")) {
       var fileNameWithoutExtension = fileName.substr(0, fileName.length - 4);
       var SWF_TAG_CODE_DO_ABC = SwfTag.CODE_DO_ABC;
-      var SWF_TAG_CODE_DO_ABC_ = SwfTag.CODE_DO_ABC_;
+      var SWF_TAG_CODE_DO_ABC_ = SwfTag.CODE_DO_ABC_DEFINE;
       try {
         var buffer = read(file, "binary");
         var startSWF = dateNow();
