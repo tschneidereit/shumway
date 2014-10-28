@@ -321,9 +321,14 @@ module Shumway {
     return null;
   }
 
-  import Inflate = Shumway.ArrayUtilities.Inflate;
   import SWFTag = Shumway.SWF.Parser.SwfTag;
+  import ControlTags = Shumway.SWF.Parser.ControlTags;
+  import DefinitionTags = Shumway.SWF.Parser.DefinitionTags;
+  import ImageDefinitionTags = Shumway.SWF.Parser.ImageDefinitionTags;
+  import FontDefinitionTags = Shumway.SWF.Parser.FontDefinitionTags;
+
   import Stream = Shumway.SWF.Stream;
+  import Inflate = Shumway.ArrayUtilities.Inflate;
   import ImageDefinition = Shumway.SWF.Parser.ImageDefinition;
 
   export class SWFFile {
@@ -382,6 +387,12 @@ module Shumway {
       this.dataStream.pos = unparsed.byteOffset;
       var tag = {code: unparsed.tagCode};
       var definition = handler(this.data, this.dataStream, tag, this.swfVersion, unparsed.tagCode);
+      if (tag.code === SWFTag.CODE_DEFINE_SPRITE) {
+        // TODO: replace this whole silly `type` business with tagCode checking.
+        definition.type = 'sprite';
+        parseSpriteTimeline(definition, unparsed, this.dataView, this.dataStream);
+        return definition;
+      }
       release || assert(this.dataStream.pos === unparsed.byteOffset + unparsed.byteLength);
       return defineSymbol(definition, this.dictionary, null);
     }
@@ -484,6 +495,58 @@ module Shumway {
         return false;
       }
       var byteOffset = stream.pos = stream.pos + (extendedLength ? 6 : 2);
+
+      if (tagCode === SWFTag.CODE_DEFINE_SPRITE) {
+        // According to Chapter 13 of the SWF format spec, no nested definition tags are
+        // allowed within DefineSprite. However, they're added to the symbol dictionary
+        // anyway, and some tools produce them. Notably swfmill.
+        // We essentially treat them as though they came before the current sprite. That
+        // should be ok because it doesn't make sense for them to rely on their parent being
+        // fully defined - so they don't have to come after it -, and any control tags within
+        // the parent will just pick them up the moment they're defined, just as always.
+        this.addLazySymbol(tagCode, byteOffset, tagLength);
+        var spriteTagEnd = byteOffset + tagLength;
+        stream.pos += 4; // Jump over symbol ID and frameCount.
+        while (stream.pos < spriteTagEnd) {
+          var tagCodeAndLength = this.dataView.getUint16(stream.pos, true);
+          var tagCode = tagCodeAndLength >> 6;
+          var tagLength = tagCodeAndLength & 0x3f;
+          var extendedLength = tagLength === 0x3f;
+          stream.pos += 2;
+          if (extendedLength) {
+            tagLength = this.dataView.getUint32(stream.pos, true);
+            stream.pos += 4;
+          }
+          if (stream.pos + tagLength > spriteTagEnd) {
+            Debug.warning("DefineSprite child tags exceed DefineSprite tag length and are dropped");
+            stream.pos = spriteTagEnd;
+            return true;
+          }
+          if (DefinitionTags[tagCode]) {
+            this.addLazySymbol(tagCode, stream.pos, tagLength);
+          }
+          this.jumpToNextTag(tagLength);
+        }
+        return true;
+      }
+      if (ImageDefinitionTags[tagCode]) {
+        // Images are decoded asynchronously, so we have to deal with them ahead of time to
+        // ensure they're ready when used.
+        this.decodeEmbeddedImage(tagCode, tagLength, byteOffset);
+        return true;
+      }
+      if (!inFirefox && FontDefinitionTags[tagCode]) {
+        // Firefox decodes fonts synchronously, so we can do it when the font is used the first
+        // time. For other browsers, decode it eagerly so it's guaranteed to be available on use.
+        this.decodeEmbeddedFont(tagCode, tagLength, byteOffset);
+        return true;
+      }
+      if (DefinitionTags[tagCode]) {
+        this.addLazySymbol(tagCode, byteOffset, tagLength);
+        this.jumpToNextTag(tagLength);
+        return true;
+      }
+
       switch (tagCode) {
         case SWFTag.CODE_FILE_ATTRIBUTES:
           this.setFileAttributes(tagLength);
@@ -505,56 +568,11 @@ module Shumway {
         case SWFTag.CODE_SOUND_STREAM_BLOCK:
         case SWFTag.CODE_START_SOUND:
         case SWFTag.CODE_START_SOUND2:
-        case SWFTag.CODE_STOP_SOUND:
         case SWFTag.CODE_VIDEO_FRAME:
           this.addControlTag(tagCode, byteOffset, tagLength);
           break;
         case SWFTag.CODE_SHOW_FRAME:
-          this.addFrame();
-          break;
-        case SWFTag.CODE_DEFINE_FONT:
-        case SWFTag.CODE_DEFINE_FONT2:
-        case SWFTag.CODE_DEFINE_FONT3:
-        case SWFTag.CODE_DEFINE_FONT4:
-          // Firefox decodes fonts synchronously, so we can do it when the font is used the first
-          // time. For other browsers, decode it eagerly so it's guaranteed to be available on use.
-          if (typeof navigator !== 'undefined' && navigator.userAgent.indexOf('Firefox') < 0) {
-            this.decodeEmbeddedFont(tagCode, tagLength, byteOffset);
-          } else {
-            this.addLazySymbol(tagCode, byteOffset, tagLength);
-          }
-          break;
-        case SWFTag.CODE_DEFINE_BITS:
-        case SWFTag.CODE_DEFINE_BITS_JPEG2:
-        case SWFTag.CODE_DEFINE_BITS_JPEG3:
-        case SWFTag.CODE_DEFINE_BITS_JPEG4:
-        case SWFTag.CODE_DEFINE_BITS_LOSSLESS:
-        case SWFTag.CODE_DEFINE_BITS_LOSSLESS2:
-          // Images are decoded asynchronously, so we have to deal with them ahead of time to
-          // ensure they're ready when used.
-          this.decodeEmbeddedImage(tagCode, tagLength, byteOffset);
-          break;
-        case SWFTag.CODE_DEFINE_SPRITE:
-          // Sprites are special in that they are symbols, but can contain other symbols which we have to
-          // discover (even though the SWF file format docs say they can't).
-          Debug.warning('Sprite!');
-          this.addLazySymbol(tagCode, byteOffset, tagLength);
-          break;
-        case SWFTag.CODE_DEFINE_BINARY_DATA:
-        case SWFTag.CODE_DEFINE_BUTTON:
-        case SWFTag.CODE_DEFINE_BUTTON2:
-        case SWFTag.CODE_DEFINE_EDIT_TEXT:
-        case SWFTag.CODE_DEFINE_MORPH_SHAPE:
-        case SWFTag.CODE_DEFINE_MORPH_SHAPE2:
-        case SWFTag.CODE_DEFINE_SHAPE:
-        case SWFTag.CODE_DEFINE_SHAPE2:
-        case SWFTag.CODE_DEFINE_SHAPE3:
-        case SWFTag.CODE_DEFINE_SHAPE4:
-        case SWFTag.CODE_DEFINE_SOUND:
-        case SWFTag.CODE_DEFINE_TEXT:
-        case SWFTag.CODE_DEFINE_TEXT2:
-        case SWFTag.CODE_DEFINE_VIDEO_STREAM:
-          this.addLazySymbol(tagCode, byteOffset, tagLength);
+          this.finishFrame();
           break;
         // TODO: Support this grab-bag of tags.
         case SWFTag.CODE_CSM_TEXT_SETTINGS:
@@ -584,6 +602,7 @@ module Shumway {
         case SWFTag.CODE_PRODUCT_INFO:
         case SWFTag.CODE_METADATA:
         case SWFTag.CODE_PROTECT:
+        case SWFTag.CODE_STOP_SOUND:
           break;
         // These tags aren't used in the player.
         case SWFTag.CODE_CHARACTER_SET:
@@ -611,12 +630,12 @@ module Shumway {
       this.dataStream.pos += currentTagLength;
     }
 
-    private addFrame() {
+    private finishFrame() {
       if (this.framesLoaded === this.frames.length && this.eagerParsedSymbolsPending === 0) {
         this.framesLoaded++;
       }
-      this.frames.push(new SWFFrame(this.dataStream.pos, this.currentSymbolsList,
-                                    this.currentDisplayListCommands,
+      this.frames.push(new SWFFrame(this.currentDisplayListCommands,
+                                    this.currentSymbolsList,
                                     this.eagerParsedSymbolsPending));
       this.currentSymbolsList = [];
       this.currentDisplayListCommands = [];
@@ -643,7 +662,6 @@ module Shumway {
       var symbol = new DictionaryEntry(id, tagCode, byteOffset, tagLength);
       this.currentSymbolsList.push(symbol);
       this.dictionary[id] = symbol;
-      this.jumpToNextTag(tagLength);
     }
 
     private decodeEmbeddedFont(tagCode: number, tagLength: number, byteOffset: number) {
@@ -711,7 +729,6 @@ module Shumway {
     }
   }
 
-
   function decodeImage(definition: ImageDefinition, oncomplete: (event: any) => void) {
     var image = new Image();
     image.src = URL.createObjectURL(new Blob([definition.data]));
@@ -719,14 +736,39 @@ module Shumway {
     image.onerror = oncomplete;
   }
 
+  function parseSpriteTimeline(tag, unparsed: DictionaryEntry, dataView: DataView, stream: Stream) {
+    var spriteTagEnd = unparsed.byteOffset + unparsed.byteLength;
+    var frames = tag.frames = [];
+    var commands: UnparsedTag[] = [];
+    while (stream.pos < spriteTagEnd) {
+      var tagCodeAndLength = dataView.getUint16(stream.pos, true);
+      var tagCode = tagCodeAndLength >> 6;
+      var tagLength = tagCodeAndLength & 0x3f;
+      var extendedLength = tagLength === 0x3f;
+      stream.pos += 2;
+      if (extendedLength) {
+        tagLength = dataView.getUint32(stream.pos, true);
+        stream.pos += 4;
+      }
+      if (stream.pos + tagLength > spriteTagEnd) {
+        Debug.warning("DefineSprite child tags exceed DefineSprite tag length and are dropped");
+        return;
+      }
+      if (ControlTags[tagCode]) {
+        commands.push(new UnparsedTag(tagCode, stream.pos, tagLength));
+      } else if (tagCode === SWFTag.CODE_SHOW_FRAME) {
+        frames.push(new SWFFrame(commands, null, null));
+        commands = []
+      }
+      stream.pos += tagLength;
+    }
+  }
+
   export class SWFFrame {
-    position: number;
     symbols: DictionaryEntry[];
     displayListCommands: UnparsedTag[];
     pendingSymbolsCount: number;
-    constructor(position: number, symbols: DictionaryEntry[], commands: UnparsedTag[],
-                pendingSymbolsCount: number) {
-      this.position = position;
+    constructor(commands: UnparsedTag[], symbols: DictionaryEntry[], pendingSymbolsCount: number) {
       this.symbols = symbols;
       release || Object.freeze(symbols);
       this.displayListCommands = commands;
@@ -765,6 +807,8 @@ module Shumway {
     // We read the length manually because creating a DataView just for that is silly.
     return bytes[4] | bytes[5] << 8 | bytes[6] << 16 | bytes[7] << 24;
   }
+
+  var inFirefox = typeof navigator !== 'undefined' && navigator.userAgent.indexOf('Firefox') >= 0;
 
   function defineSymbol(swfTag, symbols, commitData) {
     var symbol;

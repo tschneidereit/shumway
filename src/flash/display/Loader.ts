@@ -795,7 +795,7 @@ module Shumway.AVM2.AS.flash.display {
         var rootSymbol = this._contentLoaderInfo.getRootSymbol();
         var frames = rootSymbol.frames;
         for (var i = 0; i < update.framesLoadedDelta; i++) {
-          var frame = this._contentLoaderInfo.getFrameDelta(frames.length);
+          var frame = this._contentLoaderInfo.getFrameDelta(null, frames.length);
           frames.push(frame);
         }
         if (!this._content) {

@@ -88,8 +88,7 @@ module Shumway.SWF.Parser {
 
         if (tagCode === SwfTag.CODE_DEFINE_SPRITE) {
           nextTag.type = 'sprite';
-          nextTag.id = readUi16(subbytes, substream);
-          nextTag.frameCount = readUi16(subbytes, substream);
+          LowLevel.defineSprite(subbytes, substream, nextTag);
           nextTag.tags = [];
           var isEnoughData = readTags(nextTag, substream, swfVersion, true, null, null);
           if (!isEnoughData) {
