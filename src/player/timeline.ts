@@ -313,8 +313,13 @@ module Shumway.Timeline {
       var frameNum = 1;
       for (var i = 0; i < frames.length; i++) {
         var frameInfo = frames[i];
-        var frame = new FrameDelta(loaderInfo, frameInfo.commands);
-        var repeat = frameInfo.repeat;
+        var frame;
+        if (useNewParserOption.value) {
+          frame = loaderInfo.getFrameDelta(data, i);
+        } else {
+          frame = new FrameDelta(loaderInfo, frameInfo.commands);
+        }
+        var repeat = frameInfo.repeat || 1;
         while (repeat--) {
           symbol.frames.push(frame);
         }
@@ -322,7 +327,7 @@ module Shumway.Timeline {
           symbol.labels.push(new flash.display.FrameLabel(frameInfo.labelName, frameNum));
         }
 
-        frameNum += frameInfo.repeat;
+        frameNum += repeat;
       }
       return symbol;
     }

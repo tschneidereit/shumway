@@ -313,12 +313,16 @@ module Shumway.AVM2.AS.flash.display {
     }
 
     // TODO: deltas should be computed lazily when they're first needed, and this removed.
-    getFrameDelta(index: number) {
-      var frame = this._file.frames[index];
+    getFrameDelta(sprite: {frames: SWFFrame[]}, index: number) {
+      var file = this._file;
+      if (!sprite) {
+        sprite = file;
+      }
+      var frame = sprite.frames[index];
       var unparsedCommands = frame.displayListCommands;
       var commands = [];
       for (var i = 0; i < unparsedCommands.length; i++) {
-        commands.push(this._file.getParsedTag(unparsedCommands[i]));
+        commands.push(file.getParsedTag(unparsedCommands[i]));
       }
       return new Timeline.FrameDelta(this, commands);
     }

@@ -16,6 +16,12 @@
 
 /// <reference path='references.ts'/>
 module Shumway.SWF.Parser.LowLevel {
+  export function defineSprite($bytes, $stream, output) {
+    output.id = readUi16($bytes, $stream);
+    output.frameCount = readUi16($bytes, $stream);
+    return output;
+  }
+
   function defineShape($bytes, $stream, output, swfVersion, tagCode) {
     output || (output = {});
     output.id = readUi16($bytes, $stream);
@@ -1406,7 +1412,7 @@ module Shumway.SWF.Parser.LowLevel {
     /* DefineBitsJPEG3 */               35: defineImage,
     /* DefineBitsLossless2 */           36: defineBitmap,
     /* DefineEditText */                37: defineText,
-    /* DefineSprite */                  39: undefined,
+    /* DefineSprite */                  39: defineSprite,
     /* FrameLabel */                    43: frameLabel,
     /* SoundStreamHead2 */              45: soundStreamHead,
     /* DefineMorphShape */              46: defineShape,
