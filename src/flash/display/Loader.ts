@@ -780,30 +780,70 @@ module Shumway.AVM2.AS.flash.display {
 
     onLoadOpen(file: SWFFile) {
       if (useNewParserOption.value) {
-        this._contentLoaderInfo.setFile(file);
-        if (this === Loader.getRootLoader()) {
-          Loader.runtimeStartTime = Date.now();
+        if (file.useAVM1 && !AVM2.instance.avm1Loaded) {
+          var self = this;
+          this._initAvm1().then(function() {
+            self.onFileStartupReady(file);
+          });
+          this._queuedLoadUpdates = [];
+        } else {
+          this.onFileStartupReady(file);
         }
       }
     }
+
+    private onFileStartupReady(file: SWFFile) {
+      this._contentLoaderInfo.setFile(file);
+      this.createContentRoot(this._contentLoaderInfo.getRootSymbol(), null);
+      if (this === Loader.getRootLoader()) {
+        Loader.runtimeStartTime = Date.now();
+      }
+      var queuedUpdates = this._queuedLoadUpdates;
+      if (queuedUpdates) {
+        this._queuedLoadUpdates = null;
+        for (var i = 0; i < queuedUpdates.length; i++) {
+          this.onLoadProgress(queuedUpdates[i]);
+        }
+      }
+      this._codeExecutionPromise.resolve(undefined);
+      this._progressPromise.resolve(undefined);
+    }
+
+    private _queuedLoadUpdates: LoadProgressUpdate[];
     onLoadProgress(update: LoadProgressUpdate) {
       if (useNewParserOption.value) {
-        this._contentLoaderInfo.bytesLoaded = update.bytesLoaded;
+        var loaderInfo = this._contentLoaderInfo;
+        if (this._queuedLoadUpdates) {
+          this._queuedLoadUpdates.push(update);
+          return;
+        }
+        loaderInfo.bytesLoaded = update.bytesLoaded;
         if (!update.framesLoadedDelta) {
           return;
         }
-        var rootSymbol = this._contentLoaderInfo.getRootSymbol();
+        var rootSymbol = loaderInfo.getRootSymbol();
+        var root = this._content;
+        // For AVM1 SWFs directly loaded into AVM2 ones (or as the top-level SWF), unwrap the
+        // contained MovieClip here to correctly initialize frame data.
+        if (AVM1Movie.isType(root)) {
+          root = <AVM1Movie>root._children[0];
+        }
         var frames = rootSymbol.frames;
+        var frameScripts = rootSymbol.frameScripts || (rootSymbol.frameScripts = []);
         for (var i = 0; i < update.framesLoadedDelta; i++) {
-          var frame = this._contentLoaderInfo.getFrameDelta(null, frames.length);
-          frames.push(frame);
+          var frameInfo = loaderInfo.getFrame(null, frames.length);
+          if (frameInfo.scripts && frameInfo.scripts.length) {
+            frameScripts.push(i);
+            frameScripts.push.apply(frameScripts, frameInfo.scripts);
+          }
+          frames.push(frameInfo.frameDelta);
+          if (loaderInfo._file.useAVM1) {
+            avm1lib.getAVM1Object(root).addFrameActionBlocks(frames.length - 1, frameInfo);
+          }
+          if (frames.length === 1) {
+            (<Sprite><any>root)._initializeChildren(frames[0]);
+          }
         }
-        if (!this._content) {
-          this.createContentRoot(rootSymbol, null);
-          this._codeExecutionPromise.resolve(undefined);
-          this._progressPromise.resolve(undefined);
-        }
-        //this._commitFrame(update);
       } else {
         this._commitData(update);
       }

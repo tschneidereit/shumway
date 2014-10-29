@@ -334,6 +334,7 @@ module Shumway {
   export class SWFFile {
     isCompressed: boolean;
     swfVersion: number;
+    useAVM1: boolean;
     bytesLoaded: number;
     bytesTotal: number;
     bounds: Bounds;
@@ -354,6 +355,9 @@ module Shumway {
     private currentSymbolsList: DictionaryEntry[];
     private eagerParsedSymbolsPending: number;
     private currentDisplayListCommands: UnparsedTag[];
+    private currentFrameScripts: Uint8Array[];
+    private currentActionBlocks: Uint8Array[];
+    private currentInitActionBlocks: {spriteId: number; actionsData: Uint8Array}[];
 
     constructor(initialBytes: Uint8Array, length: number) {
       // TODO: cleanly abort loading/parsing instead of just asserting here.
@@ -367,12 +371,16 @@ module Shumway {
 
       this.currentSymbolsList = [];
       this.currentDisplayListCommands = [];
+      this.currentFrameScripts = [];
+      this.currentActionBlocks = [];
+      this.currentInitActionBlocks = [];
       this.eagerParsedSymbolsPending = 0;
       this.dictionary = [];
       this.frames = [];
       this.framesLoaded = 0;
       this.bytesTotal = length;
       this.attributes = null;
+      this.useAVM1 = true;
       this.backgroundColor = 0xffffffff;
       this.readHeaderAndInitialize(initialBytes);
     }
@@ -390,7 +398,8 @@ module Shumway {
       if (tag.code === SWFTag.CODE_DEFINE_SPRITE) {
         // TODO: replace this whole silly `type` business with tagCode checking.
         definition.type = 'sprite';
-        parseSpriteTimeline(definition, unparsed, this.dataView, this.dataStream);
+        parseSpriteTimeline(definition, unparsed, this.data, this.dataStream, this.dataView,
+                            this.useAVM1);
         return definition;
       }
       release || assert(this.dataStream.pos === unparsed.byteOffset + unparsed.byteLength);
@@ -556,8 +565,24 @@ module Shumway {
           break;
         case SWFTag.CODE_DO_ABC:
         case SWFTag.CODE_DO_ABC_DEFINE:
-        case SWFTag.CODE_DO_ACTION:
         case SWFTag.CODE_DO_INIT_ACTION:
+          if (this.useAVM1) {
+            var initActionBlocks = this.currentInitActionBlocks ||
+                                   (this.currentInitActionBlocks = []);
+            var spriteId = this.dataView.getUint16(stream.pos, true);
+            var byteOffset = stream.pos + 2;
+            var actionsData = this.data.subarray(byteOffset, byteOffset + tagLength);
+            initActionBlocks.push({spriteId: spriteId, actionsData: actionsData});
+          }
+          this.jumpToNextTag(tagLength);
+          break;
+        case SWFTag.CODE_DO_ACTION:
+          if (this.useAVM1) {
+            var actionBlocks = this.currentActionBlocks || (this.currentActionBlocks = []);
+            actionBlocks.push(this.data.subarray(stream.pos, stream.pos + tagLength));
+          }
+          this.jumpToNextTag(tagLength);
+          break;
         case SWFTag.CODE_PLACE_OBJECT:
         case SWFTag.CODE_PLACE_OBJECT2:
         case SWFTag.CODE_PLACE_OBJECT3:
@@ -603,6 +628,7 @@ module Shumway {
         case SWFTag.CODE_METADATA:
         case SWFTag.CODE_PROTECT:
         case SWFTag.CODE_STOP_SOUND:
+          this.jumpToNextTag(tagLength);
           break;
         // These tags aren't used in the player.
         case SWFTag.CODE_CHARACTER_SET:
@@ -635,10 +661,16 @@ module Shumway {
         this.framesLoaded++;
       }
       this.frames.push(new SWFFrame(this.currentDisplayListCommands,
+                                    this.currentFrameScripts,
+                                    this.currentActionBlocks,
+                                    this.currentInitActionBlocks,
                                     this.currentSymbolsList,
                                     this.eagerParsedSymbolsPending));
       this.currentSymbolsList = [];
       this.currentDisplayListCommands = [];
+      this.currentFrameScripts = null;
+      this.currentActionBlocks = null;
+      this.currentInitActionBlocks = null;
       this.eagerParsedSymbolsPending = 0;
     }
 
@@ -648,6 +680,7 @@ module Shumway {
         this.jumpToNextTag(tagLength);
       }
       this.attributes = Parser.LowLevel.fileAttributes(this.data, this.dataStream, null);
+      this.useAVM1 = !this.attributes.doAbc;
     }
 
     private addControlTag(tagCode: number, byteOffset: number, tagLength: number) {
@@ -736,10 +769,14 @@ module Shumway {
     image.onerror = oncomplete;
   }
 
-  function parseSpriteTimeline(tag, unparsed: DictionaryEntry, dataView: DataView, stream: Stream) {
+  function parseSpriteTimeline(tag, unparsed: DictionaryEntry, data: Uint8Array, stream: Stream,
+                               dataView: DataView, useAVM1: boolean) {
     var spriteTagEnd = unparsed.byteOffset + unparsed.byteLength;
     var frames = tag.frames = [];
     var commands: UnparsedTag[] = [];
+    var scripts: Uint8Array[] = null;
+    var actionBlocks: Uint8Array[] = null;
+    var initActionBlocks:  {spriteId: number; actionsData: Uint8Array}[] = null;
     while (stream.pos < spriteTagEnd) {
       var tagCodeAndLength = dataView.getUint16(stream.pos, true);
       var tagCode = tagCodeAndLength >> 6;
@@ -756,23 +793,48 @@ module Shumway {
       }
       if (ControlTags[tagCode]) {
         commands.push(new UnparsedTag(tagCode, stream.pos, tagLength));
+      } else if (tagCode === SWFTag.CODE_DO_ACTION && useAVM1) {
+        if (!actionBlocks) {
+          actionBlocks = [];
+        }
+        actionBlocks.push(data.subarray(stream.pos, stream.pos + tagLength));
+      } else if (tagCode === SWFTag.CODE_DO_INIT_ACTION && useAVM1) {
+        if (!initActionBlocks) {
+          initActionBlocks = [];
+        }
+        var spriteId = dataView.getUint16(stream.pos, true);
+        stream.pos += 2;
+        var actionsData = data.subarray(stream.pos, stream.pos + tagLength);
+        initActionBlocks.push({spriteId: spriteId, actionsData: actionsData});
       } else if (tagCode === SWFTag.CODE_SHOW_FRAME) {
-        frames.push(new SWFFrame(commands, null, null));
-        commands = []
+        frames.push(new SWFFrame(commands, scripts, actionBlocks, initActionBlocks, null, null));
+        commands = [];
+        scripts = null;
       }
       stream.pos += tagLength;
     }
   }
 
   export class SWFFrame {
-    symbols: DictionaryEntry[];
     displayListCommands: UnparsedTag[];
+    scripts: Uint8Array[];
+    actionBlocks: Uint8Array[];
+    initActionBlocks:  {spriteId: number; actionsData: Uint8Array}[];
+    symbols: DictionaryEntry[];
     pendingSymbolsCount: number;
-    constructor(commands: UnparsedTag[], symbols: DictionaryEntry[], pendingSymbolsCount: number) {
-      this.symbols = symbols;
-      release || Object.freeze(symbols);
-      this.displayListCommands = commands;
+    constructor(commands: UnparsedTag[], scripts: Uint8Array[], actionBlocks: Uint8Array[],
+                initActionBlocks: {spriteId: number; actionsData: Uint8Array}[],
+                symbols: DictionaryEntry[], pendingSymbolsCount: number) {
       release || Object.freeze(commands);
+      this.displayListCommands = commands;
+      release || Object.freeze(scripts);
+      this.scripts = scripts;
+      release || Object.freeze(actionBlocks);
+      this.actionBlocks = actionBlocks;
+      release || Object.freeze(initActionBlocks);
+      this.initActionBlocks = initActionBlocks;
+      release || Object.freeze(symbols);
+      this.symbols = symbols;
       this.pendingSymbolsCount = pendingSymbolsCount;
     }
   }
