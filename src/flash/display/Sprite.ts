@@ -42,11 +42,10 @@ module Shumway.AVM2.AS.flash.display {
         if (symbol.isRoot) {
           self._root = self;
         }
-        if (symbol.numFrames) {
-          release || assert (symbol.frames.length >= 1, "Sprites have at least one frame.");
-          var frame = symbol.frames[0];
-          release || assert (frame, "Initial frame is not defined.");
-          self._initializeChildren(frame);
+        if (symbol.numFrames && symbol.frames.length > 0) {
+          // For a SWF's root symbol, all frames are added after initialization, with
+          // _initializeChildren called after the first frame is added.
+          self._initializeChildren(symbol.frames[0]);
         }
       }
     };
@@ -75,7 +74,7 @@ module Shumway.AVM2.AS.flash.display {
 
     _hitTarget: flash.display.Sprite;
 
-    private _initializeChildren(frame: Timeline.FrameDelta): void {
+    _initializeChildren(frame: Timeline.FrameDelta): void {
       for (var depth in frame.stateAtDepth) {
         var state = frame.stateAtDepth[depth];
         if (state) {

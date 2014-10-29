@@ -49,7 +49,6 @@ module Shumway.AVM2.AS.flash.display {
       this._applicationDomain = null;
       this._swfVersion = 9;
       this._actionScriptVersion = ActionScriptVersion.ACTIONSCRIPT3;
-      release || assert (this._actionScriptVersion);
       this._frameRate = 24;
       this._parameters = null;
       this._width = 0;
@@ -90,6 +89,7 @@ module Shumway.AVM2.AS.flash.display {
 
       var rootSymbol = new Timeline.SpriteSymbol(0, this);
       rootSymbol.isRoot = true;
+      rootSymbol.isAVM1Object = this._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2;
       rootSymbol.numFrames = file.frameCount;
       this.registerSymbol(rootSymbol);
     }
@@ -313,7 +313,7 @@ module Shumway.AVM2.AS.flash.display {
     }
 
     // TODO: deltas should be computed lazily when they're first needed, and this removed.
-    getFrameDelta(sprite: {frames: SWFFrame[]}, index: number) {
+    getFrame(sprite: {frames: SWFFrame[]}, index: number) {
       var file = this._file;
       if (!sprite) {
         sprite = file;
@@ -324,7 +324,12 @@ module Shumway.AVM2.AS.flash.display {
       for (var i = 0; i < unparsedCommands.length; i++) {
         commands.push(file.getParsedTag(unparsedCommands[i]));
       }
-      return new Timeline.FrameDelta(this, commands);
+      return {
+        scripts: frame.scripts,
+        actionBlocks: frame.actionBlocks,
+        initActionBlocks: frame.initActionBlocks,
+        frameDelta: new Timeline.FrameDelta(this, commands)
+      };
     }
   }
 }

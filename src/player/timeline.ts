@@ -308,17 +308,21 @@ module Shumway.Timeline {
         symbol.isAVM1Object = true;
         symbol.avm1Context = loaderInfo._avm1Context;
       }
-      symbol.frameScripts = data.frameScripts;
+      symbol.frameScripts = useNewParserOption.value ? [] : data.frameScripts;
       var frames = data.frames;
       var frameNum = 1;
       for (var i = 0; i < frames.length; i++) {
-        var frameInfo = frames[i];
-        var frame;
+        var frameInfo;
         if (useNewParserOption.value) {
-          frame = loaderInfo.getFrameDelta(data, i);
+          frameInfo = loaderInfo.getFrame(data, i);
+          if (frameInfo.scripts) {
+            symbol.frameScripts.push(i);
+            symbol.frameScripts.push.apply(symbol.frameScripts, frameInfo.scripts);
+          }
         } else {
-          frame = new FrameDelta(loaderInfo, frameInfo.commands);
+          frameInfo = frames[i];
         }
+        var frame = frameInfo.frameDelta;
         var repeat = frameInfo.repeat || 1;
         while (repeat--) {
           symbol.frames.push(frame);
