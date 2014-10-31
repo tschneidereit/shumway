@@ -842,7 +842,8 @@ module Shumway.AVM2.AS.flash.display {
         var rootSymbol = loaderInfo.getRootSymbol();
         var root = this._content;
         if (!root) {
-          root = this.createContentRoot(this._contentLoaderInfo.getRootSymbol(), null);
+          root = this.createContentRoot(loaderInfo.getRootSymbol(),
+                                        loaderInfo._file.sceneAndFrameLabelData);
         }
         // For AVM1 SWFs directly loaded into AVM2 ones (or as the top-level SWF), unwrap the
         // contained MovieClip here to correctly initialize frame data.

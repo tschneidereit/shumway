@@ -343,6 +343,7 @@ module Shumway {
     bounds: Bounds;
     backgroundColor: number;
     attributes: any; // TODO: type strongly
+    sceneAndFrameLabelData: any; // TODO: type strongly
     frameRate: number;
     frameCount: number;
     framesLoaded: number;
@@ -387,6 +388,7 @@ module Shumway {
       this.framesLoaded = 0;
       this.bytesTotal = length;
       this.attributes = null;
+      this.sceneAndFrameLabelData = null;
       this.useAVM1 = true;
       this.backgroundColor = 0xffffffff;
       this.readHeaderAndInitialize(initialBytes);
@@ -568,6 +570,9 @@ module Shumway {
         case SWFTag.CODE_FILE_ATTRIBUTES:
           this.setFileAttributes(tagLength);
           break;
+        case SWFTag.CODE_DEFINE_SCENE_AND_FRAME_LABEL_DATA:
+          this.setSceneAndFrameLabelData(tagLength);
+          break;
         case SWFTag.CODE_SET_BACKGROUND_COLOR:
           this.backgroundColor = Parser.LowLevel.rgb(this.data, this.dataStream);
           break;
@@ -645,7 +650,6 @@ module Shumway {
         case SWFTag.CODE_DEFINE_FONT_INFO2:
         case SWFTag.CODE_DEFINE_FONT_NAME:
         case SWFTag.CODE_DEFINE_SCALING_GRID:
-        case SWFTag.CODE_DEFINE_SCENE_AND_FRAME_LABEL_DATA:
         case SWFTag.CODE_SCRIPT_LIMITS:
         case SWFTag.CODE_SET_TAB_INDEX:
         case SWFTag.CODE_FRAME_LABEL:
@@ -717,6 +721,13 @@ module Shumway {
       }
       this.attributes = Parser.LowLevel.fileAttributes(this.data, this.dataStream, null);
       this.useAVM1 = !this.attributes.doAbc;
+    }
+
+    private setSceneAndFrameLabelData(tagLength: number) {
+      if (this.sceneAndFrameLabelData) {
+        this.jumpToNextTag(tagLength);
+      }
+      this.sceneAndFrameLabelData = Parser.LowLevel.defineScene(this.data, this.dataStream, null);
     }
 
     private addControlTag(tagCode: number, byteOffset: number, tagLength: number) {
