@@ -326,7 +326,6 @@ module Shumway.Timeline {
       }
       symbol.frameScripts = useNewParserOption.value ? [] : data.frameScripts;
       var frames = data.frames;
-      var frameNum = 1;
       for (var i = 0; i < frames.length; i++) {
         var frameInfo;
         if (useNewParserOption.value) {
@@ -338,16 +337,14 @@ module Shumway.Timeline {
         } else {
           frameInfo = frames[i];
         }
+        if (frameInfo.labelName) {
+          symbol.labels.push(new flash.display.FrameLabel(frameInfo.labelName, frames.length));
+        }
         var frame = frameInfo.frameDelta;
         var repeat = frameInfo.repeat || 1;
         while (repeat--) {
           symbol.frames.push(frame);
         }
-        if (frameInfo.labelName) {
-          symbol.labels.push(new flash.display.FrameLabel(frameInfo.labelName, frameNum));
-        }
-
-        frameNum += repeat;
       }
       return symbol;
     }
