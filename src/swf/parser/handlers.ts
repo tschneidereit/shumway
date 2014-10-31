@@ -619,7 +619,7 @@ module Shumway.SWF.Parser.LowLevel {
     return $;
   }
 
-  function defineScene($bytes, $stream, $, swfVersion, tagCode) {
+  export function defineScene($bytes, $stream, $) {
     $ || ($ = {});
     var sceneCount = readEncodedU32($bytes, $stream);
     var $0 = $.scenes = [];
