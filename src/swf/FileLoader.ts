@@ -360,6 +360,7 @@ module Shumway {
     private decompressor: Inflate;
     private currentSymbolsList: DictionaryEntry[];
     private eagerParsedSymbolsPending: number;
+    private currentFrameLabel: string;
     private currentDisplayListCommands: UnparsedTag[];
     private currentFrameScripts: Uint8Array[];
     private currentActionBlocks: Uint8Array[];
@@ -375,6 +376,7 @@ module Shumway {
       release || assert(initialBytes[2] === 83);
       release || assert(initialBytes.length >= 30, "At least the header must be complete here.");
 
+      this.currentFrameLabel = null;
       this.currentSymbolsList = [];
       this.currentDisplayListCommands = [];
       this.currentFrameScripts = [];
@@ -404,7 +406,7 @@ module Shumway {
       this.dataStream.pos = unparsed.byteOffset;
       var tag = {code: unparsed.tagCode};
       var definition = handler(this.data, this.dataStream, tag, this.swfVersion, unparsed.tagCode);
-      definition.className = this.symbolsMap[tag.code] || null;
+      definition.className = this.symbolsMap[id] || null;
       if (tag.code === SWFTag.CODE_DEFINE_SPRITE) {
         // TODO: replace this whole silly `type` business with tagCode checking.
         definition.type = 'sprite';
@@ -638,6 +640,12 @@ module Shumway {
         case SWFTag.CODE_VIDEO_FRAME:
           this.addControlTag(tagCode, byteOffset, tagLength);
           break;
+        case SWFTag.CODE_FRAME_LABEL:
+          var tagEnd = byteOffset + tagLength;
+          this.currentFrameLabel = Parser.readString(this.data, stream, 0);
+          // TODO: support SWF6+ anchors.
+          stream.pos = tagEnd;
+          break;
         case SWFTag.CODE_SHOW_FRAME:
           this.finishFrame();
           break;
@@ -652,7 +660,6 @@ module Shumway {
         case SWFTag.CODE_DEFINE_SCALING_GRID:
         case SWFTag.CODE_SCRIPT_LIMITS:
         case SWFTag.CODE_SET_TAB_INDEX:
-        case SWFTag.CODE_FRAME_LABEL:
         case SWFTag.CODE_END:
         case SWFTag.CODE_EXPORT_ASSETS:
         case SWFTag.CODE_IMPORT_ASSETS:
@@ -700,12 +707,14 @@ module Shumway {
       if (this.framesLoaded === this.frames.length && this.eagerParsedSymbolsPending === 0) {
         this.framesLoaded++;
       }
-      this.frames.push(new SWFFrame(this.currentDisplayListCommands,
+      this.frames.push(new SWFFrame(this.currentFrameLabel,
+                                    this.currentDisplayListCommands,
                                     this.currentFrameScripts,
                                     this.currentActionBlocks,
                                     this.currentInitActionBlocks,
                                     this.currentSymbolsList,
                                     this.eagerParsedSymbolsPending));
+      this.currentFrameLabel = null;
       this.currentSymbolsList = [];
       this.currentDisplayListCommands = [];
       this.currentFrameScripts = null;
@@ -820,6 +829,7 @@ module Shumway {
                                dataView: DataView, useAVM1: boolean) {
     var spriteTagEnd = unparsed.byteOffset + unparsed.byteLength;
     var frames = tag.frames = [];
+    var label: string = null;
     var commands: UnparsedTag[] = [];
     var scripts: Uint8Array[] = null;
     var actionBlocks: Uint8Array[] = null;
@@ -853,8 +863,15 @@ module Shumway {
         stream.pos += 2;
         var actionsData = data.subarray(stream.pos, stream.pos + tagLength);
         initActionBlocks.push({spriteId: spriteId, actionsData: actionsData});
+      } else if (tagCode === SWFTag.CODE_FRAME_LABEL) {
+        var tagEnd = stream.pos + tagLength;
+        label = Parser.readString(data, stream, 0);
+        // TODO: support SWF6+ anchors.
+        stream.pos = tagEnd;
+        continue;
       } else if (tagCode === SWFTag.CODE_SHOW_FRAME) {
-        frames.push(new SWFFrame(commands, scripts, actionBlocks, initActionBlocks, null, null));
+        frames.push(new SWFFrame(label, commands, scripts, actionBlocks, initActionBlocks,
+                                 null, null));
         commands = [];
         scripts = null;
       }
@@ -863,15 +880,18 @@ module Shumway {
   }
 
   export class SWFFrame {
+    labelName: string;
     displayListCommands: UnparsedTag[];
     scripts: Uint8Array[];
     actionBlocks: Uint8Array[];
     initActionBlocks:  {spriteId: number; actionsData: Uint8Array}[];
     symbols: DictionaryEntry[];
     pendingSymbolsCount: number;
-    constructor(commands: UnparsedTag[], scripts: Uint8Array[], actionBlocks: Uint8Array[],
+    constructor(labelName: string, commands: UnparsedTag[], scripts: Uint8Array[],
+                actionBlocks: Uint8Array[],
                 initActionBlocks: {spriteId: number; actionsData: Uint8Array}[],
                 symbols: DictionaryEntry[], pendingSymbolsCount: number) {
+      this.labelName = labelName;
       release || Object.freeze(commands);
       this.displayListCommands = commands;
       release || Object.freeze(scripts);

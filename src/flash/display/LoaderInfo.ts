@@ -328,6 +328,7 @@ module Shumway.AVM2.AS.flash.display {
         commands.push(file.getParsedTag(unparsedCommands[i]));
       }
       return {
+        labelName: frame.labelName,
         scripts: frame.scripts,
         actionBlocks: frame.actionBlocks,
         initActionBlocks: frame.initActionBlocks,
