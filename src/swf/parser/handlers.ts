@@ -571,16 +571,12 @@ module Shumway.SWF.Parser.LowLevel {
 
   function doABC($bytes, $stream, $, swfVersion, tagCode) {
     $ || ($ = {});
-    if (tagCode === 82) {
+    if (tagCode === SwfTag.CODE_DO_ABC) {
       $.flags = readUi32($bytes, $stream);
-    }
-    else {
-      $.flags = 0;
-    }
-    if (tagCode === 82) {
       $.name = readString($bytes, $stream, 0);
     }
     else {
+      $.flags = 0;
       $.name = "";
     }
     $.data = readBinary($bytes, $stream, 0, false);

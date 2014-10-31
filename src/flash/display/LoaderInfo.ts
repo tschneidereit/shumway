@@ -86,12 +86,6 @@ module Shumway.AVM2.AS.flash.display {
       if (!file.attributes || !file.attributes.doAbc) {
         this._actionScriptVersion = ActionScriptVersion.ACTIONSCRIPT2;
       }
-
-      var rootSymbol = new Timeline.SpriteSymbol(0, this);
-      rootSymbol.isRoot = true;
-      rootSymbol.isAVM1Object = this._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2;
-      rootSymbol.numFrames = file.frameCount;
-      this.registerSymbol(rootSymbol);
     }
 
     uncaughtErrorEvents: flash.events.UncaughtErrorEvents;
@@ -270,6 +264,7 @@ module Shumway.AVM2.AS.flash.display {
       var symbol = this._dictionary[id];
       if (!symbol) {
         var data = this._file.getSymbol(id);
+        // TODO: replace this switch with a table lookup.
         switch (data.type) {
           case 'shape':
             symbol = Timeline.ShapeSymbol.FromData(data, this);
@@ -309,7 +304,15 @@ module Shumway.AVM2.AS.flash.display {
     }
 
     getRootSymbol(): Timeline.SpriteSymbol {
-      return <Timeline.SpriteSymbol>this._dictionary[0];
+      var symbol = <Timeline.SpriteSymbol>this._dictionary[0];
+      if (!symbol) {
+        symbol = new Timeline.SpriteSymbol({id: 0, className: this._file.symbolsMap[0]}, this);
+        symbol.isRoot = true;
+        symbol.isAVM1Object = this._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2;
+        symbol.numFrames = this._file.frameCount;
+        this.registerSymbol(symbol);
+      }
+      return symbol;
     }
 
     // TODO: deltas should be computed lazily when they're first needed, and this removed.

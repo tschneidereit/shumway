@@ -28,19 +28,31 @@ module Shumway.Timeline {
 
   import ActionScriptVersion = flash.display.ActionScriptVersion;
 
+  export interface SymbolData {id: number; className: string};
   /**
    * TODO document
    */
   export class Symbol {
-    id: number = -1;
+    id: number;
     isAVM1Object: boolean;
     avm1Context: Shumway.AVM1.AVM1Context;
     symbolClass: Shumway.AVM2.AS.ASClass;
 
-    constructor(id: number, symbolClass: Shumway.AVM2.AS.ASClass) {
-      release || assert (isInteger(id));
-      this.id = id;
-      this.symbolClass = symbolClass;
+    constructor(data: SymbolData, symbolDefaultClass: Shumway.AVM2.AS.ASClass) {
+      release || assert (isInteger(data.id));
+      this.id = data.id;
+      if (data.className) {
+        var appDomain = Shumway.AVM2.Runtime.AVM2.instance.applicationDomain;
+        try {
+          var symbolClass = appDomain.getClass(data.className);
+          this.symbolClass = symbolClass;
+        } catch (e) {
+          warning ("Symbol " + data.id + " bound to non-existing class " + data.className);
+          this.symbolClass = symbolDefaultClass;
+        }
+      } else {
+        this.symbolClass = symbolDefaultClass;
+      }
       this.isAVM1Object = false;
     }
   }
@@ -51,8 +63,8 @@ module Shumway.Timeline {
     scale9Grid: Bounds;
     dynamic: boolean;
 
-    constructor(id: number, symbolClass: Shumway.AVM2.AS.ASClass, dynamic: boolean = true) {
-      super(id, symbolClass);
+    constructor(data: SymbolData, symbolClass: Shumway.AVM2.AS.ASClass, dynamic: boolean) {
+      super(data, symbolClass);
       this.dynamic = dynamic;
     }
 
@@ -68,15 +80,15 @@ module Shumway.Timeline {
   export class ShapeSymbol extends DisplaySymbol {
     graphics: flash.display.Graphics = null;
 
-    constructor(id: number, symbolClass: Shumway.AVM2.AS.ASClass = flash.display.Shape) {
-      super(id, symbolClass, false);
+    constructor(data: SymbolData, symbolClass: Shumway.AVM2.AS.ASClass) {
+      super(data, symbolClass, false);
     }
 
-    static FromData(data: any, loaderInfo: flash.display.LoaderInfo): ShapeSymbol {
-      var symbol = new ShapeSymbol(data.id);
+    static FromData(data: SymbolData, loaderInfo: flash.display.LoaderInfo): ShapeSymbol {
+      var symbol = new ShapeSymbol(data, flash.display.Shape);
       symbol._setBoundsFromData(data);
       symbol.graphics = flash.display.Graphics.FromData(data);
-      symbol.processRequires(data.require, loaderInfo);
+      symbol.processRequires((<any>data).require, loaderInfo);
       return symbol;
     }
 
@@ -95,12 +107,12 @@ module Shumway.Timeline {
   export class MorphShapeSymbol extends ShapeSymbol {
     morphFillBounds: Bounds;
     morphLineBounds: Bounds;
-    constructor(id: number) {
-      super(id, flash.display.MorphShape);
+    constructor(data: SymbolData) {
+      super(data, flash.display.MorphShape);
     }
 
     static FromData(data: any, loaderInfo: flash.display.LoaderInfo): MorphShapeSymbol {
-      var symbol = new MorphShapeSymbol(data.id);
+      var symbol = new MorphShapeSymbol(data);
       symbol._setBoundsFromData(data);
       symbol.graphics = flash.display.Graphics.FromData(data);
       symbol.processRequires(data.require, loaderInfo);
@@ -118,12 +130,12 @@ module Shumway.Timeline {
 
     private sharedInstance: flash.display.BitmapData;
 
-    constructor(id: number) {
-      super(id, flash.display.BitmapData);
+    constructor(data: SymbolData) {
+      super(data, flash.display.BitmapData, false);
     }
 
     static FromData(data: any): BitmapSymbol {
-      var symbol = new BitmapSymbol(data.id);
+      var symbol = new BitmapSymbol(data);
       symbol.width = data.width;
       symbol.height = data.height;
       symbol.data = data.data;
@@ -180,12 +192,12 @@ module Shumway.Timeline {
     variableName: string = null;
     textContent: Shumway.TextContent = null;
 
-    constructor(id: number) {
-      super(id, flash.text.TextField);
+    constructor(data: SymbolData) {
+      super(data, flash.text.TextField, true);
     }
 
     static FromTextData(data: any): TextSymbol {
-      var symbol = new TextSymbol(data.id);
+      var symbol = new TextSymbol(data);
       symbol._setBoundsFromData(data);
       var tag = data.tag;
       if (data.static) {
@@ -250,24 +262,27 @@ module Shumway.Timeline {
     overState: AnimationState = null;
     downState: AnimationState = null;
     hitTestState: AnimationState = null;
+    loaderInfo: flash.display.LoaderInfo;
     buttonActions: any[]; // Only relevant for AVM1, see AVM1Button.
 
-    constructor(id: number) {
-      super(id, flash.display.SimpleButton);
+    constructor(data: SymbolData, loaderInfo: flash.display.LoaderInfo) {
+      super(data, flash.display.SimpleButton, false);
+      this.loaderInfo = loaderInfo;
     }
 
     static FromData(data: any, loaderInfo: flash.display.LoaderInfo): ButtonSymbol {
-      var symbol = new ButtonSymbol(data.id);
+      var symbol = new ButtonSymbol(data, loaderInfo);
       if (loaderInfo.actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2) {
         symbol.isAVM1Object = true;
         symbol.buttonActions = data.buttonActions;
       }
       var states = data.states;
       var character, matrix, colorTransform;
+      var cmd;
       for (var stateName in states) {
         var commands = states[stateName];
         if (commands.length === 1) {
-          var cmd = commands[0];
+          cmd = commands[0];
           if (!useNewParserOption.value) {
             character = loaderInfo.getSymbolById(cmd.symbolId);
           }
@@ -276,11 +291,12 @@ module Shumway.Timeline {
             colorTransform = flash.geom.ColorTransform.FromCXForm(cmd.cxform);
           }
         } else {
-          character = new Timeline.SpriteSymbol(-1, loaderInfo);
+          cmd = {symbolId: -1};
+          character = new Timeline.SpriteSymbol({id: -1, className: null}, loaderInfo);
           character.frames.push(new FrameDelta(loaderInfo, commands));
         }
-        symbol[stateName + 'State'] =
-          new Timeline.AnimationState(cmd.symbolId, character, 0, matrix, colorTransform);
+        symbol[stateName + 'State'] = new Timeline.AnimationState(cmd.symbolId, character, 0,
+                                                                  matrix, colorTransform);
       }
       return symbol;
     }
@@ -296,13 +312,13 @@ module Shumway.Timeline {
     avm1SymbolClass;
     loaderInfo: flash.display.LoaderInfo;
 
-    constructor(id: number, loaderInfo: flash.display.LoaderInfo) {
-      super(id, flash.display.MovieClip);
+    constructor(data: SymbolData, loaderInfo: flash.display.LoaderInfo) {
+      super(data, flash.display.MovieClip, true);
       this.loaderInfo = loaderInfo;
     }
 
     static FromData(data: any, loaderInfo: flash.display.LoaderInfo): SpriteSymbol {
-      var symbol = new SpriteSymbol(data.id, loaderInfo);
+      var symbol = new SpriteSymbol(data, loaderInfo);
       symbol.numFrames = data.frameCount;
       if (loaderInfo.actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2) {
         symbol.isAVM1Object = true;
@@ -345,12 +361,12 @@ module Shumway.Timeline {
     data: Uint8Array;
     metrics: any;
 
-    constructor(id: number) {
-      super(id, flash.text.Font);
+    constructor(data: SymbolData) {
+      super(data, flash.text.Font);
     }
 
     static FromData(data: any): FontSymbol {
-      var symbol = new FontSymbol(data.id);
+      var symbol = new FontSymbol(data);
       symbol.name = data.name;
       symbol.bold = data.bold;
       symbol.italic = data.italic;
@@ -366,12 +382,12 @@ module Shumway.Timeline {
     pcm: Float32Array;
     packaged;
 
-    constructor(id: number) {
-      super(id, flash.media.Sound);
+    constructor(data: SymbolData) {
+      super(data, flash.media.Sound);
     }
 
     static FromData(data: any): SoundSymbol {
-      var symbol = new SoundSymbol(data.id);
+      var symbol = new SoundSymbol(data);
       symbol.channels = data.channels;
       symbol.sampleRate = data.sampleRate;
       symbol.pcm = data.pcm;
@@ -384,12 +400,12 @@ module Shumway.Timeline {
     buffer: Uint8Array;
     byteLength: number;
 
-    constructor(id: number) {
-      super(id, flash.utils.ByteArray);
+    constructor(data: SymbolData) {
+      super(data, flash.utils.ByteArray);
     }
 
     static FromData(data: any): BinarySymbol {
-      var symbol = new BinarySymbol(data.id);
+      var symbol = new BinarySymbol(data);
       symbol.buffer = data.data;
       symbol.byteLength = data.data.byteLength;
       return symbol;
