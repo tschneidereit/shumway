@@ -28,7 +28,9 @@ module Shumway {
                 public bytesTotal: number,
                 public framesLoaded: number,
                 public framesLoadedDelta: number,
-                public totalFrames: number) {
+                public totalFrames: number,
+                public abcBlocks: ABCBlock[],
+                public abcBlocksLoadedDelta) {
     }
   }
   export interface ILoadListener {
@@ -84,20 +86,21 @@ module Shumway {
     processNewData(data: Uint8Array, progressInfo: {bytesLoaded: number; bytesTotal: number}) {
       if (useNewParserOption.value) {
         var prevFramesLoaded = 0;
-        if (!this._file) {
-          this._file = createFileInstanceForHeader(data, progressInfo.bytesTotal);
-          this._listener.onLoadOpen(this._file);
+        var prevAbcBlocksLoaded = 0;
+        var file = this._file;
+        if (!file) {
+          file = this._file = createFileInstanceForHeader(data, progressInfo.bytesTotal);
+          this._listener.onLoadOpen(file);
         } else {
-          prevFramesLoaded = this._file.framesLoaded;
-          this._file.appendLoadedData(data);
+          prevFramesLoaded = file.framesLoaded;
+          prevAbcBlocksLoaded = file.abcBlocks.length;
+          file.appendLoadedData(data);
         }
-        var update = {
-          bytesLoaded: progressInfo.bytesLoaded,
-          bytesTotal: progressInfo.bytesTotal,
-          framesLoaded: this._file.framesLoaded,
-          framesLoadedDelta: this._file.framesLoaded - prevFramesLoaded,
-          totalFrames: this._file.frameCount
-        };
+        var update = new LoadProgressUpdate(progressInfo.bytesLoaded, progressInfo.bytesTotal,
+                                            file.framesLoaded, file.framesLoaded - prevFramesLoaded,
+                                            file.frameCount,
+                                            file.abcBlocks,
+                                            file.abcBlocks.length - prevAbcBlocksLoaded);
         this._listener.onLoadProgress(update);
       } else {
         this._parsingPipe.push(data, progressInfo);
@@ -344,7 +347,9 @@ module Shumway {
     frameCount: number;
     framesLoaded: number;
     frames: SWFFrame[];
+    abcBlocks: ABCBlock[];
     dictionary: DictionaryEntry[];
+    symbolsMap: string[];
 
     private uncompressedLength: number;
     private uncompressedLoadedLength: number;
@@ -376,7 +381,9 @@ module Shumway {
       this.currentInitActionBlocks = [];
       this.eagerParsedSymbolsPending = 0;
       this.dictionary = [];
+      this.symbolsMap = [];
       this.frames = [];
+      this.abcBlocks = [];
       this.framesLoaded = 0;
       this.bytesTotal = length;
       this.attributes = null;
@@ -395,6 +402,7 @@ module Shumway {
       this.dataStream.pos = unparsed.byteOffset;
       var tag = {code: unparsed.tagCode};
       var definition = handler(this.data, this.dataStream, tag, this.swfVersion, unparsed.tagCode);
+      definition.className = this.symbolsMap[tag.code] || null;
       if (tag.code === SWFTag.CODE_DEFINE_SPRITE) {
         // TODO: replace this whole silly `type` business with tagCode checking.
         definition.type = 'sprite';
@@ -565,6 +573,35 @@ module Shumway {
           break;
         case SWFTag.CODE_DO_ABC:
         case SWFTag.CODE_DO_ABC_DEFINE:
+          if (!this.useAVM1) {
+            var tagEnd = byteOffset + tagLength;
+            var abcBlock = new ABCBlock();
+            if (tagCode === SwfTag.CODE_DO_ABC) {
+              abcBlock.flags = Parser.readUi32(this.data, stream);
+              abcBlock.name = Parser.readString(this.data, stream, 0);
+            }
+            else {
+              abcBlock.flags = 0;
+              abcBlock.name = "";
+            }
+            abcBlock.data = this.data.subarray(stream.pos, tagEnd);
+            this.abcBlocks.push(abcBlock);
+            stream.pos = tagEnd;
+          } else {
+            this.jumpToNextTag(tagLength);
+          }
+          break;
+        case SWFTag.CODE_SYMBOL_CLASS:
+          var tagEnd = byteOffset + tagLength;
+          var symbolCount = Parser.readUi16(this.data, stream);
+          while (symbolCount--) {
+            var symbolId = Parser.readUi16(this.data, stream);
+            var symbolClassName = Parser.readString(this.data, stream, 0);
+            this.symbolsMap[symbolId] = symbolClassName;
+          }
+          // Make sure we move to end of tag even if the content is invalid.
+          stream.pos = tagEnd;
+          break;
         case SWFTag.CODE_DO_INIT_ACTION:
           if (this.useAVM1) {
             var initActionBlocks = this.currentInitActionBlocks ||
@@ -611,7 +648,6 @@ module Shumway {
         case SWFTag.CODE_DEFINE_SCENE_AND_FRAME_LABEL_DATA:
         case SWFTag.CODE_SCRIPT_LIMITS:
         case SWFTag.CODE_SET_TAB_INDEX:
-        case SWFTag.CODE_SYMBOL_CLASS:
         case SWFTag.CODE_FRAME_LABEL:
         case SWFTag.CODE_END:
         case SWFTag.CODE_EXPORT_ASSETS:
@@ -837,6 +873,12 @@ module Shumway {
       this.symbols = symbols;
       this.pendingSymbolsCount = pendingSymbolsCount;
     }
+  }
+
+  export class ABCBlock {
+    name: string;
+    flags: number;
+    data: Uint8Array;
   }
 
   export class UnparsedTag {

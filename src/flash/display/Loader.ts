@@ -324,7 +324,8 @@ module Shumway.AVM2.AS.flash.display {
           loaderInfo._width = bbox.xMax - bbox.xMin;
           loaderInfo._height = bbox.yMax - bbox.yMin;
 
-          var rootSymbol = new Timeline.SpriteSymbol(0, this._contentLoaderInfo);
+          var rootSymbol = new Timeline.SpriteSymbol({id: 0, className: null},
+                                                     this._contentLoaderInfo);
           rootSymbol.numFrames = info.frameCount;
           loaderInfo.registerSymbol(rootSymbol);
 
@@ -794,7 +795,6 @@ module Shumway.AVM2.AS.flash.display {
 
     private onFileStartupReady(file: SWFFile) {
       this._contentLoaderInfo.setFile(file);
-      this.createContentRoot(this._contentLoaderInfo.getRootSymbol(), null);
       if (this === Loader.getRootLoader()) {
         Loader.runtimeStartTime = Date.now();
       }
@@ -818,11 +818,32 @@ module Shumway.AVM2.AS.flash.display {
           return;
         }
         loaderInfo.bytesLoaded = update.bytesLoaded;
-        if (!update.framesLoadedDelta) {
+        if (update.framesLoadedDelta + update.abcBlocksLoadedDelta === 0) {
           return;
         }
+
+        if (loaderInfo._allowCodeExecution) {
+          var abcBlocks = update.abcBlocks;
+          var newABCBlocksOffset = abcBlocks.length - update.abcBlocksLoadedDelta;
+          var appDomain = AVM2.instance.applicationDomain;
+          for (var i = newABCBlocksOffset; i < abcBlocks.length; i++) {
+            var abcBlock = abcBlocks[i];
+            var abc = new AbcFile(abcBlock.data, abcBlock.name);
+            if (abcBlock.flags) {
+              // kDoAbcLazyInitializeFlag = 1 Indicates that the ABC block should not be executed
+              // immediately.
+              appDomain.loadAbc(abc);
+            } else {
+              appDomain.executeAbc(abc);
+            }
+          }
+        }
+
         var rootSymbol = loaderInfo.getRootSymbol();
         var root = this._content;
+        if (!root) {
+          root = this.createContentRoot(this._contentLoaderInfo.getRootSymbol(), null);
+        }
         // For AVM1 SWFs directly loaded into AVM2 ones (or as the top-level SWF), unwrap the
         // contained MovieClip here to correctly initialize frame data.
         if (AVM1Movie.isType(root)) {
