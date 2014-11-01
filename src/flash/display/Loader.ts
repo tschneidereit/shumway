@@ -760,13 +760,15 @@ module Shumway.AVM2.AS.flash.display {
     }
 
     load(request: flash.net.URLRequest, context?: LoaderContext): void {
+      this.close();
+      // TODO: clean up contentloaderInfo.
       this._contentLoaderInfo._url = request.url;
       this._applyLoaderContext(context, request);
       this._loadingType = LoadingType.External;
-      this.close();
       this._fileLoader = new FileLoader(this);
       this._fileLoader.loadFile(request._toFileRequest());
 
+      // TODO: Only do this if a load wasn't in progress.
       Loader._loadQueue.push(this);
 
       if (this === Loader.getRootLoader()) {
@@ -834,6 +836,7 @@ module Shumway.AVM2.AS.flash.display {
               // immediately.
               appDomain.loadAbc(abc);
             } else {
+              // TODO: probably delay execution until playhead reaches the frame.
               appDomain.executeAbc(abc);
             }
           }
@@ -864,6 +867,13 @@ module Shumway.AVM2.AS.flash.display {
           frames.push(frameInfo.frameDelta);
           if (loaderInfo._file.useAVM1) {
             avm1lib.getAVM1Object(root).addFrameActionBlocks(frames.length - 1, frameInfo);
+            if (frameInfo.exports) {
+              var exports = frameInfo.exports;
+              for (var i = 0; i < exports.length; i++) {
+                var asset = exports[i];
+                loaderInfo._avm1Context.addAsset(asset.className, asset.symbolId, null);
+              }
+            }
           }
           if (frames.length === 1) {
             (<Sprite><any>root)._initializeChildren(frames[0]);

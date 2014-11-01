@@ -332,6 +332,7 @@ module Shumway.AVM2.AS.flash.display {
         scripts: frame.scripts,
         actionBlocks: frame.actionBlocks,
         initActionBlocks: frame.initActionBlocks,
+        exports: frame.exports,
         frameDelta: new Timeline.FrameDelta(this, commands)
       };
     }

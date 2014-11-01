@@ -47,6 +47,9 @@ declare module Shumway.AVM2.AS.flash {
       addFrameScript(frameIndex: number, script: (any?) => any /*, ...*/): void;
     }
     class Loader extends DisplayObject {}
+    class LoaderInfo {
+      getSymbolById(id: number): any;
+    }
     class AVM1Movie extends DisplayObject {}
     class BitmapData extends ASNative {}
     class Bitmap extends DisplayObject {

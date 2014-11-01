@@ -44,7 +44,8 @@ module Shumway.AVM1 {
       this.globals = null;
     }
 
-    public static create: (swfVersion: number) => AVM1Context;
+    public static create: (swfVersion: number,
+                           loaderInfo: Shumway.AVM2.AS.flash.display.LoaderInfo) => AVM1Context;
 
     public flushPendingScripts() {}
     public addAsset(className: string, symbolId: number, symbolProps) {}
