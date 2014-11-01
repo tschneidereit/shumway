@@ -583,7 +583,7 @@ module Shumway.SWF.Parser.LowLevel {
     return $;
   }
 
-  function exportAssets($bytes, $stream, $, swfVersion, tagCode) {
+  export function exportAssets($bytes, $stream, $, swfVersion, tagCode) {
     $ || ($ = {});
     var exportsCount = readUi16($bytes, $stream);
     var $0 = $.exports = [];

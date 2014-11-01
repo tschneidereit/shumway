@@ -368,7 +368,7 @@ module Shumway.Shell {
       case SwfTag.CODE_DEFINE_FONT2:
       case SwfTag.CODE_DEFINE_FONT3:
       case SwfTag.CODE_DEFINE_FONT4:
-        symbol = Shumway.SWF.Parser.defineFont(tag, symbols);
+        symbol = Shumway.SWF.Parser.defineFont(tag);
         break;
       case SwfTag.CODE_DEFINE_MORPH_SHAPE:
       case SwfTag.CODE_DEFINE_MORPH_SHAPE2:

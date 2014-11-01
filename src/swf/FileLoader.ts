@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-declare var useNewParserOption: {value: boolean};
 
 module Shumway {
   import assert = Shumway.Debug.assert;
@@ -22,6 +21,8 @@ module Shumway {
   import IPipe = Shumway.SWF.Parser.IPipe;
   import SwfTag = Shumway.SWF.Parser.SwfTag;
   import createSoundStream = Shumway.SWF.Parser.createSoundStream;
+
+  export var useNewParserOption = {value: true};
 
   export class LoadProgressUpdate {
     constructor(public bytesLoaded: number,
@@ -97,7 +98,8 @@ module Shumway {
           file.appendLoadedData(data);
         }
         var update = new LoadProgressUpdate(progressInfo.bytesLoaded, progressInfo.bytesTotal,
-                                            file.framesLoaded, file.framesLoaded - prevFramesLoaded,
+                                            file.framesLoaded,
+                                            file.framesLoaded - prevFramesLoaded,
                                             file.frameCount,
                                             file.abcBlocks,
                                             file.abcBlocks.length - prevAbcBlocksLoaded);
@@ -358,13 +360,15 @@ module Shumway {
     private dataView: DataView;
     private dataStream: Stream;
     private decompressor: Inflate;
-    private currentSymbolsList: DictionaryEntry[];
     private eagerParsedSymbolsPending: number;
     private currentFrameLabel: string;
+    private endTagEncountered: boolean;
+    private currentSymbolsList: DictionaryEntry[];
     private currentDisplayListCommands: UnparsedTag[];
     private currentFrameScripts: Uint8Array[];
     private currentActionBlocks: Uint8Array[];
-    private currentInitActionBlocks: {spriteId: number; actionsData: Uint8Array}[];
+    private currentInitActionBlocks: InitActionBlock[];
+    private currentExports: SymbolExport[];
 
     constructor(initialBytes: Uint8Array, length: number) {
       // TODO: cleanly abort loading/parsing instead of just asserting here.
@@ -382,6 +386,7 @@ module Shumway {
       this.currentFrameScripts = [];
       this.currentActionBlocks = [];
       this.currentInitActionBlocks = [];
+      this.currentExports = null;
       this.eagerParsedSymbolsPending = 0;
       this.dictionary = [];
       this.symbolsMap = [];
@@ -393,6 +398,7 @@ module Shumway {
       this.sceneAndFrameLabelData = null;
       this.useAVM1 = true;
       this.backgroundColor = 0xffffffff;
+      this.endTagEncountered = false;
       this.readHeaderAndInitialize(initialBytes);
     }
 
@@ -432,6 +438,10 @@ module Shumway {
       // TODO: only report decoded or sync-decodable bytes as loaded.
       this.bytesLoaded += bytes.length;
       release || assert(this.bytesLoaded <= this.bytesTotal);
+      // Tags after the end tag are simply ignored, so we don't even have to scan them.
+      if (this.endTagEncountered) {
+        return;
+      }
       if (this.isCompressed) {
         this.decompressor.push(bytes);
       } else {
@@ -443,6 +453,7 @@ module Shumway {
       this.isCompressed = initialBytes[0] === 67;
       this.swfVersion = initialBytes[3];
       this.uncompressedLength = readSWFLength(initialBytes);
+      // TODO: only report decoded or sync-decodable bytes as loaded.
       this.bytesLoaded = initialBytes.length;
       this.data = new Uint8Array(this.uncompressedLength);
       this.dataStream = new Stream(this.data.buffer);
@@ -476,9 +487,6 @@ module Shumway {
         this.bounds = Bounds.FromUntyped(obj);
         this.frameRate = obj.frameRate;
         this.frameCount = obj.frameCount;
-        // TODO: only report decoded or sync-decodable bytes as loaded.
-        release || assert(this.bytesLoaded === 0);
-        this.bytesLoaded = initialBytes.length;
         this.scanLoadedData();
       }
     }
@@ -493,8 +501,14 @@ module Shumway {
       // `parsePos` is always at the start of a tag at this point, because it only gets updated
       // when a tag has been fully parsed.
       while (this.dataStream.pos < this.uncompressedLoadedLength - 1) {
-        if (!this.scanNextTag()) {
-          break;
+        var previousPosition = this.dataStream.pos;
+        var tagComplete = this.scanNextTag();
+        if (this.endTagEncountered) {
+          return;
+        }
+        if (!tagComplete) {
+          release || assert(this.dataStream.pos === previousPosition);
+          return;
         }
       }
     }
@@ -545,6 +559,9 @@ module Shumway {
           }
           if (DefinitionTags[tagCode]) {
             this.addLazySymbol(tagCode, stream.pos, tagLength);
+          } else if (tagCode = SWFTag.CODE_END) {
+            stream.pos = spriteTagEnd;
+            return true;
           }
           this.jumpToNextTag(tagLength);
         }
@@ -601,6 +618,7 @@ module Shumway {
         case SWFTag.CODE_SYMBOL_CLASS:
           var tagEnd = byteOffset + tagLength;
           var symbolCount = Parser.readUi16(this.data, stream);
+          // TODO: check if symbols can be reassociated after instances have been created.
           while (symbolCount--) {
             var symbolId = Parser.readUi16(this.data, stream);
             var symbolClassName = Parser.readString(this.data, stream, 0);
@@ -641,7 +659,7 @@ module Shumway {
           this.addControlTag(tagCode, byteOffset, tagLength);
           break;
         case SWFTag.CODE_FRAME_LABEL:
-          var tagEnd = byteOffset + tagLength;
+          var tagEnd = stream.pos + tagLength;
           this.currentFrameLabel = Parser.readString(this.data, stream, 0);
           // TODO: support SWF6+ anchors.
           stream.pos = tagEnd;
@@ -650,6 +668,24 @@ module Shumway {
           this.finishFrame();
           break;
         // TODO: Support this grab-bag of tags.
+        case SWFTag.CODE_END:
+          this.endTagEncountered = true;
+          return false;
+        case SWFTag.CODE_EXPORT_ASSETS:
+          var tagEnd = stream.pos + tagLength;
+          var exportsCount = stream.getUint16(byteOffset, true);
+          var exports = this.currentExports || (this.currentExports = []);
+          while (exportsCount--) {
+            var symbolId = Parser.readUi16(this.data, stream);
+            var className = Parser.readString(this.data, stream, 0);
+            if (stream.pos > tagEnd) {
+              stream.pos = tagEnd;
+              break;
+            }
+            exports.push(new SymbolExport(symbolId, className));
+          }
+          stream.pos = tagEnd;
+          break;
         case SWFTag.CODE_CSM_TEXT_SETTINGS:
         case SWFTag.CODE_DEFINE_BUTTON_CXFORM:
         case SWFTag.CODE_DEFINE_BUTTON_SOUND:
@@ -658,13 +694,11 @@ module Shumway {
         case SWFTag.CODE_DEFINE_FONT_INFO2:
         case SWFTag.CODE_DEFINE_FONT_NAME:
         case SWFTag.CODE_DEFINE_SCALING_GRID:
-        case SWFTag.CODE_SCRIPT_LIMITS:
-        case SWFTag.CODE_SET_TAB_INDEX:
-        case SWFTag.CODE_END:
-        case SWFTag.CODE_EXPORT_ASSETS:
         case SWFTag.CODE_IMPORT_ASSETS:
         case SWFTag.CODE_IMPORT_ASSETS2:
-          Debug.warning('Grab-bag tag ' + tagCode + ': ' + SWFTag[tagCode]);
+        case SWFTag.CODE_SCRIPT_LIMITS:
+        case SWFTag.CODE_SET_TAB_INDEX:
+          Debug.warning('Unsupported tag encountered ' + tagCode + ': ' + SWFTag[tagCode]);
           this.jumpToNextTag(tagLength);
           break;
         // These tags are used by the player, but not relevant to us.
@@ -674,7 +708,6 @@ module Shumway {
         case SWFTag.CODE_PRODUCT_INFO:
         case SWFTag.CODE_METADATA:
         case SWFTag.CODE_PROTECT:
-        case SWFTag.CODE_STOP_SOUND:
           this.jumpToNextTag(tagLength);
           break;
         // These tags aren't used in the player.
@@ -682,13 +715,14 @@ module Shumway {
         case SWFTag.CODE_DEFINE_BEHAVIOUR:
         case SWFTag.CODE_DEFINE_COMMAND_OBJECT:
         case SWFTag.CODE_DEFINE_FUNCTION:
+        case SWFTag.CODE_DEFINE_TEXT_FORMAT:
+        case SWFTag.CODE_DEFINE_VIDEO:
         case SWFTag.CODE_EXTERNAL_FONT:
         case SWFTag.CODE_FREE_CHARACTER:
         case SWFTag.CODE_FREE_ALL:
-        case SWFTag.CODE_DEFINE_VIDEO:
         case SWFTag.CODE_GENERATE_FRAME:
+        case SWFTag.CODE_STOP_SOUND:
         case SWFTag.CODE_SYNC_FRAME:
-        case SWFTag.CODE_DEFINE_TEXT_FORMAT:
           console.info("Ignored tag (these shouldn't occur) " + tagCode + ': ' + SWFTag[tagCode]);
           this.jumpToNextTag(tagLength);
           break;
@@ -713,6 +747,7 @@ module Shumway {
                                     this.currentActionBlocks,
                                     this.currentInitActionBlocks,
                                     this.currentSymbolsList,
+                                    this.currentExports,
                                     this.eagerParsedSymbolsPending));
       this.currentFrameLabel = null;
       this.currentSymbolsList = [];
@@ -796,6 +831,7 @@ module Shumway {
       var symbol = new EagerlyParsedDictionaryEntry(tag.id, tagCode, byteOffset, tagLength,
                                                     definition, this.frames.length);
       this.currentSymbolsList.push(symbol);
+      // TODO: pass in mime type.
       decodeImage(definition, this.markSymbolAsDecoded.bind(this, symbol));
     }
 
@@ -871,9 +907,11 @@ module Shumway {
         continue;
       } else if (tagCode === SWFTag.CODE_SHOW_FRAME) {
         frames.push(new SWFFrame(label, commands, scripts, actionBlocks, initActionBlocks,
-                                 null, null));
+                                 null, null, null));
         commands = [];
         scripts = null;
+      } else if (tagCode = SWFTag.CODE_END) {
+        stream.pos = spriteTagEnd;
       }
       stream.pos += tagLength;
     }
@@ -884,24 +922,27 @@ module Shumway {
     displayListCommands: UnparsedTag[];
     scripts: Uint8Array[];
     actionBlocks: Uint8Array[];
-    initActionBlocks:  {spriteId: number; actionsData: Uint8Array}[];
+    initActionBlocks: InitActionBlock[];
     symbols: DictionaryEntry[];
+    exports: SymbolExport[];
     pendingSymbolsCount: number;
     constructor(labelName: string, commands: UnparsedTag[], scripts: Uint8Array[],
                 actionBlocks: Uint8Array[],
-                initActionBlocks: {spriteId: number; actionsData: Uint8Array}[],
-                symbols: DictionaryEntry[], pendingSymbolsCount: number) {
+                initActionBlocks: InitActionBlock[],
+                symbols: DictionaryEntry[], exports: SymbolExport[], pendingSymbolsCount: number) {
       this.labelName = labelName;
-      release || Object.freeze(commands);
+      release || commands && Object.freeze(commands);
       this.displayListCommands = commands;
-      release || Object.freeze(scripts);
+      release || scripts && Object.freeze(scripts);
       this.scripts = scripts;
-      release || Object.freeze(actionBlocks);
+      release || actionBlocks && Object.freeze(actionBlocks);
       this.actionBlocks = actionBlocks;
-      release || Object.freeze(initActionBlocks);
+      release || initActionBlocks && Object.freeze(initActionBlocks);
       this.initActionBlocks = initActionBlocks;
-      release || Object.freeze(symbols);
+      release || symbols && Object.freeze(symbols);
       this.symbols = symbols;
+      release || exports && Object.freeze(exports);
+      this.exports = exports;
       this.pendingSymbolsCount = pendingSymbolsCount;
     }
   }
@@ -912,9 +953,17 @@ module Shumway {
     data: Uint8Array;
   }
 
+  export class InitActionBlock {
+    spriteId: number;
+    actionsData: Uint8Array;
+  }
+
+  export class SymbolExport {
+    constructor(public symbolId: number, public className: string) {}
+  }
+
   export class UnparsedTag {
-    constructor(public tagCode: number, public byteOffset: number, public byteLength: number) {
-    }
+    constructor(public tagCode: number, public byteOffset: number, public byteLength: number) {}
   }
 
   export class DictionaryEntry extends UnparsedTag {
@@ -926,7 +975,7 @@ module Shumway {
   }
 
   class EagerlyParsedDictionaryEntry extends DictionaryEntry {
-    definition: any;
+    definition: Object;
     frameIndex: number;
     ready: boolean;
     constructor(id: number, tagCode: number, byteOffset: number, tagLength: number, definition: any,
