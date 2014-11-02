@@ -180,22 +180,22 @@ module Shumway.SWF.Parser {
   }
 
   export enum PlaceObjectFlags {
-    Reserved          = 0x800,
-    OpaqueBackground  = 0x400,
-    HasVisible        = 0x200,
-    HasImage          = 0x100,
-    HasClassName      = 0x800,
-    HasCacheAsBitmap  = 0x400,
-    HasBlendMode      = 0x200,
-    HasFilterList     = 0x100,
-    HasClipActions    = 0x080,
-    HasClipDepth      = 0x040,
-    HasName           = 0x020,
-    HasRatio          = 0x010,
-    HasColorTransform = 0x008,
-    HasMatrix         = 0x004,
-    HasCharacter      = 0x002,
-    Move              = 0x001
+    Reserved          = 0x8000,
+    OpaqueBackground  = 0x4000,
+    HasVisible        = 0x2000,
+    HasImage          = 0x1000,
+    HasClassName      = 0x0800,
+    HasCacheAsBitmap  = 0x0400,
+    HasBlendMode      = 0x0200,
+    HasFilterList     = 0x0100,
+    HasClipActions    = 0x0080,
+    HasClipDepth      = 0x0040,
+    HasName           = 0x0020,
+    HasRatio          = 0x0010,
+    HasColorTransform = 0x0008,
+    HasMatrix         = 0x0004,
+    HasCharacter      = 0x0002,
+    Move              = 0x0001
   }
 
   export interface ISwfTagData {
