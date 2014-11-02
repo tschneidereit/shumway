@@ -673,7 +673,7 @@ module Shumway {
           return false;
         case SWFTag.CODE_EXPORT_ASSETS:
           var tagEnd = stream.pos + tagLength;
-          var exportsCount = stream.getUint16(byteOffset, true);
+          var exportsCount = Parser.readUi16(this.data, stream);
           var exports = this.currentExports || (this.currentExports = []);
           while (exportsCount--) {
             var symbolId = Parser.readUi16(this.data, stream);
