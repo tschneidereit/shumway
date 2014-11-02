@@ -182,13 +182,13 @@ module Shumway.SWF.Parser.LowLevel {
     var eob: boolean;
     $ || ($ = {});
     $.id = readUi16($bytes, $stream);
-    if (tagCode == 7) {
-      var $0 = $.characters = [];
+    if (tagCode == SwfTag.CODE_DEFINE_BUTTON) {
+      var characters = $.characters = [];
       do {
         var $1 = {};
         var temp = button($bytes, $stream, $1, swfVersion, tagCode);
         eob = temp.eob;
-        $0.push($1);
+        characters.push($1);
       } while (!eob);
       $.actionsData = readBinary($bytes, $stream, 0, false);
     }
@@ -196,7 +196,7 @@ module Shumway.SWF.Parser.LowLevel {
       var trackFlags = readUi8($bytes, $stream);
       $.trackAsMenu = trackFlags >> 7 & 1;
       var actionOffset = readUi16($bytes, $stream);
-      var $28 = $.characters = [];
+      var characters = $.characters = [];
       do {
         var $29: any = {};
         var flags = readUi8($bytes, $stream);
@@ -235,7 +235,7 @@ module Shumway.SWF.Parser.LowLevel {
             $29.blendMode = readUi8($bytes, $stream);
           }
         }
-        $28.push($29);
+        characters.push($29);
       } while (!eob);
       if (!!actionOffset) {
         var $56 = $.buttonActions = [];

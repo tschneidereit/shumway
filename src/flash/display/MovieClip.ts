@@ -465,7 +465,7 @@ module Shumway.AVM2.AS.flash.display {
             var childDepth = child._depth;
             if (childDepth) {
               // We need to scan all past states to check if we can keep the child.
-              var state: Timeline.AnimationState = undefined;
+              var state: Timeline.AnimationState;
               for (var j = nextFrame - 1; j >= 0 && !state; j--) {
                 state = frames[j].stateAtDepth[childDepth];
               }
@@ -490,6 +490,11 @@ module Shumway.AVM2.AS.flash.display {
         for (var depth in stateAtDepth) {
           var child = this.getTimelineObjectAtDepth(depth | 0);
           var state = stateAtDepth[depth];
+          // Eagerly create the symbol here, because it's needed in the canBeAnimated check below.
+          if (state && state.symbolId > -1 && !state.symbol) {
+            var ownSymbol = <Timeline.SpriteSymbol>this._symbol;
+            state.symbol = <Timeline.DisplaySymbol>ownSymbol.loaderInfo.getSymbolById(state.symbolId);
+          }
           if (child) {
             if (state && state.canBeAnimated(child)) {
               if (state.symbol && !state.symbol.dynamic) {
@@ -504,7 +509,7 @@ module Shumway.AVM2.AS.flash.display {
             }
             this._removeAnimatedChild(child);
           }
-          if (state && state.symbol) {
+          if (state && state.symbolId > -1) {
             var character = this.createAnimatedDisplayObject(state, false);
             this.addTimelineObjectAtDepth(character, state.depth);
             if (state.symbol.isAVM1Object) {

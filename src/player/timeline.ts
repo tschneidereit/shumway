@@ -33,14 +33,14 @@ module Shumway.Timeline {
    * TODO document
    */
   export class Symbol {
-    id: number;
+    data: any;
     isAVM1Object: boolean;
     avm1Context: Shumway.AVM1.AVM1Context;
     symbolClass: Shumway.AVM2.AS.ASClass;
 
     constructor(data: SymbolData, symbolDefaultClass: Shumway.AVM2.AS.ASClass) {
       release || assert (isInteger(data.id));
-      this.id = data.id;
+      this.data = data;
       if (data.className) {
         var appDomain = Shumway.AVM2.Runtime.AVM2.instance.applicationDomain;
         try {
@@ -54,6 +54,10 @@ module Shumway.Timeline {
         this.symbolClass = symbolDefaultClass;
       }
       this.isAVM1Object = false;
+    }
+
+    get id(): number {
+      return this.data.id;
     }
   }
 
@@ -263,7 +267,6 @@ module Shumway.Timeline {
     downState: AnimationState = null;
     hitTestState: AnimationState = null;
     loaderInfo: flash.display.LoaderInfo;
-    buttonActions: any[]; // Only relevant for AVM1, see AVM1Button.
 
     constructor(data: SymbolData, loaderInfo: flash.display.LoaderInfo) {
       super(data, flash.display.SimpleButton, false);
@@ -274,18 +277,16 @@ module Shumway.Timeline {
       var symbol = new ButtonSymbol(data, loaderInfo);
       if (loaderInfo.actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2) {
         symbol.isAVM1Object = true;
-        symbol.buttonActions = data.buttonActions;
       }
       var states = data.states;
-      var character, matrix, colorTransform;
+      var character: SpriteSymbol = null;
+      var matrix: flash.geom.Matrix = null;
+      var colorTransform: flash.geom.ColorTransform = null;
       var cmd;
       for (var stateName in states) {
         var commands = states[stateName];
         if (commands.length === 1) {
           cmd = commands[0];
-          if (!useNewParserOption.value) {
-            character = loaderInfo.getSymbolById(cmd.symbolId);
-          }
           matrix = flash.geom.Matrix.FromUntyped(cmd.matrix);
           if (cmd.cxform) {
             colorTransform = flash.geom.ColorTransform.FromCXForm(cmd.cxform);
@@ -496,7 +497,9 @@ module Shumway.Timeline {
       var commands = this.commands;
       var loaderInfo = this.loaderInfo;
       for (var i = 0; i < commands.length; i++) {
-        var cmd = commands[i];
+        var cmd = 'depth' in commands[i] ?
+                  commands[i] :
+                  <any>loaderInfo._file.getParsedTag(commands[i]);
         var depth = cmd.depth;
         switch (cmd.code) {
           case SwfTag.CODE_REMOVE_OBJECT:
@@ -606,7 +609,7 @@ module Shumway.Timeline {
             states[depth] = state;
             break;
           default:
-            Debug.warning("Unhandled timeline control tag: " + cmd.code + ": " + SwfTag[cmd.code]);
+            console.warn("Unhandled timeline control tag: " + cmd.code + ": " + SwfTag[cmd.code]);
         }
 
       }
