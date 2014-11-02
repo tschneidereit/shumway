@@ -857,14 +857,15 @@ module Shumway.AVM2.AS.flash.display {
         var frameScripts = rootSymbol.frameScripts || (rootSymbol.frameScripts = []);
         for (var i = 0; i < update.framesLoadedDelta; i++) {
           var frameInfo = loaderInfo.getFrame(null, frames.length);
-          if (frameInfo.labelName) {
-            (<MovieClip><any>root).addFrameLabel(frameInfo.labelName, frames.length);
-          }
           if (frameInfo.scripts && frameInfo.scripts.length) {
             frameScripts.push(i);
             frameScripts.push.apply(frameScripts, frameInfo.scripts);
           }
           frames.push(frameInfo.frameDelta);
+          if (frameInfo.labelName) {
+            // Frame indices are 1-based, so use frames.length after pushing the frame.
+            (<MovieClip><any>root).addFrameLabel(frameInfo.labelName, frames.length);
+          }
           if (loaderInfo._file.useAVM1) {
             avm1lib.getAVM1Object(root).addFrameActionBlocks(frames.length - 1, frameInfo);
             if (frameInfo.exports) {

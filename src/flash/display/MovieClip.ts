@@ -387,10 +387,10 @@ module Shumway.AVM2.AS.flash.display {
         var legacyMode = MovieClip.frameNavigationModel === FrameNavigationModel.SWF1 ||
                          MovieClip.frameNavigationModel === FrameNavigationModel.SWF9;
         var label = scene.getLabelByName(frame, legacyMode);
-        if (!label && legacyMode) {
-          return; // noop for SWF9 and below
-        }
         if (!label) {
+          if (legacyMode) {
+            return; // noop for SWF9 and below
+          }
           throwError('ArgumentError', Errors.FrameLabelNotFoundError, frame, sceneName);
         }
         frameNum = label.frame;
