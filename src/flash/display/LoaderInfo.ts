@@ -322,18 +322,13 @@ module Shumway.AVM2.AS.flash.display {
         sprite = file;
       }
       var frame = sprite.frames[index];
-      var unparsedCommands = frame.displayListCommands;
-      var commands = [];
-      for (var i = 0; i < unparsedCommands.length; i++) {
-        commands.push(file.getParsedTag(unparsedCommands[i]));
-      }
       return {
         labelName: frame.labelName,
         scripts: frame.scripts,
         actionBlocks: frame.actionBlocks,
         initActionBlocks: frame.initActionBlocks,
         exports: frame.exports,
-        frameDelta: new Timeline.FrameDelta(this, commands)
+        frameDelta: new Timeline.FrameDelta(this, frame.displayListCommands)
       };
     }
   }

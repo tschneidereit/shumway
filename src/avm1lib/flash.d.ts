@@ -57,7 +57,7 @@ declare module Shumway.AVM2.AS.flash {
     }
     class SimpleButton extends DisplayObject {
       _symbol: {
-        buttonActions: Shumway.Timeline.AVM1ButtonAction[]
+        data: {buttonActions: Shumway.Timeline.AVM1ButtonAction[]}
       }
     }
   }
