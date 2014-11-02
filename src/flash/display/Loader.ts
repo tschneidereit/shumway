@@ -428,7 +428,7 @@ module Shumway.AVM2.AS.flash.display {
       }
       return AVM2.instance.loadAVM1().then(function() {
         var swfVersion = contentLoaderInfo.swfVersion;
-        contentLoaderInfo._avm1Context = Shumway.AVM1.AVM1Context.create(swfVersion);
+        contentLoaderInfo._avm1Context = Shumway.AVM1.AVM1Context.create(contentLoaderInfo);
       });
     }
 

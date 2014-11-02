@@ -132,7 +132,6 @@ module Shumway.AVM1 {
   }
 
   class AVM1ContextImpl extends AVM1Context {
-    swfVersion: number;
     initialScope: AVM1ScopeListItem;
     isActive: boolean;
     executionProhibited: boolean;
@@ -148,14 +147,12 @@ module Shumway.AVM1 {
     private assets: Map<number>;
     private assetsSymbols: Array<any>;
     private assetsClasses: Array<any>;
-    private loaderInfo: Shumway.AVM2.AS.flash.display.LoaderInfo;
 
-    constructor(swfVersion: number, loaderInfo: Shumway.AVM2.AS.flash.display.LoaderInfo) {
+    constructor(loaderInfo: Shumway.AVM2.AS.flash.display.LoaderInfo) {
       super();
-      this.swfVersion = swfVersion;
       this.loaderInfo = loaderInfo;
       this.globals = new Shumway.AVM2.AS.avm1lib.AVM1Globals();
-      if (swfVersion >= 8) {
+      if (loaderInfo.swfVersion >= 8) {
         this.globals.asSetPublicProperty("flash",
           Shumway.AVM2.AS.avm1lib.createFlashObject());
       }
@@ -251,9 +248,8 @@ module Shumway.AVM1 {
     }
   }
 
-  AVM1Context.create = function (swfVersion: number,
-                                 loaderInfo: Shumway.AVM2.AS.flash.display.LoaderInfo): AVM1Context {
-    return new AVM1ContextImpl(swfVersion, loaderInfo);
+  AVM1Context.create = function(loaderInfo: Shumway.AVM2.AS.flash.display.LoaderInfo): AVM1Context {
+    return new AVM1ContextImpl(loaderInfo);
   };
 
   class AVM1Error {
@@ -291,7 +287,7 @@ module Shumway.AVM1 {
   }
 
   function as2GetCurrentSwfVersion() : number {
-    return (<AVM1ContextImpl> AVM1Context.instance).swfVersion;
+    return AVM1Context.instance.loaderInfo.swfVersion;
   }
 
   function as2ToAddPrimitive(value) {
@@ -2501,7 +2497,7 @@ module Shumway.AVM1 {
       var currentContext = <AVM1ContextImpl> AVM1Context.instance;
 
       if (!actionsData.ir) {
-        var stream = new ActionsDataStream(actionsData.bytes, currentContext.swfVersion);
+        var stream = new ActionsDataStream(actionsData.bytes, currentContext.loaderInfo.swfVersion);
         var parser = new ActionsDataParser(stream);
         parser.dataId = actionsData.id;
         var analyzer = new ActionsDataAnalyzer();
@@ -2520,7 +2516,7 @@ module Shumway.AVM1 {
       var compiled: Function = (<any> ir).compiled;
 
       var stack = [];
-      var isSwfVersion5 = currentContext.swfVersion >= 5;
+      var isSwfVersion5 = currentContext.loaderInfo.swfVersion >= 5;
       var actionTracer = ActionTracerFactory.get();
       var scope = scopeContainer.scope;
 

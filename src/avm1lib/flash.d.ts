@@ -48,6 +48,7 @@ declare module Shumway.AVM2.AS.flash {
     }
     class Loader extends DisplayObject {}
     class LoaderInfo {
+      swfVersion: number;
       getSymbolById(id: number): any;
     }
     class AVM1Movie extends DisplayObject {}

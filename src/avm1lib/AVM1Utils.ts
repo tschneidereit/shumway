@@ -75,7 +75,7 @@ module Shumway.AVM2.AS.avm1lib {
     }
 
     static get swfVersion(): any {
-      return AVM1Context.instance.swfVersion;
+      return AVM1Context.instance.loaderInfo.swfVersion;
     }
 
     static getAVM1Object(as3Object) {
