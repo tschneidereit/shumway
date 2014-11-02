@@ -185,7 +185,7 @@ module Shumway.AVM2.AS.avm1lib {
       //AVM1Context.instance.stage._as2SetLevel(level, loader);
     }
     trace(expression: any): any {
-      console.log(expression);
+      Natives.print(expression);
     }
   }
 }
