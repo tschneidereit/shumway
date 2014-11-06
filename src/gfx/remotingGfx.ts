@@ -387,7 +387,7 @@ module Shumway.Remoting.GFX {
           renderable = new RenderableShape(id, pathData, textures, bounds);
         }
         for (var i = 0; i < textures.length; i++) {
-          textures[i].addRenderableParent(renderable);
+          textures[i] && textures[i].addRenderableParent(renderable);
         }
         context._registerAsset(id, symbolId, renderable);
       }

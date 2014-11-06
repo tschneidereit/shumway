@@ -386,22 +386,24 @@ module Shumway {
       if (!unparsed) {
         return null;
       }
-      var tag = this.getParsedTag(unparsed);
-      tag.className = this.symbolClassesMap[id] || null;
-      if (tag.code === SWFTag.CODE_DEFINE_SPRITE) {
+      var symbol;
+      if (unparsed.tagCode === SWFTag.CODE_DEFINE_SPRITE) {
         // TODO: replace this whole silly `type` business with tagCode checking.
-        tag.type = 'sprite';
-        parseSpriteTimeline(tag, unparsed, this.data, this.dataStream, this.dataView, this.useAVM1);
-        return tag;
+        symbol = parseSpriteTimeline(unparsed, this.data, this.dataStream, this.dataView,
+                                     this.useAVM1);
+      } else {
+        var tag = this.getParsedTag(unparsed);
+        symbol = defineSymbol(tag, this.dictionary);
       }
-      return defineSymbol(tag, this.dictionary);
+      symbol.className = this.symbolClassesMap[id] || null;
+      return symbol;
     }
 
     getParsedTag(unparsed: UnparsedTag): any {
-      var handler = Parser.LowLevel.tagHandlers[unparsed.tagCode];
       this.dataStream.align();
       this.dataStream.pos = unparsed.byteOffset;
-      var tag = {code: unparsed.tagCode};
+      var tag: any = {code: unparsed.tagCode};
+      var handler = Parser.LowLevel.tagHandlers[unparsed.tagCode];
       handler(this.data, this.dataStream, tag, this.swfVersion, unparsed.tagCode);
       release || assert(this.dataStream.pos === unparsed.byteOffset + unparsed.byteLength);
       return tag;
@@ -830,14 +832,22 @@ module Shumway {
     }).then(oncomplete);
   }
 
-  function parseSpriteTimeline(tag, unparsed: DictionaryEntry, data: Uint8Array, stream: Stream,
+  function parseSpriteTimeline(unparsed: DictionaryEntry, data: Uint8Array, stream: Stream,
                                dataView: DataView, useAVM1: boolean) {
+    var timeline: any = {
+      id: unparsed.id,
+      type: 'sprite',
+      frames: []
+    }
     var spriteTagEnd = unparsed.byteOffset + unparsed.byteLength;
-    var frames = tag.frames = [];
+    var frames = timeline.frames;
     var label: string = null;
     var commands: UnparsedTag[] = [];
     var actionBlocks: Uint8Array[] = null;
     var initActionBlocks:  {spriteId: number; actionsData: Uint8Array}[] = null;
+    // Skip ID and numFrames.
+    // TODO: check if numFrames or the real number of ShowFrame tags wins.
+    stream.pos += 4;
     while (stream.pos < spriteTagEnd) {
       var tagCodeAndLength = dataView.getUint16(stream.pos, true);
       var tagCode = tagCodeAndLength >> 6;
@@ -850,7 +860,7 @@ module Shumway {
       }
       if (stream.pos + tagLength > spriteTagEnd) {
         Debug.warning("DefineSprite child tags exceed DefineSprite tag length and are dropped");
-        return;
+        break;
       }
       if (ControlTags[tagCode]) {
         commands.push(new UnparsedTag(tagCode, stream.pos, tagLength));
@@ -875,12 +885,18 @@ module Shumway {
         continue;
       } else if (tagCode === SWFTag.CODE_SHOW_FRAME) {
         frames.push(new SWFFrame(label, commands, actionBlocks, initActionBlocks, null));
+        label = null;
         commands = [];
+        actionBlocks = null;
+        initActionBlocks = null;
       } else if (tagCode = SWFTag.CODE_END) {
         stream.pos = spriteTagEnd;
+        break;
       }
       stream.pos += tagLength;
+      release || assert(stream.pos <= spriteTagEnd);
     }
+    return timeline;
   }
 
   export class SWFFrame {
@@ -989,6 +1005,10 @@ module Shumway {
         break;
       case SwfTag.CODE_DEFINE_SOUND:
         symbol = Shumway.SWF.Parser.defineSound(swfTag, symbols);
+        break;
+      case SWFTag.CODE_DEFINE_SPRITE:
+        // Sprites are fully defined at this point.
+        symbol = swfTag;
         break;
       case SwfTag.CODE_DEFINE_BINARY_DATA:
         symbol = {

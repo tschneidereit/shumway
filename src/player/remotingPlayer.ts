@@ -131,7 +131,7 @@ module Shumway.Remoting.Player {
         var textures = graphics.getUsedTextures();
         var numTextures = textures.length;
         for (var i = 0; i < numTextures; i++) {
-          this.writeBitmapData(textures[i]);
+          textures[i] && this.writeBitmapData(textures[i]);
         }
         this.output.writeInt(MessageTag.UpdateGraphics);
         this.output.writeInt(graphics._id);
@@ -140,7 +140,7 @@ module Shumway.Remoting.Player {
         this._writeAsset(graphics.getGraphicsData().toPlainObject());
         this.output.writeInt(numTextures);
         for (var i = 0; i < numTextures; i++) {
-          this.output.writeInt(textures[i]._id);
+          this.output.writeInt(textures[i] ? textures[i]._id : -1);
         }
         graphics._isDirty = false;
       }

@@ -530,7 +530,7 @@ module Shumway.GFX {
       // Wait to deserialize paths until all textures have been loaded.
       var textures = this._textures;
       for (var i = 0; i < textures.length; i++) {
-        if (textures[i].hasFlags(NodeFlags.Loading)) {
+        if (textures[i] && textures[i].hasFlags(NodeFlags.Loading)) {
           return;
         }
       }
