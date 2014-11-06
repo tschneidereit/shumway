@@ -143,39 +143,38 @@ module Shumway.SWF.Parser.LowLevel {
     return $;
   }
 
-  export function defineImage($bytes, $stream, $, swfVersion, tagCode) {
+  export function defineImage($bytes: Uint8Array, $stream: Stream, tagCode: number,
+                              tagEnd: number, jpegTables: Uint8Array) {
     var imgData;
-    $ || ($ = {});
-    $.id = readUi16($bytes, $stream);
+    var tag: any = {};
+    tag.id = readUi16($bytes, $stream);
     if (tagCode > 21) {
       var alphaDataOffset = readUi32($bytes, $stream);
       if (tagCode === 90) {
-        $.deblock = readFixed8($bytes, $stream);
+        tag.deblock = readFixed8($bytes, $stream);
       }
-      imgData = $.imgData = readBinary($bytes, $stream, alphaDataOffset, true);
-      $.alphaData = readBinary($bytes, $stream, 0, true);
+      imgData = tag.imgData = readBinary($bytes, $stream, alphaDataOffset, true);
+      tag.alphaData = readBinary($bytes, $stream, tagEnd - $stream.pos, true);
     }
     else {
-      imgData = $.imgData = readBinary($bytes, $stream, 0, true);
+      imgData = tag.imgData = readBinary($bytes, $stream, tagEnd - $stream.pos, true);
     }
     switch (imgData[0] << 8 | imgData[1]) {
       case 65496:
       case 65497:
-        $.mimeType = "image/jpeg";
+        tag.mimeType = "image/jpeg";
         break;
       case 35152:
-        $.mimeType = "image/png";
+        tag.mimeType = "image/png";
         break;
       case 18249:
-        $.mimeType = "image/gif";
+        tag.mimeType = "image/gif";
         break;
       default:
-        $.mimeType = "application/octet-stream";
+        tag.mimeType = "application/octet-stream";
     }
-    if (tagCode === 6) {
-      $.incomplete = 1;
-    }
-    return $;
+    tag.jpegTables = tagCode === 6 ? jpegTables : null;
+    return tag;
   }
 
   function defineButton($bytes, $stream, $, swfVersion, tagCode) {
@@ -240,8 +239,7 @@ module Shumway.SWF.Parser.LowLevel {
       if (!!actionOffset) {
         var $56 = $.buttonActions = [];
         do {
-          var $57 = {};
-          buttonCondAction($bytes, $stream, $57, swfVersion, tagCode);
+          var $57 = buttonCondAction($bytes, $stream);
           $56.push($57);
         } while ($stream.remaining() > 0);
       }
@@ -252,7 +250,7 @@ module Shumway.SWF.Parser.LowLevel {
   function defineJPEGTables($bytes, $stream, $, swfVersion, tagCode) {
     $ || ($ = {});
     $.id = 0;
-    $.imgData = readBinary($bytes, $stream, 0, false);
+    $.imgData = readBinary($bytes, $stream, 0, true);
     $.mimeType = "application/octet-stream";
     return $;
   }
@@ -1345,15 +1343,17 @@ module Shumway.SWF.Parser.LowLevel {
     return {eob: eob};
   }
 
-  function buttonCondAction($bytes, $stream, $, swfVersion, tagCode) {
+  function buttonCondAction($bytes, $stream) {
     var tagSize = readUi16($bytes, $stream);
     var conditions = readUi16($bytes, $stream);
-    // The 7 upper bits hold a key code the button should respond to.
-    $.keyCode = (conditions & 0xfe00) >> 9;
-    // The lower 9 bits hold state transition flags. See the enum in AVM1Button for details.
-    $.stateTransitionFlags = conditions & 0x1ff;
-    // If no tagSize is given, pass `0` to readBinary.
-    $.actionsData = readBinary($bytes, $stream, (tagSize || 4) - 4, false);
+    return {
+      // The 7 upper bits hold a key code the button should respond to.
+      keyCode: (conditions & 0xfe00) >> 9,
+      // The lower 9 bits hold state transition flags. See the enum in AVM1Button for details.
+      stateTransitionFlags: conditions & 0x1ff,
+      // If no tagSize is given, pass `0` to readBinary.
+      actionsData: readBinary($bytes, $stream, (tagSize || 4) - 4, false)
+    };
   }
 
   function shape($bytes, $stream, $, swfVersion, tagCode) {
@@ -1376,7 +1376,7 @@ module Shumway.SWF.Parser.LowLevel {
     } while (!eos);
   }
 
-  export var tagHandler:any = {
+  export var tagHandlers: any = {
     /* End */                            0: undefined,
     /* ShowFrame */                      1: undefined,
     /* DefineShape */                    2: defineShape,
@@ -1445,22 +1445,20 @@ module Shumway.SWF.Parser.LowLevel {
   };
 
 
-  export function readHeader($bytes, $stream, $) {
-    $ || ($ = {});
-    var $0: any = $.bbox = {};
+  export function readHeader($bytes, $stream) {
     var bits = readUb($bytes, $stream, 5);
     var xMin = readSb($bytes, $stream, bits);
     var xMax = readSb($bytes, $stream, bits);
     var yMin = readSb($bytes, $stream, bits);
     var yMax = readSb($bytes, $stream, bits);
-    $0.xMin = xMin;
-    $0.xMax = xMax;
-    $0.yMin = yMin;
-    $0.yMax = yMax;
     align($bytes, $stream);
     var frameRateFraction = readUi8($bytes, $stream);
-    $.frameRate = readUi8($bytes, $stream) + frameRateFraction / 256;
-    $.frameCount = readUi16($bytes, $stream);
-    return $;
+    var frameRate = readUi8($bytes, $stream) + frameRateFraction / 256;
+    var frameCount = readUi16($bytes, $stream);
+    return {
+      frameRate: frameRate,
+      frameCount: frameCount,
+      bounds: new Shumway.Bounds(xMin, yMin, xMax, yMax)
+    };
   }
 }

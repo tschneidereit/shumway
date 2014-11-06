@@ -434,7 +434,7 @@ module Shumway.AVM2.AS.flash.display {
     createAnimatedDisplayObject(state: Shumway.Timeline.AnimationState,
                                 callConstructor: boolean): DisplayObject {
       var symbol = state.symbol;
-      if (!symbol && useNewParserOption.value) {
+      if (!symbol) {
         var ownSymbol = <Timeline.SpriteSymbol>this._symbol;
         symbol = <Timeline.DisplaySymbol>ownSymbol.loaderInfo.getSymbolById(state.symbolId);
         state.symbol = symbol;

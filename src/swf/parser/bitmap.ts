@@ -205,7 +205,8 @@ module Shumway.SWF.Parser {
       height: tag.height,
       mimeType: 'application/octet-stream',
       data: data,
-      dataType: type
+      dataType: type,
+      image: null
     };
   }
 }

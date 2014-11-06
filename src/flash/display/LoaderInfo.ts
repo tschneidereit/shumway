@@ -66,6 +66,7 @@ module Shumway.AVM2.AS.flash.display {
       this._uncaughtErrorEvents = null;
       this._allowCodeExecution = true;
       this._dictionary = [];
+      this._abcBlocksLoaded = 0;
       this._avm1Context = null;
 
       this._colorRGBA = 0xFFFFFFFF;
@@ -119,6 +120,7 @@ module Shumway.AVM2.AS.flash.display {
     _loader: flash.display.Loader;
     _content: flash.display.DisplayObject;
     _bytes: flash.utils.ByteArray;
+    _abcBlocksLoaded: number;
     _uncaughtErrorEvents: flash.events.UncaughtErrorEvents;
 
     /**
@@ -262,51 +264,57 @@ module Shumway.AVM2.AS.flash.display {
 
     getSymbolById(id: number): Shumway.Timeline.Symbol {
       var symbol = this._dictionary[id];
-      if (!symbol) {
-        var data = this._file.getSymbol(id);
-        // TODO: replace this switch with a table lookup.
-        switch (data.type) {
-          case 'shape':
-            symbol = Timeline.ShapeSymbol.FromData(data, this);
-            break;
-          case 'morphshape':
-            symbol = Timeline.MorphShapeSymbol.FromData(data, this);
-            break;
-          case 'image':
-            symbol = Timeline.BitmapSymbol.FromData(data);
-            break;
-          case 'label':
-          case 'text':
-            symbol = Timeline.TextSymbol.FromTextData(data);
-            break;
-          case 'button':
-            symbol = Timeline.ButtonSymbol.FromData(data, this);
-            break;
-          case 'sprite':
-            symbol = Timeline.SpriteSymbol.FromData(data, this);
-            break;
-          case 'font':
-            symbol = Timeline.FontSymbol.FromData(data);
-            var font = flash.text.Font.initializeFrom(symbol);
-            flash.text.Font.instanceConstructorNoInitialize.call(font);
-            break;
-          case 'sound':
-            symbol = Timeline.SoundSymbol.FromData(data);
-            break;
-          case 'binary':
-            symbol = Timeline.BinarySymbol.FromData(data);
-            break;
-        }
-        release || assert (symbol, "Unknown symbol type.");
-        this._dictionary[id] = symbol;
+      if (symbol) {
+        return symbol;
       }
-      return this._dictionary[id] || this._file.getSymbol(id);
+      var data = this._file.getSymbol(id);
+      if (!data) {
+        // It's entirely valid not to have symbols defined.
+        Debug.warning("Unknown symbol requested: " + id);
+        return null;
+      }
+      // TODO: replace this switch with a table lookup.
+      switch (data.type) {
+        case 'shape':
+          symbol = Timeline.ShapeSymbol.FromData(data, this);
+          break;
+        case 'morphshape':
+          symbol = Timeline.MorphShapeSymbol.FromData(data, this);
+          break;
+        case 'image':
+          symbol = Timeline.BitmapSymbol.FromData(data.definition);
+          break;
+        case 'label':
+        case 'text':
+          symbol = Timeline.TextSymbol.FromTextData(data);
+          break;
+        case 'button':
+          symbol = Timeline.ButtonSymbol.FromData(data, this);
+          break;
+        case 'sprite':
+          symbol = Timeline.SpriteSymbol.FromData(data, this);
+          break;
+        case 'font':
+          symbol = Timeline.FontSymbol.FromData(data);
+          var font = flash.text.Font.initializeFrom(symbol);
+          flash.text.Font.instanceConstructorNoInitialize.call(font);
+          break;
+        case 'sound':
+          symbol = Timeline.SoundSymbol.FromData(data);
+          break;
+        case 'binary':
+          symbol = Timeline.BinarySymbol.FromData(data);
+          break;
+      }
+      release || assert(symbol, "Unknown symbol type " + data.type);
+      this._dictionary[id] = symbol;
+      return symbol;
     }
 
     getRootSymbol(): Timeline.SpriteSymbol {
       var symbol = <Timeline.SpriteSymbol>this._dictionary[0];
       if (!symbol) {
-        symbol = new Timeline.SpriteSymbol({id: 0, className: this._file.symbolsMap[0]}, this);
+        symbol = new Timeline.SpriteSymbol({id: 0, className: this._file.symbolClassesMap[0]}, this);
         symbol.isRoot = true;
         symbol.isAVM1Object = this._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2;
         symbol.numFrames = this._file.frameCount;
@@ -324,7 +332,6 @@ module Shumway.AVM2.AS.flash.display {
       var frame = sprite.frames[index];
       return {
         labelName: frame.labelName,
-        scripts: frame.scripts,
         actionBlocks: frame.actionBlocks,
         initActionBlocks: frame.initActionBlocks,
         exports: frame.exports,
