@@ -376,7 +376,7 @@ module Shumway.Shell {
       case SwfTag.CODE_DEFINE_SHAPE2:
       case SwfTag.CODE_DEFINE_SHAPE3:
       case SwfTag.CODE_DEFINE_SHAPE4:
-        symbol = Shumway.SWF.Parser.defineShape(tag, symbols);
+        symbol = Shumway.SWF.Parser.defineShape(tag);
         break;
       case SwfTag.CODE_DEFINE_SOUND:
         symbol = Shumway.SWF.Parser.defineSound(tag, symbols);
