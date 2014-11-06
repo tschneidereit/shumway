@@ -578,7 +578,8 @@ module Shumway.GFX {
       leaveTimeline("RenderableShape.render");
     }
 
-    protected _deserializePaths(data: ShapeData, context: CanvasRenderingContext2D, ratio: number): StyledPath[] {
+    protected _deserializePaths(data: ShapeData, context: CanvasRenderingContext2D,
+                                ratio: number): StyledPath[] {
       release || assert(data ? !this._paths : this._paths);
       enterTimeline("RenderableShape.deserializePaths");
       // TODO: Optimize path handling to use only one path if possible.
@@ -762,9 +763,14 @@ module Shumway.GFX {
       var repeat = styles.readBoolean() ? 'repeat' : 'no-repeat';
       var smooth = styles.readBoolean();
       var texture = this._textures[textureIndex];
-      release || assert(texture._canvas);
-      var fillStyle: CanvasPattern = context.createPattern(texture._canvas, repeat);
-      fillStyle.setTransform(fillTransform.toSVGMatrix());
+      var fillStyle: CanvasPattern;
+      if (texture) {
+        fillStyle = context.createPattern(texture._canvas, repeat);
+        fillStyle.setTransform(fillTransform.toSVGMatrix());
+      } else {
+        // TODO: Wire up initially-missing textures that become available later.
+        fillStyle = null;
+      }
       return {style: fillStyle, smoothImage: smooth};
     }
 

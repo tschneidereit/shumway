@@ -103,6 +103,12 @@ module Shumway.Timeline {
       var textures = this.graphics.getUsedTextures();
       for (var i = 0; i < dependencies.length; i++) {
         var symbol = <BitmapSymbol>loaderInfo.getSymbolById(dependencies[i]);
+        if (!symbol) {
+          warning("Bitmap symbol " + dependencies[i] + " required by shape, but not defined.");
+          textures.push(null);
+          // TODO: handle null-textures from invalid SWFs correctly.
+          continue;
+        }
         textures.push(symbol.getSharedInstance());
       }
     }
@@ -129,6 +135,7 @@ module Shumway.Timeline {
   export class BitmapSymbol extends DisplaySymbol {
     width: number;
     height: number;
+    image: any; // Image, but tsc doesn't like that.
     data: Uint8Array;
     type: ImageType;
 
@@ -142,6 +149,7 @@ module Shumway.Timeline {
       var symbol = new BitmapSymbol(data);
       symbol.width = data.width;
       symbol.height = data.height;
+      symbol.image = data.image;
       symbol.data = data.data;
       switch (data.mimeType) {
         case "application/octet-stream":
@@ -325,18 +333,14 @@ module Shumway.Timeline {
         symbol.isAVM1Object = true;
         symbol.avm1Context = loaderInfo._avm1Context;
       }
-      symbol.frameScripts = useNewParserOption.value ? [] : data.frameScripts;
+      symbol.frameScripts = [];
       var frames = data.frames;
       for (var i = 0; i < frames.length; i++) {
         var frameInfo;
-        if (useNewParserOption.value) {
-          frameInfo = loaderInfo.getFrame(data, i);
-          if (frameInfo.scripts) {
-            symbol.frameScripts.push(i);
-            symbol.frameScripts.push.apply(symbol.frameScripts, frameInfo.scripts);
-          }
-        } else {
-          frameInfo = frames[i];
+        frameInfo = loaderInfo.getFrame(data, i);
+        if (frameInfo.scripts) {
+          symbol.frameScripts.push(i);
+          symbol.frameScripts.push.apply(symbol.frameScripts, frameInfo.scripts);
         }
         if (frameInfo.labelName) {
           symbol.labels.push(new flash.display.FrameLabel(frameInfo.labelName, frames.length));
@@ -520,7 +524,7 @@ module Shumway.Timeline {
             var colorTransform: flash.geom.ColorTransform = null;
             var filters: flash.filters.BitmapFilter[] = null;
             var events: any[] = null;
-            if (cmd.symbolId && !useNewParserOption.value) {
+            if (cmd.symbolId) {
               symbol = <DisplaySymbol>loaderInfo.getSymbolById(cmd.symbolId);
               if (!symbol) {
                 warning("Symbol " + cmd.symbolId + " is not defined.");

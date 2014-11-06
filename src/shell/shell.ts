@@ -351,7 +351,7 @@ module Shumway.Shell {
       case SwfTag.CODE_DEFINE_BITS_JPEG3:
       case SwfTag.CODE_DEFINE_BITS_JPEG4:
       case SwfTag.CODE_JPEG_TABLES:
-        symbol = Shumway.SWF.Parser.defineImage(tag, symbols);
+        symbol = Shumway.SWF.Parser.defineImage(tag);
         break;
       case SwfTag.CODE_DEFINE_BITS_LOSSLESS:
       case SwfTag.CODE_DEFINE_BITS_LOSSLESS2:
@@ -417,47 +417,58 @@ module Shumway.Shell {
       try {
         var buffer = read(file, "binary");
         var startSWF = dateNow();
-        Shumway.SWF.Parser.parse(buffer, {
-          oncomplete: function(result) {
-            var symbols = {};
-            var tags = result.tags;
-            var counter = new Metrics.Counter(true);
-            for (var i = 0; i < tags.length; i++) {
-              var tag = tags[i];
-              assert(tag.code !== undefined);
-              if (ignoreTag(tag.code, symbolFilters)) {
-                continue;
-              }
-              var startTag = dateNow();
-              if (!parseForDatabase) {
-                if (tag.code === SWF_TAG_CODE_DO_ABC || tag.code === SWF_TAG_CODE_DO_ABC_) {
-                    parseABC(tag.data);
-                } else {
-                    parseSymbol(tag, symbols);
-                }
-              }
-              var tagName = SwfTag[tag.code];
-              if (tagName) {
-                tagName = tagName.substring("CODE_".length);
-              } else {
-                tagName = "TAG" + tag.code;
-              }
-              counter.count(tagName, 1, dateNow() - startTag);
-            }
-            if (parseForDatabase) {
-              writer.writeLn(JSON.stringify({
-                size: buffer.byteLength,
-                time: dateNow() - startSWF,
-                name: fileNameWithoutExtension,
-                tags: counter.toJSON()
-              }, null, 0));
-            } else if (verbose) {
-              writer.enter("Tag Frequency:");
-              counter.traceSorted(writer);
-              writer.outdent();
-            }
+        var swfFile: Shumway.SWFFile;
+        var loadListener: ILoadListener = {
+          onLoadOpen: function(file: Shumway.SWFFile) {
+            swfFile = file;
+          },
+          onLoadProgress: function(update: LoadProgressUpdate) {
+          },
+          onLoadError: function() {
+          },
+          onLoadComplete: function() {
+            // TODO: re-enable all-tags parsing somehow. SWFFile isn't the right tool for that.
+          //  var symbols = {};
+          //  var tags = result.tags;
+          //  var counter = new Metrics.Counter(true);
+          //  for (var i = 0; i < tags.length; i++) {
+          //    var tag = tags[i];
+          //    assert(tag.code !== undefined);
+          //    if (ignoreTag(tag.code, symbolFilters)) {
+          //      continue;
+          //    }
+          //    var startTag = dateNow();
+          //    if (!parseForDatabase) {
+          //      if (tag.code === SWF_TAG_CODE_DO_ABC || tag.code === SWF_TAG_CODE_DO_ABC_) {
+          //        parseABC(tag.data);
+          //      } else {
+          //        parseSymbol(tag, symbols);
+          //      }
+          //    }
+          //    var tagName = SwfTag[tag.code];
+          //    if (tagName) {
+          //      tagName = tagName.substring("CODE_".length);
+          //    } else {
+          //      tagName = "TAG" + tag.code;
+          //    }
+          //    counter.count(tagName, 1, dateNow() - startTag);
+          //  }
+          //  if (parseForDatabase) {
+          //    writer.writeLn(JSON.stringify({
+          //                                    size: buffer.byteLength,
+          //                                    time: dateNow() - startSWF,
+          //                                    name: fileNameWithoutExtension,
+          //                                    tags: counter.toJSON()
+          //                                  }, null, 0));
+          //  } else if (verbose) {
+          //    writer.enter("Tag Frequency:");
+          //    counter.traceSorted(writer);
+          //    writer.outdent();
+          //  }
           }
-        });
+        };
+        var loader = new Shumway.FileLoader(loadListener);
+        loader.loadBytes(buffer);
       } catch (x) {
         writer.redLn("Cannot parse: " + file + ", reason: " + x);
         if (verbose) {
