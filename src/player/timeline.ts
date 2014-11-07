@@ -267,7 +267,77 @@ module Shumway.Timeline {
       symbol.variableName = tag.variableName;
       return symbol;
     }
+
+    /**
+     * Turns raw DefineLabel tag data into an object that's consumable as a text symbol and then
+     * passes that into `FromTextData`, returning the resulting TextSymbol.
+     *
+     * This has to be done outside the SWF parser because it relies on any used fonts being
+     * available as symbols, which isn't the case in the SWF parser.
+     */
+    static FromLabelData(data: any, loaderInfo: flash.display.LoaderInfo): TextSymbol {
+      var bounds = data.fillBounds;
+      var records = data.records;
+      var coords = data.coords = [];
+      var htmlText = '';
+      var size = 12;
+      var face = 'Times Roman';
+      var color = 0;
+      var x = 0;
+      var y = 0;
+      var codes: number[];
+      for (var i = 0; i < records.length; i++) {
+        var record = records[i];
+        if (record.eot) {
+          break;
+        }
+        if (record.hasFont) {
+          var font = <FontSymbol>loaderInfo.getSymbolById(record.fontId);
+          font || Debug.warning('Label ' + data.id + 'refers to undefined font symbol ' +
+                                record.fontId);
+          codes = font.codes;
+          size = record.fontHeight;
+          if (!font.originalSize) {
+            size /= 20;
+          }
+          face = 'swffont' + record.fontId;
+        }
+        if (record.hasColor) {
+          color = record.color >>> 8;
+        }
+        if (record.hasMoveX) {
+          x = record.moveX;
+          if (x < bounds.xMin) {
+            bounds.xMin = x;
+          }
+        }
+        if (record.hasMoveY) {
+          y = record.moveY;
+          if (y < bounds.yMin) {
+            bounds.yMin = y;
+          }
+        }
+        var text = '';
+        var entries = record.entries;
+        var j = 0;
+        var entry;
+        while ((entry = entries[j++])) {
+          var code = codes[entry.glyphIndex];
+          release || assert(code, 'undefined label glyph');
+          var char = String.fromCharCode(code);
+          text += charEscapeMap[char] || char;
+          coords.push(x, y);
+          x += entry.advance;
+        }
+        htmlText += '<font size="' + size + '" face="' + face + '"' + ' color="#' +
+                     ('000000' + color.toString(16)).slice(-6) + '">' + text + '</font>';
+      }
+      data.tag.initialText = htmlText;
+      return TextSymbol.FromTextData(data);
+    }
   }
+
+  var charEscapeMap = {'<': '&lt;', '>': '&gt;', '&' : '&amp;'};
 
   export class ButtonSymbol extends DisplaySymbol {
     upState: AnimationState = null;
@@ -361,6 +431,8 @@ module Shumway.Timeline {
     bold: boolean = false;
     italic: boolean = false;
     data: Uint8Array;
+    codes: number[];
+    originalSize: boolean;
     metrics: any;
 
     constructor(data: SymbolData) {
@@ -372,7 +444,8 @@ module Shumway.Timeline {
       symbol.name = data.name;
       symbol.bold = data.bold;
       symbol.italic = data.italic;
-      symbol.data = data.data;
+      symbol.codes = data.codes;
+      symbol.originalSize = data.originalSize;
       symbol.metrics = data.metrics;
       return symbol;
     }
