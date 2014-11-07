@@ -790,17 +790,10 @@ module Shumway.AVM2.AS.flash.display {
         this._queuedLoadUpdates.push(update);
         return;
       }
-      var rootSymbol = loaderInfo.getRootSymbol();
-      loaderInfo.bytesLoaded = update.bytesLoaded;
-      var framesLoadedDelta = update.framesLoaded - rootSymbol.frames.length;
       var abcBlocksLoadedDelta = update.abcBlocksLoaded - loaderInfo._abcBlocksLoaded;
-      if (framesLoadedDelta + abcBlocksLoadedDelta === 0) {
-        return;
-      }
       if (loaderInfo._allowCodeExecution && abcBlocksLoadedDelta > 0) {
-        var newABCBlocksOffset = abcBlocksLoadedDelta;
         var appDomain = AVM2.instance.applicationDomain;
-        for (var i = newABCBlocksOffset; i < update.abcBlocksLoaded; i++) {
+        for (var i = loaderInfo._abcBlocksLoaded; i < update.abcBlocksLoaded; i++) {
           var abcBlock = loaderInfo._file.abcBlocks[i];
           var abc = new AbcFile(abcBlock.data, abcBlock.name);
           if (abcBlock.flags) {
@@ -811,7 +804,14 @@ module Shumway.AVM2.AS.flash.display {
             // TODO: probably delay execution until playhead reaches the frame.
             appDomain.executeAbc(abc);
           }
+          loaderInfo._abcBlocksLoaded++;
         }
+      }
+      var rootSymbol = loaderInfo.getRootSymbol();
+      loaderInfo.bytesLoaded = update.bytesLoaded;
+      var framesLoadedDelta = update.framesLoaded - rootSymbol.frames.length;
+      if (framesLoadedDelta === 0) {
+        return;
       }
       if (rootSymbol.frames.length === 0) {
         // The first frames have been loaded, kick off event loop.

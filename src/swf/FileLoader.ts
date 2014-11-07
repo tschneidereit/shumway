@@ -845,9 +845,11 @@ module Shumway {
     var commands: UnparsedTag[] = [];
     var actionBlocks: Uint8Array[] = null;
     var initActionBlocks:  {spriteId: number; actionsData: Uint8Array}[] = null;
-    // Skip ID and numFrames.
+    // Skip ID.
+    stream.pos = unparsed.byteOffset + 2;
     // TODO: check if numFrames or the real number of ShowFrame tags wins.
-    stream.pos += 4;
+    timeline.frameCount = dataView.getUint16(stream.pos, true);
+    stream.pos += 2;
     while (stream.pos < spriteTagEnd) {
       var tagCodeAndLength = dataView.getUint16(stream.pos, true);
       var tagCode = tagCodeAndLength >> 6;
