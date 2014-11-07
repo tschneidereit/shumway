@@ -1022,7 +1022,7 @@ module Shumway {
         break;
       case SwfTag.CODE_DEFINE_TEXT:
       case SwfTag.CODE_DEFINE_TEXT2:
-        symbol = Shumway.SWF.Parser.defineLabel(swfTag, symbols);
+        symbol = Shumway.SWF.Parser.defineLabel(swfTag);
         break;
       default:
         release || assert('Invalid tag reached in defineSymbol. Code: ' + swfTag.code + ' (' +

@@ -285,6 +285,8 @@ module Shumway.AVM2.AS.flash.display {
           symbol = Timeline.BitmapSymbol.FromData(data.definition);
           break;
         case 'label':
+          symbol = Timeline.TextSymbol.FromLabelData(data, this);
+          break;
         case 'text':
           symbol = Timeline.TextSymbol.FromTextData(data);
           break;
@@ -295,6 +297,10 @@ module Shumway.AVM2.AS.flash.display {
           symbol = Timeline.SpriteSymbol.FromData(data, this);
           break;
         case 'font':
+          // Fonts are eagerly parsed in non-Firefox browsers and have their data in `definition`.
+          if (data.definition) {
+            data = data.definition;
+          }
           symbol = Timeline.FontSymbol.FromData(data);
           var font = flash.text.Font.initializeFrom(symbol);
           flash.text.Font.instanceConstructorNoInitialize.call(font);
