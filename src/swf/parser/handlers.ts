@@ -345,7 +345,7 @@ module Shumway.SWF.Parser.LowLevel {
     return $;
   }
 
-  function soundStreamHead($bytes, $stream, $, swfVersion, tagCode) {
+  function soundStreamHead($bytes, $stream, $) {
     $ || ($ = {});
     var playbackFlags = readUi8($bytes, $stream);
     $.playbackRate = playbackFlags >> 2 & 3;
@@ -363,24 +363,23 @@ module Shumway.SWF.Parser.LowLevel {
     return $;
   }
 
-  function soundStreamBlock($bytes, $stream, $, swfVersion, tagCode) {
-    $ || ($ = {});
-    $.data = readBinary($bytes, $stream, 0, false);
-    return $;
+  function soundStreamBlock($bytes: Uint8Array, $stream: Stream, tagEnd: number) {
+    return {data: readBinary($bytes, $stream, tagEnd - $stream.pos, true)};
   }
 
-  export function defineBitmap($bytes, $stream, $, swfVersion, tagCode) {
-    $ || ($ = {});
-    $.id = readUi16($bytes, $stream);
-    var format = $.format = readUi8($bytes, $stream);
-    $.width = readUi16($bytes, $stream);
-    $.height = readUi16($bytes, $stream);
-    $.hasAlpha = tagCode === 36;
+  export function defineBitmap($bytes: Uint8Array, $stream: Stream, tagCode: number,
+                               tagEnd: number) {
+    var tag: any = {};
+    tag.id = readUi16($bytes, $stream);
+    var format = tag.format = readUi8($bytes, $stream);
+    tag.width = readUi16($bytes, $stream);
+    tag.height = readUi16($bytes, $stream);
+    tag.hasAlpha = tagCode === 36;
     if (format === 3) {
-      $.colorTableSize = readUi8($bytes, $stream);
+      tag.colorTableSize = readUi8($bytes, $stream);
     }
-    $.bmpData = readBinary($bytes, $stream, 0, false);
-    return $;
+    tag.bmpData = readBinary($bytes, $stream, tagEnd - $stream.pos, true);
+    return tag;
   }
 
   function defineText($bytes, $stream, $, swfVersion, tagCode) {

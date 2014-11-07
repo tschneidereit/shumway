@@ -274,7 +274,12 @@ module Shumway {
         condition = true;
       }
       if (!condition) {
-        Debug.error(message.toString());
+        if (typeof console !== 'undefined' && 'assert' in console) {
+          console.assert(false, message);
+          throw new Error(message);
+        } else {
+          Debug.error(message.toString());
+        }
       }
     }
 
