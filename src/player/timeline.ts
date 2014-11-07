@@ -499,6 +499,10 @@ module Shumway.Timeline {
       var states: Shumway.Map<AnimationState> = this._stateAtDepth = Object.create(null);
       var soundStarts : SoundStart[] = null;
       var commands = this.commands;
+      if (!commands) {
+        this._soundStarts = null;
+        return states;
+      }
       var loaderInfo = this.loaderInfo;
       for (var i = 0; i < commands.length; i++) {
         var cmd = 'depth' in commands[i] ?
