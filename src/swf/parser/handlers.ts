@@ -356,7 +356,7 @@ module Shumway.SWF.Parser.LowLevel {
     $.streamRate = streamFlags >> 2 & 3;
     $.streamSize = streamFlags >> 1 & 1;
     $.streamType = streamFlags & 1;
-    $.samplesCount = readUi32($bytes, $stream);
+    $.samplesCount = readUi16($bytes, $stream);
     if (streamCompression == 2) {
       $.latencySeek = readSi16($bytes, $stream);
     }
