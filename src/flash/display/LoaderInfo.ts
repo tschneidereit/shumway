@@ -338,6 +338,8 @@ module Shumway.AVM2.AS.flash.display {
       var frame = sprite.frames[index];
       return {
         labelName: frame.labelName,
+        soundStreamHead: frame.soundStreamHead,
+        soundStreamBlock: frame.soundStreamBlock,
         actionBlocks: frame.actionBlocks,
         initActionBlocks: frame.initActionBlocks,
         exports: frame.exports,

@@ -19,7 +19,6 @@ module Shumway {
   import assert = Shumway.Debug.assert;
   import Parser = Shumway.SWF.Parser;
   import SwfTag = Shumway.SWF.Parser.SwfTag;
-  import createSoundStream = Shumway.SWF.Parser.createSoundStream;
 
   export class LoadProgressUpdate {
     constructor(public bytesLoaded: number,
@@ -131,24 +130,6 @@ module Shumway {
                 };
                 commitData(symbolUpdate);
                 break;
-              case SwfTag.CODE_START_SOUND:
-                commands.push(tag);
-                break;
-              case SwfTag.CODE_SOUND_STREAM_HEAD:
-                try {
-                  // TODO: make transferable
-                  soundStream = createSoundStream(tag);
-                  frame.soundStream = soundStream.info;
-                } catch (e) {
-                  // ignoring if sound stream codec is not supported
-                  // console.error('ERROR: ' + e.message);
-                }
-                break;
-              case SwfTag.CODE_SOUND_STREAM_BLOCK:
-                if (soundStream) {
-                  frame.soundStreamBlock = soundStream.decode(tag.data);
-                }
-                break;
             }
           }
         },
@@ -180,34 +161,37 @@ module Shumway {
     return null;
   }
 
-  import SWFTag = Shumway.SWF.Parser.SwfTag;
-  import ControlTags = Shumway.SWF.Parser.ControlTags;
-  import DefinitionTags = Shumway.SWF.Parser.DefinitionTags;
-  import ImageDefinitionTags = Shumway.SWF.Parser.ImageDefinitionTags;
-  import FontDefinitionTags = Shumway.SWF.Parser.FontDefinitionTags;
+  import SWFTag = Parser.SwfTag;
+  import DefinitionTags = Parser.DefinitionTags;
+  import ImageDefinitionTags = Parser.ImageDefinitionTags;
+  import FontDefinitionTags = Parser.FontDefinitionTags;
+  import ImageDefinition = Parser.ImageDefinition;
+  import ControlTags = Parser.ControlTags;
 
-  import Stream = Shumway.SWF.Stream;
-  import Inflate = Shumway.ArrayUtilities.Inflate;
-  import ImageDefinition = Shumway.SWF.Parser.ImageDefinition;
+  import Stream = SWF.Stream;
+  import Inflate = ArrayUtilities.Inflate;
 
   export class SWFFile {
     isCompressed: boolean;
     swfVersion: number;
     useAVM1: boolean;
-    bytesLoaded: number;
-    bytesTotal: number;
-    bounds: Bounds;
     backgroundColor: number;
-    attributes: any; // TODO: type strongly
-    sceneAndFrameLabelData: any; // TODO: type strongly
+    bounds: Bounds;
     frameRate: number;
     frameCount: number;
+    attributes: any; // TODO: type strongly
+    sceneAndFrameLabelData: any; // TODO: type strongly
+
+    bytesLoaded: number;
+    bytesTotal: number;
     framesLoaded: number;
+
     frames: SWFFrame[];
     abcBlocks: ABCBlock[];
     dictionary: DictionaryEntry[];
-    eagerlyParsedSymbols: EagerlyParsedDictionaryEntry[];
+
     symbolClassesMap: string[];
+    eagerlyParsedSymbols: EagerlyParsedDictionaryEntry[];
     pendingSymbolsPromise: Promise<any>;
 
     private uncompressedLength: number;
@@ -216,9 +200,12 @@ module Shumway {
     private dataView: DataView;
     private dataStream: Stream;
     private decompressor: Inflate;
-    private endTagEncountered: boolean;
     private jpegTables: any;
+    private endTagEncountered: boolean;
+
     private currentFrameLabel: string;
+    private currentSoundStreamHead: Parser.SoundStream;
+    private currentSoundStreamBlock: Uint8Array;
     private currentDisplayListCommands: UnparsedTag[];
     private currentActionBlocks: Uint8Array[];
     private currentInitActionBlocks: InitActionBlock[];
@@ -234,25 +221,37 @@ module Shumway {
       release || assert(initialBytes[2] === 83);
       release || assert(initialBytes.length >= 30, "At least the header must be complete here.");
 
+      this.isCompressed = false;
+      this.swfVersion = 0;
+      this.useAVM1 = true;
+      this.backgroundColor = 0xffffffff;
+      this.bounds = null;
+      this.frameRate = 0;
+      this.frameCount = 0;
+      this.attributes = null;
+      this.sceneAndFrameLabelData = null;
+
+      this.bytesLoaded = 0;
+      this.bytesTotal = length;
+      this.framesLoaded = 0;
+
+      this.frames = [];
+      this.abcBlocks = [];
+      this.dictionary = [];
+
+      this.symbolClassesMap = [];
+      this.eagerlyParsedSymbols = [];
+      this.pendingSymbolsPromise = null;
+      this.jpegTables = null;
+
       this.currentFrameLabel = null;
+      this.currentSoundStreamHead = null;
+      this.currentSoundStreamBlock = null;
       this.currentDisplayListCommands = null;
       this.currentActionBlocks = null;
       this.currentInitActionBlocks = null;
       this.currentExports = null;
-      this.jpegTables = null;
-      this.dictionary = [];
-      this.eagerlyParsedSymbols = [];
-      this.symbolClassesMap = [];
-      this.frames = [];
-      this.abcBlocks = [];
-      this.framesLoaded = 0;
-      this.bytesTotal = length;
-      this.attributes = null;
-      this.sceneAndFrameLabelData = null;
-      this.useAVM1 = true;
-      this.backgroundColor = 0xffffffff;
       this.endTagEncountered = false;
-      this.pendingSymbolsPromise = null;
       this.readHeaderAndInitialize(initialBytes);
     }
 
@@ -379,7 +378,14 @@ module Shumway {
         }
         this.dataStream.pos = position;
         this.scanTag(tagCode, tagLength);
-        release || assert(this.dataStream.pos === position + tagLength);
+        release || assert(this.dataStream.pos <= position + tagLength);
+        if (this.dataStream.pos < position + tagLength) {
+          var consumedBytes = this.dataStream.pos - position;
+          Debug.warning('Parsing ' + SWFTag[tagCode] + ' consumed ' +
+                        consumedBytes + ' of ' + tagLength + ' bytes. (' +
+                        (tagLength - consumedBytes) + ' left)');
+          this.dataStream.pos = position + tagLength;
+        }
         if (this.endTagEncountered) {
           return;
         }
@@ -432,15 +438,17 @@ module Shumway {
         this.decodeEmbeddedImage(tagCode, tagLength, byteOffset);
         return;
       }
-      if (!inFirefox && FontDefinitionTags[tagCode]) {
-        // Firefox decodes fonts synchronously, so we can do it when the font is used the first
-        // time. For other browsers, decode it eagerly so it's guaranteed to be available on use.
+      if (FontDefinitionTags[tagCode]) {
         this.decodeEmbeddedFont(tagCode, tagLength, byteOffset);
         return;
       }
       if (DefinitionTags[tagCode]) {
         this.addLazySymbol(tagCode, byteOffset, tagLength);
         this.jumpToNextTag(tagLength);
+        return;
+      }
+      if (ControlTags[tagCode]) {
+        this.addControlTag(tagCode, byteOffset, tagLength);
         return;
       }
 
@@ -512,18 +520,13 @@ module Shumway {
           }
           this.jumpToNextTag(tagLength);
           break;
-        case SWFTag.CODE_PLACE_OBJECT:
-        case SWFTag.CODE_PLACE_OBJECT2:
-        case SWFTag.CODE_PLACE_OBJECT3:
-        case SWFTag.CODE_REMOVE_OBJECT:
-        case SWFTag.CODE_REMOVE_OBJECT2:
         case SWFTag.CODE_SOUND_STREAM_HEAD:
         case SWFTag.CODE_SOUND_STREAM_HEAD2:
+          var soundStreamTag = Parser.LowLevel.soundStreamHead(this.data, this.dataStream);
+          this.currentSoundStreamHead = Parser.SoundStream.FromTag(soundStreamTag);
+          break;
         case SWFTag.CODE_SOUND_STREAM_BLOCK:
-        case SWFTag.CODE_START_SOUND:
-        case SWFTag.CODE_START_SOUND2:
-        case SWFTag.CODE_VIDEO_FRAME:
-          this.addControlTag(tagCode, byteOffset, tagLength);
+          this.currentSoundStreamBlock = this.data.subarray(stream.pos, stream.pos += tagLength);
           break;
         case SWFTag.CODE_FRAME_LABEL:
           var tagEnd = stream.pos + tagLength;
@@ -553,25 +556,28 @@ module Shumway {
           }
           stream.pos = tagEnd;
           break;
-        case SWFTag.CODE_CSM_TEXT_SETTINGS:
         case SWFTag.CODE_DEFINE_BUTTON_CXFORM:
         case SWFTag.CODE_DEFINE_BUTTON_SOUND:
-        case SWFTag.CODE_DEFINE_FONT_ALIGN_ZONES:
         case SWFTag.CODE_DEFINE_FONT_INFO:
         case SWFTag.CODE_DEFINE_FONT_INFO2:
-        case SWFTag.CODE_DEFINE_FONT_NAME:
         case SWFTag.CODE_DEFINE_SCALING_GRID:
         case SWFTag.CODE_IMPORT_ASSETS:
         case SWFTag.CODE_IMPORT_ASSETS2:
+          Debug.warning('Unsupported tag encountered ' + tagCode + ': ' + SWFTag[tagCode]);
+          this.jumpToNextTag(tagLength);
+          break;
+        // These tags should be supported at some point, but for now, we ignore them.
+        case SWFTag.CODE_CSM_TEXT_SETTINGS:
+        case SWFTag.CODE_DEFINE_FONT_ALIGN_ZONES:
         case SWFTag.CODE_SCRIPT_LIMITS:
         case SWFTag.CODE_SET_TAB_INDEX:
-          Debug.warning('Unsupported tag encountered ' + tagCode + ': ' + SWFTag[tagCode]);
           this.jumpToNextTag(tagLength);
           break;
         // These tags are used by the player, but not relevant to us.
         case SWFTag.CODE_ENABLE_DEBUGGER:
         case SWFTag.CODE_ENABLE_DEBUGGER2:
         case SWFTag.CODE_DEBUG_ID:
+        case SWFTag.CODE_DEFINE_FONT_NAME:
         case SWFTag.CODE_PRODUCT_INFO:
         case SWFTag.CODE_METADATA:
         case SWFTag.CODE_PROTECT:
@@ -597,7 +603,6 @@ module Shumway {
           Debug.warning('Tag not handled by the parser: ' + tagCode + ': ' + SWFTag[tagCode]);
           this.jumpToNextTag(tagLength);
       }
-      return;
     }
 
     private jumpToNextTag(currentTagLength: number) {
@@ -610,13 +615,18 @@ module Shumway {
       }
       this.frames.push(new SWFFrame(this.currentFrameLabel,
                                     this.currentDisplayListCommands,
+                                    this.currentSoundStreamHead,
+                                    this.currentSoundStreamBlock,
                                     this.currentActionBlocks,
                                     this.currentInitActionBlocks,
                                     this.currentExports));
       this.currentFrameLabel = null;
       this.currentDisplayListCommands = null;
+      this.currentSoundStreamHead = null;
+      this.currentSoundStreamBlock = null;
       this.currentActionBlocks = null;
       this.currentInitActionBlocks = null;
+      this.currentExports = null;
     }
 
     private setFileAttributes(tagLength: number) {
@@ -683,6 +693,8 @@ module Shumway {
                                                     'font', definition);
       this.eagerlyParsedSymbols[symbol.id] = symbol;
       Shumway.registerCSSFont(definition.id, definition.data);
+      // Firefox decodes fonts synchronously, so we don't need to delay other processing until it's
+      // done. For other browsers, delay for a time that should be enough in all cases.
       setTimeout(this.markSymbolAsDecoded.bind(this, symbol), 400);
     }
 
@@ -728,6 +740,7 @@ module Shumway {
 
   function parseSpriteTimeline(unparsed: DictionaryEntry, data: Uint8Array, stream: Stream,
                                dataView: DataView, useAVM1: boolean) {
+    SWF.enterTimeline("parseSpriteTimeline");
     var timeline: any = {
       id: unparsed.id,
       type: 'sprite',
@@ -737,11 +750,13 @@ module Shumway {
     var frames = timeline.frames;
     var label: string = null;
     var commands: UnparsedTag[] = [];
+    var soundStreamHead: Parser.SoundStream = null;
+    var soundStreamBlock: Uint8Array = null;
     var actionBlocks: Uint8Array[] = null;
     var initActionBlocks:  {spriteId: number; actionsData: Uint8Array}[] = null;
     // Skip ID.
     stream.pos = unparsed.byteOffset + 2;
-    // TODO: check if numFrames or the real number of ShowFrame tags wins.
+    // TODO: check if numFrames or the real number of ShowFrame tags wins. (Probably the former.)
     timeline.frameCount = dataView.getUint16(stream.pos, true);
     stream.pos += 2;
     while (stream.pos < spriteTagEnd) {
@@ -758,50 +773,73 @@ module Shumway {
         Debug.warning("DefineSprite child tags exceed DefineSprite tag length and are dropped");
         break;
       }
-      if (ControlTags[tagCode]) {
+
+      if (Parser.ControlTags[tagCode]) {
         commands.push(new UnparsedTag(tagCode, stream.pos, tagLength));
-      } else if (tagCode === SWFTag.CODE_DO_ACTION && useAVM1) {
-        if (!actionBlocks) {
-          actionBlocks = [];
-        }
-        actionBlocks.push(data.subarray(stream.pos, stream.pos + tagLength));
-      } else if (tagCode === SWFTag.CODE_DO_INIT_ACTION && useAVM1) {
-        if (!initActionBlocks) {
-          initActionBlocks = [];
-        }
-        var spriteId = dataView.getUint16(stream.pos, true);
-        stream.pos += 2;
-        var actionsData = data.subarray(stream.pos, stream.pos + tagLength);
-        initActionBlocks.push({spriteId: spriteId, actionsData: actionsData});
-      } else if (tagCode === SWFTag.CODE_FRAME_LABEL) {
-        var tagEnd = stream.pos + tagLength;
-        label = Parser.readString(data, stream, 0);
-        // TODO: support SWF6+ anchors.
-        stream.pos = tagEnd;
         continue;
-      } else if (tagCode === SWFTag.CODE_SHOW_FRAME) {
-        frames.push(new SWFFrame(label, commands, actionBlocks, initActionBlocks, null));
-        label = null;
-        commands = [];
-        actionBlocks = null;
-        initActionBlocks = null;
-      } else if (tagCode = SWFTag.CODE_END) {
-        stream.pos = spriteTagEnd;
-        break;
+      }
+
+      switch (tagCode) {
+        case SWFTag.CODE_DO_ACTION:
+          if (useAVM1) {
+            if (!actionBlocks) {
+              actionBlocks = [];
+            }
+            actionBlocks.push(data.subarray(stream.pos, stream.pos + tagLength));
+          }
+          break;
+        case SWFTag.CODE_DO_INIT_ACTION:
+          if (useAVM1) {
+            if (!initActionBlocks) {
+              initActionBlocks = [];
+            }
+            var spriteId = dataView.getUint16(stream.pos, true);
+            stream.pos += 2;
+            var actionsData = data.subarray(stream.pos, stream.pos + tagLength);
+            initActionBlocks.push({spriteId: spriteId, actionsData: actionsData});
+          }
+          break;
+        case SWFTag.CODE_FRAME_LABEL:
+          var tagEnd = stream.pos + tagLength;
+          label = Parser.readString(data, stream, 0);
+          // TODO: support SWF6+ anchors.
+          stream.pos = tagEnd;
+          break;
+        case SWFTag.CODE_SHOW_FRAME:
+          frames.push(new SWFFrame(label, commands, soundStreamHead, soundStreamBlock,
+                                   actionBlocks, initActionBlocks, null));
+          label = null;
+          commands = [];
+          soundStreamHead = null;
+          soundStreamBlock = null;
+          actionBlocks = null;
+          initActionBlocks = null;
+          break;
+        case SWFTag.CODE_END:
+          stream.pos = spriteTagEnd;
+          tagLength = 0;
+          break;
+        default:
+          // Ignore other tags.
       }
       stream.pos += tagLength;
       release || assert(stream.pos <= spriteTagEnd);
     }
+    SWF.leaveTimeline();
     return timeline;
   }
 
   export class SWFFrame {
     labelName: string;
     displayListCommands: UnparsedTag[];
+    soundStreamHead: Parser.SoundStream;
+    soundStreamBlock: Uint8Array;
     actionBlocks: Uint8Array[];
     initActionBlocks: InitActionBlock[];
     exports: SymbolExport[];
     constructor(labelName: string, commands: UnparsedTag[],
+                soundStreamHead: Parser.SoundStream,
+                soundStreamBlock: Uint8Array,
                 actionBlocks: Uint8Array[],
                 initActionBlocks: InitActionBlock[],
                 exports: SymbolExport[]) {
@@ -809,6 +847,8 @@ module Shumway {
       release || commands && Object.freeze(commands);
       this.displayListCommands = commands;
       release || actionBlocks && Object.freeze(actionBlocks);
+      this.soundStreamHead = soundStreamHead;
+      this.soundStreamBlock = soundStreamBlock;
       this.actionBlocks = actionBlocks;
       release || initActionBlocks && Object.freeze(initActionBlocks);
       this.initActionBlocks = initActionBlocks;

@@ -25,10 +25,11 @@ module Shumway.Timeline {
   import flash = Shumway.AVM2.AS.flash;
   import SwfTag = Shumway.SWF.Parser.SwfTag;
   import PlaceObjectFlags = Shumway.SWF.Parser.PlaceObjectFlags;
+  import SoundStream = Shumway.SWF.Parser.SoundStream;
 
   import ActionScriptVersion = flash.display.ActionScriptVersion;
 
-  export interface SymbolData {id: number; className: string};
+  export interface SymbolData {id: number; className: string}
   /**
    * TODO document
    */
@@ -549,31 +550,49 @@ module Shumway.Timeline {
    * TODO document
    */
   export class FrameDelta {
-    _stateAtDepth: Shumway.Map<AnimationState>;
-    _soundStarts: SoundStart[];
+    private _stateAtDepth: Shumway.Map<AnimationState>;
+    private _soundStarts: SoundStart[];
+    private _soundStreamHead: SoundStream;
+    private _soundStreamBlock: {data: Uint8Array};
 
     get stateAtDepth() {
       return this._stateAtDepth || this._initialize();
     }
 
     get soundStarts() {
-      if (this._soundStarts === undefined) {
+      if (this.commands) {
         this._initialize();
       }
       return this._soundStarts;
     }
 
+    // TODO: refactor streaming sound support to delay sound parsing until needed.
+    // These two fields aren't used for now, but will perhaps be helpful in the above.
+    get soundStreamHead() {
+      if (this.commands) {
+        this._initialize();
+      }
+      return this._soundStreamHead;
+    }
+
+    get soundStreamBlock() {
+      if (this.commands) {
+        this._initialize();
+      }
+      return this._soundStreamBlock;
+    }
+
     constructor(private loaderInfo: flash.display.LoaderInfo, private commands: any []) {
       this._stateAtDepth = null;
-      this._soundStarts = undefined;
+      this._soundStarts = null;
+      this._soundStreamHead = null;
+      this._soundStreamBlock = null;
     }
 
     private _initialize(): Shumway.Map<AnimationState> {
       var states: Shumway.Map<AnimationState> = this._stateAtDepth = Object.create(null);
-      var soundStarts : SoundStart[] = null;
       var commands = this.commands;
       if (!commands) {
-        this._soundStarts = null;
         return states;
       }
       var loaderInfo = this.loaderInfo;
@@ -588,10 +607,15 @@ module Shumway.Timeline {
             states[depth] = null;
             break;
           case SwfTag.CODE_START_SOUND:
-            if (!soundStarts) {
-              soundStarts = [];
-            }
+            var soundStarts = this._soundStarts || (this._soundStarts = []);
             soundStarts.push(new SoundStart(cmd.soundId, cmd.soundInfo));
+            break;
+          case SwfTag.CODE_SOUND_STREAM_HEAD:
+          case SwfTag.CODE_SOUND_STREAM_HEAD2:
+            this._soundStreamHead = SoundStream.FromTag(cmd);
+            break;
+          case SwfTag.CODE_SOUND_STREAM_BLOCK:
+            this._soundStreamBlock = cmd;
             break;
           case SwfTag.CODE_PLACE_OBJECT:
           case SwfTag.CODE_PLACE_OBJECT2:
@@ -694,7 +718,6 @@ module Shumway.Timeline {
         }
 
       }
-      this._soundStarts = soundStarts;
       this.commands = null;
       return states;
     }
