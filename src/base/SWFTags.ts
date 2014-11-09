@@ -138,14 +138,6 @@ module Shumway.SWF.Parser {
     CODE_DEFINE_FONT4                      = 91
   }
 
-  export enum DefinitionSupportTags {
-    CODE_JPEG_TABLES                       = 8,
-    CODE_DEFINE_FONT_INFO                  = 13,
-    CODE_DEFINE_BUTTON_CXFORM              = 23,
-    CODE_DEFINE_FONT_INFO2                 = 62,
-    CODE_SYMBOL_CLASS                      = 76
-  }
-
   export enum ImageDefinitionTags {
     CODE_DEFINE_BITS                       = 6,
     CODE_DEFINE_BITS_LOSSLESS              = 20,
@@ -180,31 +172,21 @@ module Shumway.SWF.Parser {
   }
 
   export enum PlaceObjectFlags {
-    Reserved          = 0x8000,
-    OpaqueBackground  = 0x4000,
-    HasVisible        = 0x2000,
-    HasImage          = 0x1000,
-    HasClassName      = 0x0800,
-    HasCacheAsBitmap  = 0x0400,
-    HasBlendMode      = 0x0200,
-    HasFilterList     = 0x0100,
-    HasClipActions    = 0x0080,
-    HasClipDepth      = 0x0040,
-    HasName           = 0x0020,
-    HasRatio          = 0x0010,
-    HasColorTransform = 0x0008,
-    HasMatrix         = 0x0004,
+    Move              = 0x0001,
     HasCharacter      = 0x0002,
-    Move              = 0x0001
-  }
-
-  export interface ISwfTagData {
-    code: SwfTag;
-    type?: string;
-    id?: number;
-    frameCount?: number;
-    repeat?: number;
-    tags?: Array<ISwfTagData>;
-    finalTag?: boolean;
+    HasMatrix         = 0x0004,
+    HasColorTransform = 0x0008,
+    HasRatio          = 0x0010,
+    HasName           = 0x0020,
+    HasClipDepth      = 0x0040,
+    HasClipActions    = 0x0080,
+    HasFilterList     = 0x0100,
+    HasBlendMode      = 0x0200,
+    HasCacheAsBitmap  = 0x0400,
+    HasClassName      = 0x0800,
+    HasImage          = 0x1000,
+    HasVisible        = 0x2000,
+    OpaqueBackground  = 0x4000,
+    Reserved          = 0x8000
   }
 }
