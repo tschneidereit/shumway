@@ -110,34 +110,7 @@ module Shumway {
       var bytesLoaded = 0;
 
       return {
-        onstart: function (result) {
-          commitData({command: 'init', result: result});
-        },
-        onimgprogress: function (bytesTotal) {
-          // image progress events are sent with 1K increments
-          while (bytesLoaded <= bytesTotal) {
-            commitData({command: 'progress', result: {
-              bytesLoaded: bytesLoaded,
-              bytesTotal: bytesTotal,
-              open: true
-            }});
-            bytesLoaded += Math.min(bytesTotal - bytesLoaded || 1024, 1024);
-          }
-        },
         onprogress: function (result) {
-          // sending progress events with 64K increments
-          if (result.bytesLoaded - bytesLoaded >= 65536) {
-            while (bytesLoaded < result.bytesLoaded) {
-              if (bytesLoaded) {
-                commitData({command: 'progress', result: {
-                  bytesLoaded: bytesLoaded,
-                  bytesTotal: result.bytesTotal
-                }});
-              }
-              bytesLoaded += 65536;
-            }
-          }
-
           var tags = result.tags;
           for (var n = tags.length; tagsProcessed < n; tagsProcessed++) {
             var tag = tags[tagsProcessed];
@@ -148,9 +121,6 @@ module Shumway {
             }
 
             switch (tag.code) {
-              case SwfTag.CODE_DEFINE_SCENE_AND_FRAME_LABEL_DATA:
-                frame.sceneData = tag;
-                break;
               case SwfTag.CODE_DEFINE_SCALING_GRID:
                 var symbolUpdate = {
                   isSymbol: true,
@@ -160,27 +130,6 @@ module Shumway {
                   }
                 };
                 commitData(symbolUpdate);
-                break;
-              case SwfTag.CODE_DO_ABC:
-              case SwfTag.CODE_DO_ABC_DEFINE:
-                commitData({
-                             type: 'abc',
-                             flags: tag.flags,
-                             name: tag.name,
-                             data: tag.data
-                           });
-                break;
-              case SwfTag.CODE_DO_ACTION:
-                var actionBlocks = frame.actionBlocks;
-                if (actionBlocks)
-                  actionBlocks.push(tag.actionsData);
-                else
-                  frame.actionBlocks = [tag.actionsData];
-                break;
-              case SwfTag.CODE_DO_INIT_ACTION:
-                var initActionBlocks = frame.initActionBlocks ||
-                                       (frame.initActionBlocks = []);
-                initActionBlocks.push({spriteId: tag.spriteId, actionsData: tag.actionsData});
                 break;
               case SwfTag.CODE_START_SOUND:
                 commands.push(tag);
@@ -200,80 +149,9 @@ module Shumway {
                   frame.soundStreamBlock = soundStream.decode(tag.data);
                 }
                 break;
-              case SwfTag.CODE_EXPORT_ASSETS:
-                var exports = frame.exports;
-                if (exports)
-                  frame.exports = exports.concat(tag.exports);
-                else
-                  frame.exports = tag.exports.slice(0);
-                break;
-              case SwfTag.CODE_SYMBOL_CLASS:
-                var symbolClasses = frame.symbolClasses;
-                if (symbolClasses)
-                  frame.symbolClasses = symbolClasses.concat(tag.exports);
-                else
-                  frame.symbolClasses = tag.exports.slice(0);
-                break;
-              case SwfTag.CODE_FRAME_LABEL:
-                frame.labelName = tag.name;
-                break;
-              case SwfTag.CODE_PLACE_OBJECT:
-              case SwfTag.CODE_PLACE_OBJECT2:
-              case SwfTag.CODE_PLACE_OBJECT3:
-                commands.push(tag);
-                break;
-              case SwfTag.CODE_REMOVE_OBJECT:
-              case SwfTag.CODE_REMOVE_OBJECT2:
-                commands.push(tag);
-                break;
-              case SwfTag.CODE_SET_BACKGROUND_COLOR:
-                frame.bgcolor = tag.color;
-                break;
-              case SwfTag.CODE_SHOW_FRAME:
-                frame.repeat = tag.repeat;
-                frame.commands = commands;
-                frame.complete = !!tag.finalTag;
-                commitData(frame);
-                commands = [];
-                frame = { type: 'frame' };
-                break;
-              default:
-                Debug.warning('Dropped tag during parsing. Code: ' + tag.code + ' (' +
-                                                                     SwfTag[tag.code] + ')');
             }
           }
-
-          if (result.bytesLoaded >= result.bytesTotal) {
-            commitData({command: 'progress', result: {
-              bytesLoaded: result.bytesLoaded,
-              bytesTotal: result.bytesTotal
-            }});
-          }
         },
-        oncomplete: function (result) {
-          commitData(result);
-
-          var stats;
-          if (typeof result.swfVersion === 'number') {
-            // Extracting stats from the context object
-            var bbox = result.bbox;
-            stats = {
-              topic: 'parseInfo', // HACK additional field for telemetry
-              parseTime: result.parseTime,
-              bytesTotal: result.bytesTotal,
-              swfVersion: result.swfVersion,
-              frameRate: result.frameRate,
-              width: (bbox.xMax - bbox.xMin) / 20,
-              height: (bbox.yMax - bbox.yMin) / 20,
-              isAvm2: !!result.fileAttributes.doAbc
-            };
-          }
-
-          commitData({command: 'complete', stats: stats});
-        },
-        onexception: function (e) {
-          commitData({type: 'exception', message: e.message, stack: e.stack});
-        }
       };
     }
   }
@@ -404,8 +282,9 @@ module Shumway {
       this.dataStream.pos = unparsed.byteOffset;
       var tag: any = {code: unparsed.tagCode};
       var handler = Parser.LowLevel.tagHandlers[unparsed.tagCode];
-      handler(this.data, this.dataStream, tag, this.swfVersion, unparsed.tagCode);
-      release || assert(this.dataStream.pos === unparsed.byteOffset + unparsed.byteLength);
+      var tagEnd = unparsed.byteOffset + unparsed.byteLength;
+      handler(this.data, this.dataStream, tag, this.swfVersion, unparsed.tagCode, tagEnd);
+      release || assert(this.dataStream.pos === tagEnd);
       return tag;
     }
 
@@ -420,13 +299,16 @@ module Shumway {
       }
       if (this.isCompressed) {
         this.decompressor.push(bytes, true);
-        this.scanLoadedData();
       } else {
         this.processDecompressedData(bytes);
       }
+      SWF.enterTimeline('Scan loaded SWF file tags');
+      this.scanLoadedData();
+      SWF.leaveTimeline();
     }
 
     private readHeaderAndInitialize(initialBytes: Uint8Array) {
+      SWF.enterTimeline('Initialize SWFFile');
       this.isCompressed = initialBytes[0] === 67;
       this.swfVersion = initialBytes[3];
       this.uncompressedLength = readSWFLength(initialBytes);
@@ -454,7 +336,6 @@ module Shumway {
           self.decompressor.onData = self.processDecompressedData.bind(self);
         };
         this.decompressor.push(initialBytes.subarray(8), true);
-        self.scanLoadedData();
       } else {
         this.data.set(initialBytes);
         this.uncompressedLoadedLength = initialBytes.length;
@@ -464,8 +345,11 @@ module Shumway {
         this.bounds = obj.bounds;
         this.frameRate = obj.frameRate;
         this.frameCount = obj.frameCount;
-        this.scanLoadedData();
       }
+      SWF.leaveTimeline();
+      SWF.enterTimeline('Scan loaded SWF file tags');
+      this.scanLoadedData();
+      SWF.leaveTimeline();
     }
 
     private processDecompressedData(data: Uint8Array) {
@@ -740,7 +624,17 @@ module Shumway {
       if (this.attributes) {
         this.jumpToNextTag(tagLength);
       }
-      this.attributes = Parser.LowLevel.fileAttributes(this.data, this.dataStream, null);
+      var bits = this.data[this.dataStream.pos];
+      this.dataStream.pos += 4;
+      this.attributes = {
+        network: bits & 0x1,
+        relativeUrls: bits & 0x2,
+        noCrossDomainCaching: bits & 0x4,
+        doAbc: bits & 0x8,
+        hasMetadata: bits & 0x10,
+        useGpu: bits & 0x20,
+        useDirectBlit : bits & 0x40
+      };
       this.useAVM1 = !this.attributes.doAbc;
     }
 
@@ -752,7 +646,6 @@ module Shumway {
     }
 
     private addControlTag(tagCode: number, byteOffset: number, tagLength: number) {
-      Debug.warning('control tag ' + tagCode + ': ' + SWFTag[tagCode]);
       var commands = this.currentDisplayListCommands || (this.currentDisplayListCommands = []);
       commands.push(new UnparsedTag(tagCode, byteOffset, tagLength));
       this.jumpToNextTag(tagLength);
@@ -760,7 +653,6 @@ module Shumway {
     }
     private addLazySymbol(tagCode: number, byteOffset: number, tagLength: number) {
       var id = this.dataStream.getUint16(this.dataStream.pos, true);
-      console.log("Lazy symbol: " + tagCode + ' (' + SWFTag[tagCode] + '), id: ' + id);
       var symbol = new DictionaryEntry(id, tagCode, byteOffset, tagLength);
       this.dictionary[id] = symbol;
     }
@@ -779,7 +671,8 @@ module Shumway {
           break;
         case SWFTag.CODE_DEFINE_FONT4:
           tag = Shumway.SWF.Parser.LowLevel.defineFont4(this.data, this.dataStream, null,
-                                                        this.swfVersion, tagCode);
+                                                        this.swfVersion, tagCode,
+                                                        byteOffset + tagLength);
           break;
         default:
           release || Debug.assertUnreachable("Invalid tag passed to decodeEmbeddedFont: " +
@@ -802,7 +695,8 @@ module Shumway {
         definition = Shumway.SWF.Parser.defineBitmap(tag);
       } else {
         var tag = Shumway.SWF.Parser.LowLevel.defineImage(this.data, this.dataStream, tagCode,
-                                                          byteOffset + tagLength, this.jpegTables);
+                                                          byteOffset + tagLength,
+                                                          this.jpegTables);
         definition = Shumway.SWF.Parser.defineImage(tag);
       }
       var symbol = new EagerlyParsedDictionaryEntry(tag.id, tagCode, byteOffset, tagLength,
