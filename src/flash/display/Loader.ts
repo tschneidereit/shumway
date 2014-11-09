@@ -35,9 +35,6 @@ module Shumway.AVM2.AS.flash.display {
 
   import Bounds = Shumway.Bounds;
 
-  declare var SHUMWAY_ROOT: string;
-  declare var LOADER_WORKER_PATH: string;
-
   enum LoadStatus {
     Unloaded    = 0,
     Opened      = 1,
@@ -86,37 +83,25 @@ module Shumway.AVM2.AS.flash.display {
       Loader._rootLoader = null;
     }
 
-    // Called whenever the class is initialized.
     static classInitializer: any = function () {
       Loader._rootLoader = null;
       Loader._loadQueue = [];
     };
-
-    // Called whenever an instance of the class is initialized.
     static initializer: any = function() {
       var self: Loader = this;
       DisplayObject._advancableInstances.push(self);
     };
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-
-    // List of instance symbols to link.
+    static classSymbols: string [] = null;
     static instanceSymbols: string [] = null;
 
-    static WORKERS_AVAILABLE = typeof Worker !== 'undefined';
-    static LOADER_PATH = 'swf/worker.js';
-
     static runtimeStartTime: number = 0;
-
-    private static _commitFrameQueue: {loader: Loader; data: any}[] = [];
 
     /**
      * Handles the load status and dispatches progress events. This gets manually triggered in the
      * event loop to ensure the correct order of operations.
      */
     static progress() {
-      Loader.FlushCommittedFrames();
       var queue = Loader._loadQueue;
       for (var i = 0; i < queue.length; i++) {
         var instance = queue[i];
@@ -168,14 +153,6 @@ module Shumway.AVM2.AS.flash.display {
       }
     }
 
-    private static FlushCommittedFrames() {
-      var frames = Loader._commitFrameQueue;
-      for (var i = 0; i < frames.length; i++) {
-        frames[i].loader._commitFrame(frames[i].data);
-      }
-      frames.length = 0;
-    }
-
     constructor () {
       false && super();
       DisplayObjectContainer.instanceConstructorNoInitialize.call(this);
@@ -188,10 +165,6 @@ module Shumway.AVM2.AS.flash.display {
       this._loadStatus = LoadStatus.Unloaded;
 
       this._contentLoaderInfo._loader = this;
-
-      this._initialDataLoaded = new PromiseWrapper<any>();
-      this._waitForInitialData = true;
-      this._commitDataQueue = this._initialDataLoaded.promise;
 
       this._codeExecutionPromise = new PromiseWrapper<any>();
       this._progressPromise = new PromiseWrapper<any>();
@@ -242,11 +215,7 @@ module Shumway.AVM2.AS.flash.display {
     private _fileLoader: FileLoader;
     private _loadStatus: LoadStatus;
     private _loadingType: LoadingType;
-
-    private _initialDataLoaded: PromiseWrapper<any>;
-    private _waitForInitialData: boolean;
-    private _commitDataQueue: Promise<any>;
-    private _frameAssetsQueue: Array<Promise<any>>;
+    private _queuedLoadUpdates: LoadProgressUpdate[];
 
     /**
      * Resolved when both |_progressPromise| and |_codeExecutionPromise| are resolved.
@@ -275,127 +244,6 @@ module Shumway.AVM2.AS.flash.display {
       return "{" + keyValueParis.join(", ") + "}";
     }
 
-    /**
-     * Returns a promise for the requested |data|. Some of these resolve right away, returning |null|
-     * others return a promise that is suspended until some other thing is resolved, like font loading
-     * or image decoding.
-     */
-    private _commitQueuedData(data: any): Promise<any> {
-      var loaderInfo = this._contentLoaderInfo;
-      var command = data.command;
-      var suspendUntil: Promise<any> = null;
-
-      if (traceLoaderOption.value) {
-        this._writer.writeTimeLn("Executing Promise: " + this._describeData(data));
-      }
-
-      switch (command) {
-        case 'init':
-          var info = data.result;
-
-          loaderInfo.bytesLoaded = info.bytesLoaded;
-          loaderInfo._bytesTotal = info.bytesTotal;
-          loaderInfo._swfVersion = info.swfVersion;
-          loaderInfo._frameRate = info.frameRate;
-          var bbox = info.bbox;
-          loaderInfo._width = bbox.xMax - bbox.xMin;
-          loaderInfo._height = bbox.yMax - bbox.yMin;
-
-          var rootSymbol = new Timeline.SpriteSymbol({id: 0, className: null},
-                                                     this._contentLoaderInfo);
-          rootSymbol.numFrames = info.frameCount;
-          loaderInfo.registerSymbol(rootSymbol);
-
-          if (!info.fileAttributes || !info.fileAttributes.doAbc) {
-            loaderInfo._actionScriptVersion = ActionScriptVersion.ACTIONSCRIPT2;
-            suspendUntil = this._initAvm1();
-            if (traceLoaderOption.value) {
-              this._writer.writeTimeLn("Suspending until AVM1 is initialized.");
-            }
-          }
-          break;
-        case 'progress':
-          var info = data.result;
-          var bytesLoaded = info.bytesLoaded;
-          var bytesTotal = info.bytesTotal;
-          release || assert (bytesLoaded <= bytesTotal, "Loaded bytes must not exceed total bytes.");
-          if (!loaderInfo._bytesTotal) {
-            loaderInfo._bytesTotal = bytesTotal;
-          } else {
-            release || assert (loaderInfo._bytesTotal === bytesTotal, "Total bytes must not change.");
-          }
-          // Content code might rely on specific values for bytesLoaded to assume embedded assets
-          // to be available. Hence, we delay updating the value until we can guarantee availability
-          // of decoded data for all preceding bytes.
-          if (this._frameAssetsQueue) {
-            suspendUntil = Promise.all(this._frameAssetsQueue).then(function () {
-              loaderInfo.bytesLoaded = bytesLoaded;
-            });
-          } else {
-            loaderInfo.bytesLoaded = bytesLoaded;
-          }
-          this._progressPromise.resolve(undefined);
-          if (traceLoaderOption.value) {
-            this._writer.writeTimeLn("Resolving progress promise.");
-          }
-          break;
-        case 'complete':
-          if (data.stats) {
-            Telemetry.instance.reportTelemetry(data.stats);
-          }
-
-          this._fileLoader = null;
-          break;
-        case 'error':
-          this._contentLoaderInfo.dispatchEvent(new events.IOErrorEvent(
-                                                    events.IOErrorEvent.IO_ERROR));
-          break;
-        default:
-          //TODO: fix special-casing. Might have to move document class out of dictionary[0].
-          if (data.id === 0) {
-            break;
-          }
-          if (data.isSymbol) {
-            this._commitAsset(data);
-          } else if (data.type === 'frame') {
-            if (this._frameAssetsQueue) {
-              if (traceLoaderOption.value) {
-                this._writer.writeTimeLn("Suspending frame execution until all of its assets are resolved.");
-              }
-              var self = this;
-              suspendUntil = Promise.all(this._frameAssetsQueue).then(function () {
-                self._enqueueFrame(data);
-                self._frameAssetsQueue = null;
-              });
-            } else {
-              this._enqueueFrame(data);
-            }
-          } else if (data.type === 'image') {
-            this._commitImage(data);
-          } else if (data.type === 'abc') {
-            if (loaderInfo._allowCodeExecution) {
-              var appDomain = AVM2.instance.applicationDomain;
-              var abc = new AbcFile(data.data, data.name);
-              if (data.flags) {
-                // kDoAbcLazyInitializeFlag = 1 Indicates that the ABC block should not be executed
-                // immediately.
-                appDomain.loadAbc(abc);
-              } else {
-                if (this._frameAssetsQueue) {
-                  suspendUntil = Promise.all(this._frameAssetsQueue).then(function () {
-                    appDomain.executeAbc(abc);
-                  });
-                } else {
-                  appDomain.executeAbc(abc);
-                }
-              }
-            }
-          }
-          break;
-      }
-      return suspendUntil;
-    }
-
     private _initAvm1(): Promise<any> {
       var contentLoaderInfo: LoaderInfo = this._contentLoaderInfo;
       // Only the outermost AVM1 SWF gets an AVM1Context. SWFs loaded into it share that context.
@@ -404,7 +252,6 @@ module Shumway.AVM2.AS.flash.display {
         return null;
       }
       return AVM2.instance.loadAVM1().then(function() {
-        var swfVersion = contentLoaderInfo.swfVersion;
         contentLoaderInfo._avm1Context = Shumway.AVM1.AVM1Context.create(contentLoaderInfo);
       });
     }
@@ -422,35 +269,6 @@ module Shumway.AVM2.AS.flash.display {
         return;
       }
       switch (data.type) {
-        case 'shape':
-          symbol = Timeline.ShapeSymbol.FromData(data, loaderInfo);
-          break;
-        case 'morphshape':
-          symbol = Timeline.MorphShapeSymbol.FromData(data, loaderInfo);
-          break;
-        case 'image':
-          var bitmapSymbol = symbol = Timeline.BitmapSymbol.FromData(data);
-          if (bitmapSymbol.type === ImageType.PNG ||
-              bitmapSymbol.type === ImageType.GIF ||
-              bitmapSymbol.type === ImageType.JPEG) {
-            if (!this._frameAssetsQueue) {
-              this._frameAssetsQueue = [];
-            }
-            this._frameAssetsQueue.push(new Promise(function (resolve) {
-              getPlayer().decodeImage(bitmapSymbol, resolve);
-            }));
-          }
-          break;
-        case 'label':
-        case 'text':
-          symbol = Timeline.TextSymbol.FromTextData(data);
-          break;
-        case 'button':
-          symbol = Timeline.ButtonSymbol.FromData(data, loaderInfo);
-          break;
-        case 'sprite':
-          symbol = Timeline.SpriteSymbol.FromData(data, loaderInfo);
-          break;
         case 'font':
           symbol = Timeline.FontSymbol.FromData(data);
           var font = flash.text.Font.initializeFrom(symbol);
@@ -461,17 +279,6 @@ module Shumway.AVM2.AS.flash.display {
           }
 
           getPlayer().registerFont(font);
-
-          // For non-Firefox browsers, we have to wait until font is "loaded"
-          if (typeof navigator !== 'undefined' &&
-              navigator.userAgent.indexOf('Firefox') < 0) {
-            if (!this._frameAssetsQueue) {
-              this._frameAssetsQueue = [];
-            }
-            this._frameAssetsQueue.push(new Promise(function (resolve) {
-              setTimeout(resolve, 400 /* ms */);
-            }));
-          }
           break;
         case 'sound':
           symbol = Timeline.SoundSymbol.FromData(data);
@@ -484,73 +291,8 @@ module Shumway.AVM2.AS.flash.display {
       loaderInfo.registerSymbol(symbol);
     }
 
-    /**
-     * Enqueues a frame for addition to the target Sprite/MovieClip.
-     *
-     * Frames aren't immediately committed because doing so also enqueues execution of
-     * constructors of any contained timeline children. In order to preserve the correct
-     * order of their execution relative to when Loader events are dispatched and the
-     * frame event cycle is run, we just enqueue them here.
-     *
-     * The only exception is the first frame of the main root's timeline. That is committed
-     * immediately as it triggers all code execution in the first place: the event loop
-     * isn't run before.
-     */
-    private _enqueueFrame(data: any): void {
-      if (this === Loader.getRootLoader()) {
-        var isFirstFrame = !this._content;
-        this._commitFrame(data);
-
-        // TODO: the comment above says that only the root's first frame is committed eagerly.
-        // That, however, breaks content that has something like `nextFrame()` in its first frame.
-        // It's not entirely clear how to fix this issue, really.
-        if (isFirstFrame) {
-          Loader.runtimeStartTime = Date.now();
-          this._codeExecutionPromise.resolve(undefined);
-        }
-      } else {
-        Loader._commitFrameQueue.push({loader: this, data: data});
-      }
-    }
-
     private _commitFrame(data: any) {
       var loaderInfo = this._contentLoaderInfo;
-
-      // HACK: Someone should figure out how to set the color on the stage better.
-      if (data.bgcolor !== undefined) {
-        loaderInfo._colorRGBA = data.bgcolor;
-      }
-
-      if (data.symbolClasses) {
-        var symbolClasses = data.symbolClasses;
-        var appDomain = AVM2.instance.applicationDomain;
-        for (var i = 0; i < symbolClasses.length; i++) {
-          var asset = symbolClasses[i];
-          if (loaderInfo._allowCodeExecution) {
-            var symbol = loaderInfo.getSymbolById(asset.symbolId);
-            if (!symbol) {
-              warning ("Symbol " + asset.symbolId + " is not defined.");
-              continue;
-            }
-            var symbolClass = appDomain.getClass(asset.className);
-            symbolClass.defaultInitializerArgument = symbol;
-            symbol.symbolClass = symbolClass;
-          }
-        }
-      }
-
-      if (data.exports && loaderInfo._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2) {
-        var exports = data.exports;
-        for (var i = 0; i < exports.length; i++) {
-          var asset = exports[i];
-          var symbol = loaderInfo.getSymbolById(asset.symbolId);
-          if (!symbol) {
-            warning ("Symbol " + asset.symbolId + " is not defined.");
-            continue;
-          }
-          loaderInfo._avm1Context.addAsset(asset.className, asset.symbolId, symbol);
-        }
-      }
 
       var rootSymbol = <Shumway.Timeline.SpriteSymbol>loaderInfo.getSymbolById(0);
       var frames = rootSymbol.frames;
@@ -752,10 +494,43 @@ module Shumway.AVM2.AS.flash.display {
         if (!this._contentLoaderInfo._allowCodeExecution) {
           this._codeExecutionPromise.reject('Disabled by _allowCodeExecution');
         }
-        if (!this._waitForInitialData) {
-          this._initialDataLoaded.resolve(undefined);
+      }
+    }
+
+    loadBytes(data: flash.utils.ByteArray, context?: LoaderContext) {
+      // TODO: properly coerce object arguments to their types.
+      // In case this is the initial root loader, we won't have a loaderInfo object. That should
+      // only happen in the inspector when a file is loaded from a Blob, though.
+      this._contentLoaderInfo._url = (this.loaderInfo ? this.loaderInfo._url : '') +
+                                     '/[[DYNAMIC]]/' + (++Loader._embeddedContentLoadCount);
+      this._applyLoaderContext(context, null);
+      this._loadingType = LoadingType.Bytes;
+      this.close();
+      this._fileLoader = new FileLoader(this);
+      // Just passing in the bytes won't do, because the buffer can contain slop at the end.
+      this._fileLoader.loadBytes(new Uint8Array((<any>data).bytes, 0, data.length));
+
+      Loader._loadQueue.push(this);
+    }
+
+    private _applyLoaderContext(context: LoaderContext, request: flash.net.URLRequest) {
+      var parameters = {};
+      if (context && context.parameters) {
+        var contextParameters = context.parameters;
+        for (var key in contextParameters) {
+          var value = contextParameters[key];
+          if (!isString(value)) {
+            throwError('IllegalOperationError', Errors.ObjectWithStringsParamError,
+                       'LoaderContext.parameters');
+          }
+          parameters[key] = value;
         }
       }
+      if (context && context.applicationDomain) {
+        this._contentLoaderInfo._applicationDomain =
+        new ApplicationDomain(ApplicationDomain.currentDomain);
+      }
+      this._contentLoaderInfo._parameters = parameters;
     }
 
     onLoadOpen(file: SWFFile) {
@@ -783,7 +558,6 @@ module Shumway.AVM2.AS.flash.display {
       }
     }
 
-    private _queuedLoadUpdates: LoadProgressUpdate[];
     onLoadProgress(update: LoadProgressUpdate) {
       var loaderInfo = this._contentLoaderInfo;
       if (this._queuedLoadUpdates) {
@@ -861,42 +635,6 @@ module Shumway.AVM2.AS.flash.display {
     }
     onLoadError() {
       // Go away, TSLint.
-    }
-
-    loadBytes(data: flash.utils.ByteArray, context?: LoaderContext) {
-      // TODO: properly coerce object arguments to their types.
-      // In case this is the initial root loader, we won't have a loaderInfo object. That should
-      // only happen in the inspector when a file is loaded from a Blob, though.
-      this._contentLoaderInfo._url = (this.loaderInfo ? this.loaderInfo._url : '') +
-                                     '/[[DYNAMIC]]/' + (++Loader._embeddedContentLoadCount);
-      this._applyLoaderContext(context, null);
-      this._loadingType = LoadingType.Bytes;
-      this.close();
-      this._fileLoader = new FileLoader(this);
-      // Just passing in the bytes won't do, because the buffer can contain slop at the end.
-      this._fileLoader.loadBytes(new Uint8Array((<any>data).bytes, 0, data.length));
-
-      Loader._loadQueue.push(this);
-    }
-
-    private _applyLoaderContext(context: LoaderContext, request: flash.net.URLRequest) {
-      var parameters = {};
-      if (context && context.parameters) {
-        var contextParameters = context.parameters;
-        for (var key in contextParameters) {
-          var value = contextParameters[key];
-          if (!isString(value)) {
-            throwError('IllegalOperationError', Errors.ObjectWithStringsParamError,
-                       'LoaderContext.parameters');
-          }
-          parameters[key] = value;
-        }
-      }
-      if (context && context.applicationDomain) {
-        this._contentLoaderInfo._applicationDomain =
-            new ApplicationDomain(ApplicationDomain.currentDomain);
-      }
-      this._contentLoaderInfo._parameters = parameters;
     }
   }
 }
