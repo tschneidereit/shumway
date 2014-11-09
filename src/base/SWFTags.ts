@@ -156,19 +156,13 @@ module Shumway.SWF.Parser {
 
   export enum ControlTags {
     CODE_PLACE_OBJECT                      = 4,
-    CODE_REMOVE_OBJECT                     = 5,
-    CODE_START_SOUND                       = 15,
-    CODE_SOUND_STREAM_HEAD                 = 18,
-    CODE_SOUND_STREAM_BLOCK                = 19,
     CODE_PLACE_OBJECT2                     = 26,
-    CODE_REMOVE_OBJECT2                    = 28,
-    CODE_SOUND_STREAM_HEAD2                = 45,
-    CODE_DO_INIT_ACTION                    = 59,
-    CODE_VIDEO_FRAME                       = 61,
     CODE_PLACE_OBJECT3                     = 70,
-    CODE_DO_ABC_DEFINE                     = 72,
-    CODE_DO_ABC                            = 82,
-    CODE_START_SOUND2                      = 89
+    CODE_REMOVE_OBJECT                     = 5,
+    CODE_REMOVE_OBJECT2                    = 28,
+    CODE_START_SOUND                       = 15,
+    CODE_START_SOUND2                      = 89,
+    CODE_VIDEO_FRAME                       = 61,
   }
 
   export enum PlaceObjectFlags {

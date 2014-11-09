@@ -291,50 +291,6 @@ module Shumway.AVM2.AS.flash.display {
       loaderInfo.registerSymbol(symbol);
     }
 
-    private _commitFrame(data: any) {
-      var loaderInfo = this._contentLoaderInfo;
-
-      var rootSymbol = <Shumway.Timeline.SpriteSymbol>loaderInfo.getSymbolById(0);
-      var frames = rootSymbol.frames;
-      var frameIndex = frames.length;
-
-      var frame = new Timeline.FrameDelta(loaderInfo, data.commands);
-      var repeat = data.repeat;
-      while (repeat--) {
-        frames.push(frame);
-      }
-
-      var root = this._content;
-      if (!root) {
-        root = this.createContentRoot(rootSymbol, data.sceneData);
-      }
-
-      // For AVM1 SWFs directly loaded into AVM2 ones (or as the top-level SWF), unwrap the
-      // contained MovieClip here to correctly initialize frame data.
-      if (AVM1Movie.isType(root)) {
-        root = <AVM1Movie>root._children[0];
-      }
-
-      if (MovieClip.isType(root)) {
-        var rootMovie: MovieClip = <MovieClip>root;
-
-        if (data.labelName) {
-          rootMovie.addFrameLabel(data.labelName, frameIndex + 1);
-        }
-
-        if (loaderInfo._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2) {
-          avm1lib.getAVM1Object(root).addFrameActionBlocks(frameIndex, data);
-        }
-
-        if (data.soundStream) {
-          rootMovie._initSoundStream(data.soundStream);
-        }
-        if (data.soundStreamBlock) {
-          rootMovie._addSoundStreamBlock(frameIndex + 1, data.soundStreamBlock);
-        }
-      }
-    }
-
     private createContentRoot(symbol: Timeline.SpriteSymbol, sceneData) {
       var root = symbol.symbolClass.initializeFrom(symbol);
       // The root object gets a default of 'rootN', which doesn't use up a DisplayObject instance
@@ -614,6 +570,13 @@ module Shumway.AVM2.AS.flash.display {
         if (frameInfo.labelName) {
           // Frame indices are 1-based, so use frames.length after pushing the frame.
           (<MovieClip><any>root).addFrameLabel(frameInfo.labelName, frames.length);
+        }
+        if (frameInfo.soundStreamHead) {
+          (<MovieClip><any>root)._initSoundStream(frameInfo.soundStreamHead);
+        }
+        if (frameInfo.soundStreamBlock) {
+          // Frame indices are 1-based, so use frames.length after pushing the frame.
+          (<MovieClip><any>root)._addSoundStreamBlock(frames.length, frameInfo.soundStreamBlock);
         }
         if (loaderInfo._file.useAVM1) {
           avm1lib.getAVM1Object(root).addFrameActionBlocks(frames.length - 1, frameInfo);

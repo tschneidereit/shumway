@@ -63,8 +63,10 @@ module Shumway.AVM2.AS.flash.display {
       this._soundStream = new MovieClipSoundStream(streamInfo, this._mc);
     }
 
-    addSoundStreamBlock(frameNum: number, streamBlock: any) {
-      this._soundStream.appendBlock(frameNum, streamBlock);
+    addSoundStreamBlock(frameNum: number, streamBlock: Uint8Array) {
+      if (this._soundStream) {
+        this._soundStream.appendBlock(frameNum, streamBlock);
+      }
     }
 
     private _startSounds(frameNum) {
@@ -521,7 +523,7 @@ module Shumway.AVM2.AS.flash.display {
         if (soundStarts) {
           this._registerStartSounds(i + 1, soundStarts);
         }
-      }
+        }
 
       if (this._frameScripts[nextFrame]) {
         this._setFlags(DisplayObjectFlags.HasFrameScriptPending);
@@ -701,7 +703,7 @@ module Shumway.AVM2.AS.flash.display {
     }
 
     _addSoundStreamBlock(frameNum: number, streamBlock: any) {
-      this._sounds.addSoundStreamBlock(frameNum, streamBlock);
+        this._sounds.addSoundStreamBlock(frameNum, streamBlock);
     }
 
     private _syncSounds(frameNum: number) {

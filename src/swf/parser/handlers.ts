@@ -316,8 +316,8 @@ module Shumway.SWF.Parser.LowLevel {
     return $;
   }
 
-  function soundStreamHead($bytes, $stream, $) {
-    $ || ($ = {});
+  export function soundStreamHead($bytes, $stream) {
+    var $: any = {};
     var playbackFlags = readUi8($bytes, $stream);
     $.playbackRate = playbackFlags >> 2 & 3;
     $.playbackSize = playbackFlags >> 1 & 1;
@@ -332,12 +332,6 @@ module Shumway.SWF.Parser.LowLevel {
       $.latencySeek = readSi16($bytes, $stream);
     }
     return $;
-  }
-
-  function soundStreamBlock($bytes: Uint8Array, $stream: Stream, $, swfVersion, tagCode,
-                            tagEnd: number) {
-    $.data = $bytes.subarray($stream.pos, tagEnd);
-    $stream.pos = tagEnd;
   }
 
   export function defineBitmap(bytes: Uint8Array, stream: Stream, tagCode: number, tagEnd: number) {
@@ -1186,6 +1180,7 @@ module Shumway.SWF.Parser.LowLevel {
         $1.push($3);
       }
     }
+    return $;
   }
 
   function button($bytes, $stream, $, swfVersion, tagCode) {
@@ -1276,8 +1271,8 @@ module Shumway.SWF.Parser.LowLevel {
     /* DefineSound */                   14: defineSound,
     /* StartSound */                    15: startSound,
     /* DefineButtonSound */             17: undefined,
-    /* SoundStreamHead */               18: soundStreamHead,
-    /* SoundStreamBlock */              19: soundStreamBlock,
+    /* SoundStreamHead */               18: undefined,
+    /* SoundStreamBlock */              19: undefined,
     /* DefineBitsLossless */            20: defineBitmap,
     /* DefineBitsJPEG2 */               21: defineImage,
     /* DefineShape2 */                  22: defineShape,
@@ -1293,7 +1288,7 @@ module Shumway.SWF.Parser.LowLevel {
     /* DefineEditText */                37: defineText,
     /* DefineSprite */                  39: undefined,
     /* FrameLabel */                    43: undefined,
-    /* SoundStreamHead2 */              45: soundStreamHead,
+    /* SoundStreamHead2 */              45: undefined,
     /* DefineMorphShape */              46: defineShape,
     /* DefineFont2 */                   48: defineFont2,
     /* ExportAssets */                  56: undefined,
