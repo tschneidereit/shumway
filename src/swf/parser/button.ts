@@ -31,7 +31,7 @@ module Shumway.SWF.Parser {
       if (character.eob)
         break;
       var characterItem = dictionary[character.symbolId];
-      release || Debug.warning(characterItem, 'undefined character in button ' + tag.id);
+      release || characterItem || Debug.warning('undefined character in button ' + tag.id);
       var cmd = {
         symbolId: characterItem.id,
         code: SwfTag.CODE_PLACE_OBJECT,

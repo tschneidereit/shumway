@@ -232,10 +232,14 @@ module Shumway.SWF.Parser.LowLevel {
       } while (!eob);
       if (!!actionOffset) {
         var $56 = $.buttonActions = [];
-        do {
+        while ($stream.pos < tagEnd) {
           var $57 = buttonCondAction($bytes, $stream, tagEnd);
-          $56.push($57);
-        } while ($stream.remaining() > 0);
+          // Ignore actions that exceed the tag length.
+          if ($stream.pos <= tagEnd) {
+            $56.push($57);
+            $stream.pos = tagEnd;
+          }
+        }
       }
     }
     return $;
@@ -334,8 +338,8 @@ module Shumway.SWF.Parser.LowLevel {
     return $;
   }
 
-  export function defineBitmap(bytes: Uint8Array, stream: Stream, tagCode: number, tagEnd: number) {
-    var tag: any = {};
+  export function defineBitmap(bytes, stream, $, swfVersion, tagCode: number, tagEnd: number) {
+    var tag: any = $ || {};
     tag.id = readUi16(bytes, stream);
     var format = tag.format = readUi8(bytes, stream);
     tag.width = readUi16(bytes, stream);

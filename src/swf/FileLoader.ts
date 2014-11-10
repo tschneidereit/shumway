@@ -283,7 +283,15 @@ module Shumway {
       var handler = Parser.LowLevel.tagHandlers[unparsed.tagCode];
       var tagEnd = unparsed.byteOffset + unparsed.byteLength;
       handler(this.data, this.dataStream, tag, this.swfVersion, unparsed.tagCode, tagEnd);
-      release || assert(this.dataStream.pos === tagEnd);
+      var finalPos = this.dataStream.pos;
+      release || assert(finalPos <= tagEnd);
+      if (finalPos < tagEnd) {
+        var consumedBytes = finalPos - unparsed.byteOffset;
+        Debug.warning('Scanning ' + SWFTag[unparsed.tagCode] + ' at offset ' +
+                      unparsed.byteOffset + ' consumed ' + consumedBytes + ' of ' +
+                      unparsed.byteLength + ' bytes. (' + (tagEnd - finalPos) + ' left)');
+        this.dataStream.pos = tagEnd;
+      }
       return tag;
     }
 
@@ -384,7 +392,7 @@ module Shumway {
         release || assert(this.dataStream.pos <= position + tagLength);
         if (this.dataStream.pos < position + tagLength) {
           var consumedBytes = this.dataStream.pos - position;
-          Debug.warning('Parsing ' + SWFTag[tagCode] + ' at offset ' + position + ' consumed ' +
+          Debug.warning('Scanning ' + SWFTag[tagCode] + ' at offset ' + position + ' consumed ' +
                         consumedBytes + ' of ' + tagLength + ' bytes. (' +
                         (tagLength - consumedBytes) + ' left)');
           this.dataStream.pos = position + tagLength;
@@ -702,18 +710,9 @@ module Shumway {
     }
 
     private decodeEmbeddedImage(tagCode: number, tagLength: number, byteOffset: number) {
-      var definition: ImageDefinition;
-      if (tagCode === SWFTag.CODE_DEFINE_BITS_LOSSLESS ||
-          tagCode === SWFTag.CODE_DEFINE_BITS_LOSSLESS2) {
-        var tag = Shumway.SWF.Parser.LowLevel.defineBitmap(this.data, this.dataStream, tagCode,
-                                                           byteOffset + tagLength);
-        definition = Shumway.SWF.Parser.defineBitmap(tag);
-      } else {
-        var tag = Shumway.SWF.Parser.LowLevel.defineImage(this.data, this.dataStream, tagCode,
-                                                          byteOffset + tagLength,
-                                                          this.jpegTables);
-        definition = Shumway.SWF.Parser.defineImage(tag);
-      }
+    var tag = Shumway.SWF.Parser.LowLevel.defineImage(this.data, this.dataStream, tagCode,
+                                                      byteOffset + tagLength, this.jpegTables);
+      var definition = Shumway.SWF.Parser.defineImage(tag);
       var symbol = new EagerlyParsedDictionaryEntry(tag.id, tagCode, byteOffset, tagLength,
                                                     'image', definition);
       this.eagerlyParsedSymbols[symbol.id] = symbol;
