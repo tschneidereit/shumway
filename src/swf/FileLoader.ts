@@ -792,6 +792,7 @@ module Shumway {
           label = Parser.readString(data, stream, 0);
           // TODO: support SWF6+ anchors.
           stream.pos = tagEnd;
+          tagLength = 0;
           break;
         case SWFTag.CODE_SHOW_FRAME:
           frames.push(new SWFFrame(label, commands, soundStreamHead, soundStreamBlock,
