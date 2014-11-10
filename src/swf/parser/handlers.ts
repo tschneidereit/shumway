@@ -1083,7 +1083,9 @@ module Shumway.SWF.Parser.LowLevel {
       if (keyPress) {
         $.keyCode = readUi8($bytes, $stream);
       }
-      $.actionsData = $bytes.subarray($stream.pos, $stream.pos + length - keyPress);
+      var end = $stream.pos + length - keyPress;
+      $.actionsData = $bytes.subarray($stream.pos, end);
+      $stream.pos = end;
     }
     return eoe;
   }
