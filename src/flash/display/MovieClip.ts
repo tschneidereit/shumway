@@ -240,13 +240,13 @@ module Shumway.AVM2.AS.flash.display {
         // Frame indices are 1-based, so use frames.length after pushing the frame.
         this._addSoundStreamBlock(frames.length, frameInfo.soundStreamBlock);
       }
-      if (spriteSymbol.loaderInfo._file.useAVM1) {
+      if (spriteSymbol.isAVM1Object) {
         avm1lib.getAVM1Object(this).addFrameActionBlocks(frames.length - 1, frameInfo);
         if (frameInfo.exports) {
           var exports = frameInfo.exports;
           for (var i = 0; i < exports.length; i++) {
             var asset = exports[i];
-            spriteSymbol.loaderInfo._avm1Context.addAsset(asset.className, asset.symbolId, null);
+            spriteSymbol.avm1Context.addAsset(asset.className, asset.symbolId, null);
           }
         }
       }
