@@ -209,7 +209,7 @@ module Shumway.Timeline {
       super(data, flash.text.TextField, true);
     }
 
-    static FromTextData(data: any): TextSymbol {
+    static FromTextData(data: any, loaderInfo: flash.display.LoaderInfo): TextSymbol {
       var symbol = new TextSymbol(data);
       symbol._setBoundsFromData(data);
       var tag = data.tag;
@@ -230,13 +230,14 @@ module Shumway.Timeline {
       }
       if (tag.hasFont) {
         symbol.size = tag.fontHeight;
+        // Requesting the font symbol guarantees that it's loaded and initialized.
+        var fontSymbol = loaderInfo.getSymbolById(tag.fontId);
         var font = flash.text.Font.getBySymbolId(tag.fontId);
-        if (font) {
+        if (fontSymbol && font) {
           symbol.font = font.fontName;
           if (tag.fontClass) {
             var appDomain = Shumway.AVM2.Runtime.AVM2.instance.applicationDomain;
-            symbol.fontClass = <flash.text.Font><any>
-              appDomain.getClass(tag.fontClass);
+            symbol.fontClass = <flash.text.Font><any>appDomain.getClass(tag.fontClass);
           }
         } else {
           warning("Font " + tag.fontId + " is not defined.");
@@ -334,7 +335,7 @@ module Shumway.Timeline {
                      ('000000' + color.toString(16)).slice(-6) + '">' + text + '</font>';
       }
       data.tag.initialText = htmlText;
-      return TextSymbol.FromTextData(data);
+      return TextSymbol.FromTextData(data, loaderInfo);
     }
   }
 
@@ -428,10 +429,10 @@ module Shumway.Timeline {
 
   // TODO: move this, and the other symbol classes, into better-suited files.
   export class FontSymbol extends Symbol {
-    name: string = "";
-    bold: boolean = false;
-    italic: boolean = false;
-    data: Uint8Array;
+    name: string;
+    id: number;
+    bold: boolean;
+    italic: boolean;
     codes: number[];
     originalSize: boolean;
     metrics: any;
@@ -443,10 +444,12 @@ module Shumway.Timeline {
     static FromData(data: any): FontSymbol {
       var symbol = new FontSymbol(data);
       symbol.name = data.name;
+      // No need to keep the original data baggage around.
+      symbol.data = {id: data.id};
       symbol.bold = data.bold;
       symbol.italic = data.italic;
-      symbol.codes = data.codes;
       symbol.originalSize = data.originalSize;
+      symbol.codes = data.codes;
       symbol.metrics = data.metrics;
       return symbol;
     }
