@@ -269,14 +269,14 @@ module Shumway {
         symbol = parseSpriteTimeline(unparsed, this.data, this.dataStream, this.dataView,
                                      this.useAVM1);
       } else {
-        var tag = this.getParsedTag(unparsed);
-        symbol = defineSymbol(tag, this.dictionary);
+        symbol = this.getParsedTag(unparsed);
       }
       symbol.className = this.symbolClassesMap[id] || null;
       return symbol;
     }
 
     getParsedTag(unparsed: UnparsedTag): any {
+      SWF.enterTimeline('Parse tag ' + SwfTag[unparsed.tagCode]);
       this.dataStream.align();
       this.dataStream.pos = unparsed.byteOffset;
       var tag: any = {code: unparsed.tagCode};
@@ -292,7 +292,9 @@ module Shumway {
                       unparsed.byteLength + ' bytes. (' + (tagEnd - finalPos) + ' left)');
         this.dataStream.pos = tagEnd;
       }
-      return tag;
+      var symbol = defineSymbol(tag, this.dictionary);
+      SWF.leaveTimeline();
+      return symbol;
     }
 
     appendLoadedData(bytes: Uint8Array) {
@@ -446,11 +448,13 @@ module Shumway {
       if (ImageDefinitionTags[tagCode]) {
         // Images are decoded asynchronously, so we have to deal with them ahead of time to
         // ensure they're ready when used.
-        this.decodeEmbeddedImage(tagCode, tagLength, byteOffset);
+        var unparsed = this.addLazySymbol(tagCode, byteOffset, tagLength);
+        this.decodeEmbeddedImage(unparsed);
         return;
       }
       if (FontDefinitionTags[tagCode]) {
-        this.decodeEmbeddedFont(tagCode, tagLength, byteOffset);
+        var unparsed = this.addLazySymbol(tagCode, byteOffset, tagLength);
+        this.decodeEmbeddedFont(unparsed);
         return;
       }
       if (DefinitionTags[tagCode]) {
@@ -676,32 +680,12 @@ module Shumway {
       var id = this.dataStream.getUint16(this.dataStream.pos, true);
       var symbol = new DictionaryEntry(id, tagCode, byteOffset, tagLength);
       this.dictionary[id] = symbol;
+      return symbol;
     }
 
-    private decodeEmbeddedFont(tagCode: number, tagLength: number, byteOffset: number) {
-      var tag;
-      switch (tagCode) {
-        case SWFTag.CODE_DEFINE_FONT:
-          tag = Shumway.SWF.Parser.LowLevel.defineFont(this.data, this.dataStream, null,
-                                                       this.swfVersion, tagCode);
-          break;
-        case SWFTag.CODE_DEFINE_FONT2:
-        case SWFTag.CODE_DEFINE_FONT3:
-          tag = Shumway.SWF.Parser.LowLevel.defineFont2(this.data, this.dataStream, null,
-                                                        this.swfVersion, tagCode);
-          break;
-        case SWFTag.CODE_DEFINE_FONT4:
-          tag = Shumway.SWF.Parser.LowLevel.defineFont4(this.data, this.dataStream, null,
-                                                        this.swfVersion, tagCode,
-                                                        byteOffset + tagLength);
-          break;
-        default:
-          release || Debug.assertUnreachable("Invalid tag passed to decodeEmbeddedFont: " +
-                                             tagCode);
-      }
-      var definition = Shumway.SWF.Parser.defineFont(tag);
-      var symbol = new EagerlyParsedDictionaryEntry(tag.id, tagCode, byteOffset, tagLength,
-                                                    'font', definition);
+    private decodeEmbeddedFont(unparsed: UnparsedTag) {
+      var definition = this.getParsedTag(unparsed);
+      var symbol = new EagerlyParsedDictionaryEntry(definition.id, unparsed, 'font', definition);
       this.eagerlyParsedSymbols[symbol.id] = symbol;
       Shumway.registerCSSFont(definition.id, definition.data);
       // Firefox decodes fonts synchronously, so we don't need to delay other processing until it's
@@ -709,12 +693,9 @@ module Shumway {
       setTimeout(this.markSymbolAsDecoded.bind(this, symbol), 400);
     }
 
-    private decodeEmbeddedImage(tagCode: number, tagLength: number, byteOffset: number) {
-    var tag = Shumway.SWF.Parser.LowLevel.defineImage(this.data, this.dataStream, tagCode,
-                                                      byteOffset + tagLength, this.jpegTables);
-      var definition = Shumway.SWF.Parser.defineImage(tag);
-      var symbol = new EagerlyParsedDictionaryEntry(tag.id, tagCode, byteOffset, tagLength,
-                                                    'image', definition);
+    private decodeEmbeddedImage(unparsed: UnparsedTag) {
+      var definition = this.getParsedTag(unparsed);
+      var symbol = new EagerlyParsedDictionaryEntry(definition.id, unparsed, 'image', definition);
       this.eagerlyParsedSymbols[symbol.id] = symbol;
       var promise = decodeImage(definition, this.markSymbolAsDecoded.bind(this, symbol));
       var currentPromise = this.pendingSymbolsPromise;
@@ -890,9 +871,8 @@ module Shumway {
     type: string;
     definition: Object;
     ready: boolean;
-    constructor(id: number, tagCode: number, byteOffset: number, tagLength: number,
-                type: string, definition: any) {
-      super(id, tagCode, byteOffset, tagLength);
+    constructor(id: number, unparsed: UnparsedTag, type: string, definition: any) {
+      super(id, unparsed.tagCode, unparsed.byteOffset, unparsed.byteLength);
       this.type = type;
       this.definition = definition;
       this.ready = false;
@@ -961,9 +941,7 @@ module Shumway {
         symbol = Shumway.SWF.Parser.defineLabel(swfTag);
         break;
       default:
-        release || assert('Invalid tag reached in defineSymbol. Code: ' + swfTag.code + ' (' +
-                                                                          SwfTag[swfTag.code] +
-                                                                          ')');
+        return swfTag;
     }
 
     if (!symbol) {
