@@ -288,7 +288,7 @@ module Shumway.AVM2.AS.flash.display {
           symbol = Timeline.TextSymbol.FromLabelData(data, this);
           break;
         case 'text':
-          symbol = Timeline.TextSymbol.FromTextData(data);
+          symbol = Timeline.TextSymbol.FromTextData(data, this);
           break;
         case 'button':
           symbol = Timeline.ButtonSymbol.FromData(data, this);
@@ -297,7 +297,7 @@ module Shumway.AVM2.AS.flash.display {
           symbol = Timeline.SpriteSymbol.FromData(data, this);
           break;
         case 'font':
-          // Fonts are eagerly parsed in non-Firefox browsers and have their data in `definition`.
+          // Fonts are eagerly parsed and have their data in `definition`.
           if (data.definition) {
             data = data.definition;
           }

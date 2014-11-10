@@ -354,6 +354,9 @@ module Shumway {
     private processDecompressedData(data: Uint8Array) {
       this.data.set(data, this.uncompressedLoadedLength);
       this.uncompressedLoadedLength += data.length;
+      if (this.uncompressedLoadedLength === this.uncompressedLength) {
+        this.decompressor = null;
+      }
     }
 
     private scanLoadedData() {
@@ -381,7 +384,7 @@ module Shumway {
         release || assert(this.dataStream.pos <= position + tagLength);
         if (this.dataStream.pos < position + tagLength) {
           var consumedBytes = this.dataStream.pos - position;
-          Debug.warning('Parsing ' + SWFTag[tagCode] + ' consumed ' +
+          Debug.warning('Parsing ' + SWFTag[tagCode] + ' at offset ' + position + ' consumed ' +
                         consumedBytes + ' of ' + tagLength + ' bytes. (' +
                         (tagLength - consumedBytes) + ' left)');
           this.dataStream.pos = position + tagLength;
@@ -969,7 +972,6 @@ module Shumway {
     }
 
     symbol.isSymbol = true;
-    symbols[swfTag.id] = symbol;
     return symbol;
   }
 }

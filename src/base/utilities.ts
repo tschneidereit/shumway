@@ -58,6 +58,9 @@ function warn(message?: any, ...optionalParams: any[]): void {
     jsGlobal.print(Shumway.IndentingWriter.RED + message + Shumway.IndentingWriter.ENDC);
   }
 }
+if (inBrowser) {
+  jsGlobal.warn = console.warn.bind(console);
+}
 
 interface String {
   padRight(c: string, n: number): string;
@@ -296,6 +299,10 @@ module Shumway {
 
     export function warning(...messages: any[]) {
       release || warn.apply(window, messages);
+    }
+
+    if (inBrowser) {
+      Debug.warning = console.warn.bind(console);
     }
 
     export function notUsed(message: string) {
@@ -3361,19 +3368,16 @@ module Shumway {
 
   export function registerCSSFont(id: number, buffer: ArrayBuffer) {
     if (!inBrowser) {
-      console.warn('Cannot register CSS font outside the browser');
+      Debug.warning('Cannot register CSS font outside the browser');
       return;
     }
     var head = document.head;
     head.insertBefore(document.createElement('style'), head.firstChild);
     var style = <CSSStyleSheet>document.styleSheets[0];
-    style.insertRule(
-      '@font-face{' +
-      'font-family:swffont' + id + ';' +
-      'src:url(data:font/opentype;base64,' +
-      Shumway.StringUtilities.base64ArrayBuffer(buffer) + ')' + '}',
-      style.cssRules.length
-    );
+    var rule = '@font-face{font-family:swffont' + id + ';' +
+               'src:url(data:font/opentype;base64,' +
+               Shumway.StringUtilities.base64ArrayBuffer(buffer) + ')' + '}';
+    style.insertRule(rule, style.cssRules.length);
   }
 
   export interface IExternalInterfaceService {
