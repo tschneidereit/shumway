@@ -415,7 +415,7 @@ module Shumway.Timeline {
           symbol.frameScripts.push.apply(symbol.frameScripts, frameInfo.actionBlocks);
         }
         if (frameInfo.labelName) {
-          symbol.labels.push(new flash.display.FrameLabel(frameInfo.labelName, frames.length));
+          symbol.labels.push(new flash.display.FrameLabel(frameInfo.labelName, i + 1));
         }
         var frame = frameInfo.frameDelta;
         var repeat = frameInfo.repeat || 1;
