@@ -140,10 +140,8 @@ module Shumway.SWF.Parser {
 
   export enum ImageDefinitionTags {
     CODE_DEFINE_BITS                       = 6,
-    CODE_DEFINE_BITS_LOSSLESS              = 20,
     CODE_DEFINE_BITS_JPEG2                 = 21,
     CODE_DEFINE_BITS_JPEG3                 = 35,
-    CODE_DEFINE_BITS_LOSSLESS2             = 36,
     CODE_DEFINE_BITS_JPEG4                 = 90
   }
 
