@@ -631,12 +631,14 @@ module Shumway.AVM2.AS.flash.text {
         }
 
         // Font symbols without any glyphs describe device fonts.
-        self._fontType = symbol.data ? FontType.EMBEDDED : FontType.DEVICE;
+        self._fontType = metrics ? FontType.EMBEDDED : FontType.DEVICE;
 
         if (!Font._fontsBySymbolId[symbol.id]) {
           Font._fontsBySymbolId[symbol.id] = self;
           Font._fontsByName[symbol.name.toLowerCase()] = self;
-          Font._fontsByName['swffont' + symbol.id] = self;
+          if (self._fontType === FontType.EMBEDDED) {
+            Font._fontsByName['swffont' + symbol.id] = self;
+          }
         }
       }
     };
