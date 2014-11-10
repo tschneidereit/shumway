@@ -594,7 +594,7 @@ module Shumway.AVM2.AS.flash.text {
     static initializer: any = function (symbol: Shumway.Timeline.FontSymbol) {
       var self: Font = this;
 
-      self._id = flash.display.DisplayObject.getNextSyncID();
+      self._id = symbol.data.id;
 
       self._fontName = null;
       self._fontFamily = null;

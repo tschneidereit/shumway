@@ -17,19 +17,8 @@
 /// <reference path='references.ts'/>
 module Shumway.SWF.Parser {
   export function defineText(tag, dictionary) {
-    var dependencies = [];
     var bold = false;
     var italic = false;
-    if (tag.hasFont) {
-      var font = dictionary[tag.fontId];
-      if (font) {
-        dependencies.push(font.id);
-        bold = font.bold;
-        italic = font.italic;
-      } else {
-        Shumway.Debug.warning("Font is not defined.");
-      }
-    }
 
     var props = {
       type: 'text',
@@ -38,12 +27,8 @@ module Shumway.SWF.Parser {
       variableName: tag.variableName, // for AVM1
       tag: tag,
       bold: bold,
-      italic: italic,
-      require: undefined
+      italic: italic
     };
-    if (dependencies.length) {
-      props.require = dependencies;
-    }
     return props;
   }
 }
