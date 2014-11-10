@@ -68,7 +68,7 @@ module Shumway.SWF.Parser {
       }
       chunks.push(bytes.subarray(begin, i));
     } while (i < n);
-    if (!release || !(image.width && image.height)) {
+    if (!release && !(image.width && image.height)) {
       Debug.warning('bad jpeg image');
     }
     return chunks;
