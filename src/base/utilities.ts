@@ -16,7 +16,7 @@
 
 ///<reference path='references.ts' />
 var jsGlobal = (function() { return this || (1, eval)('this'); })();
-var inBrowser = typeof console != "undefined";
+var inBrowser = 'plugins' in window.document;
 
 declare var putstr;
 // declare var print;
@@ -52,11 +52,7 @@ function log(message?: any, ...optionalParams: any[]): void {
 }
 
 function warn(message?: any, ...optionalParams: any[]): void {
-  if (inBrowser) {
-    console.warn.apply(console, arguments);
-  } else {
-    jsGlobal.print(Shumway.IndentingWriter.RED + message + Shumway.IndentingWriter.ENDC);
-  }
+  jsGlobal.print(Shumway.IndentingWriter.RED + message + Shumway.IndentingWriter.ENDC);
 }
 if (inBrowser) {
   jsGlobal.warn = console.warn.bind(console);
@@ -338,10 +334,6 @@ module Shumway {
 
     export function unexpectedCase(message?: any) {
       Debug.assert(false, "Unexpected Case: " + message);
-    }
-
-    export function untested(message?: any) {
-      Debug.warning("Congratulations, you've found a code path for which we haven't found a test case. Please submit the test case: " + message);
     }
   }
 
