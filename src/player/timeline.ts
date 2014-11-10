@@ -410,9 +410,9 @@ module Shumway.Timeline {
       for (var i = 0; i < frames.length; i++) {
         var frameInfo;
         frameInfo = loaderInfo.getFrame(data, i);
-        if (frameInfo.scripts) {
+        if (frameInfo.actionBlocks) {
           symbol.frameScripts.push(i);
-          symbol.frameScripts.push.apply(symbol.frameScripts, frameInfo.scripts);
+          symbol.frameScripts.push.apply(symbol.frameScripts, frameInfo.actionBlocks);
         }
         if (frameInfo.labelName) {
           symbol.labels.push(new flash.display.FrameLabel(frameInfo.labelName, frames.length));
