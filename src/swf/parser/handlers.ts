@@ -145,6 +145,7 @@ module Shumway.SWF.Parser.LowLevel {
       if (tagCode === 90) {
         tag.deblock = readFixed8($bytes, $stream);
       }
+      alphaDataOffset += $stream.pos;
       imgData = tag.imgData = $bytes.subarray($stream.pos, alphaDataOffset);
       tag.alphaData = $bytes.subarray(alphaDataOffset, tagEnd);
       $stream.pos = tagEnd;
@@ -432,6 +433,10 @@ module Shumway.SWF.Parser.LowLevel {
       $.resolution = 20;
     }
     var glyphCount = $.glyphCount = readUi16($bytes, $stream);
+    // The SWF format docs don't say that, but the DefineFont{2,3} tag ends here for device fonts.
+    if (glyphCount === 0) {
+      return $;
+    }
     var startpos = $stream.pos;
     if (wideOffset) {
       var $0 = $.offsets = [];

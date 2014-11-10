@@ -687,6 +687,10 @@ module Shumway {
       var definition = this.getParsedTag(unparsed);
       var symbol = new EagerlyParsedDictionaryEntry(definition.id, unparsed, 'font', definition);
       this.eagerlyParsedSymbols[symbol.id] = symbol;
+      // Only register fonts with embedded glyphs.
+      if (!definition.data) {
+        return;
+      }
       Shumway.registerCSSFont(definition.id, definition.data);
       // Firefox decodes fonts synchronously, so we don't need to delay other processing until it's
       // done. For other browsers, delay for a time that should be enough in all cases.
