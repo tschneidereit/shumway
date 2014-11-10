@@ -135,10 +135,10 @@ module Shumway.SWF.Parser.LowLevel {
     return $;
   }
 
-  export function defineImage($bytes: Uint8Array, $stream: Stream, tagCode: number,
+  export function defineImage($bytes: Uint8Array, $stream: Stream, $, swfVersion, tagCode: number,
                               tagEnd: number, jpegTables: Uint8Array) {
     var imgData;
-    var tag: any = {};
+    var tag: any = $ || {};
     tag.id = readUi16($bytes, $stream);
     if (tagCode > 21) {
       var alphaDataOffset = readUi32($bytes, $stream);
