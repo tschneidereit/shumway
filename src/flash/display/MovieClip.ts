@@ -225,6 +225,36 @@ module Shumway.AVM2.AS.flash.display {
       Sprite.instanceConstructorNoInitialize.call(this);
     }
 
+    _addFrame(frameInfo: any) {
+      var spriteSymbol = <Timeline.SpriteSymbol><any>this._symbol;
+      var frames = spriteSymbol.frames;
+      frames.push(frameInfo.frameDelta);
+      if (frameInfo.labelName) {
+        // Frame indices are 1-based, so use frames.length after pushing the frame.
+        this.addFrameLabel(frameInfo.labelName, frames.length);
+      }
+      if (frameInfo.soundStreamHead) {
+        this._initSoundStream(frameInfo.soundStreamHead);
+      }
+      if (frameInfo.soundStreamBlock) {
+        // Frame indices are 1-based, so use frames.length after pushing the frame.
+        this._addSoundStreamBlock(frames.length, frameInfo.soundStreamBlock);
+      }
+      if (spriteSymbol.loaderInfo._file.useAVM1) {
+        avm1lib.getAVM1Object(this).addFrameActionBlocks(frames.length - 1, frameInfo);
+        if (frameInfo.exports) {
+          var exports = frameInfo.exports;
+          for (var i = 0; i < exports.length; i++) {
+            var asset = exports[i];
+            spriteSymbol.loaderInfo._avm1Context.addAsset(asset.className, asset.symbolId, null);
+          }
+        }
+      }
+      if (frames.length === 1) {
+        this._initializeChildren(frames[0]);
+      }
+    }
+
     _initFrame(advance: boolean) {
       if (advance) {
         if (this.buttonMode) {

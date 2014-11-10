@@ -558,39 +558,10 @@ module Shumway.AVM2.AS.flash.display {
       if (AVM1Movie.isType(root)) {
         root = <AVM1Movie>root._children[0];
       }
-      var frames = rootSymbol.frames;
-      var frameScripts = rootSymbol.frameScripts || (rootSymbol.frameScripts = []);
+      var rootSprite = <Sprite><any>root;
       for (var i = 0; i < framesLoadedDelta; i++) {
-        var frameInfo = loaderInfo.getFrame(null, frames.length);
-        //if (frameInfo.scripts && frameInfo.scripts.length) {
-        //  frameScripts.push(i);
-        //  frameScripts.push.apply(frameScripts, frameInfo.scripts);
-        //}
-        frames.push(frameInfo.frameDelta);
-        if (frameInfo.labelName) {
-          // Frame indices are 1-based, so use frames.length after pushing the frame.
-          (<MovieClip><any>root).addFrameLabel(frameInfo.labelName, frames.length);
-        }
-        if (frameInfo.soundStreamHead) {
-          (<MovieClip><any>root)._initSoundStream(frameInfo.soundStreamHead);
-        }
-        if (frameInfo.soundStreamBlock) {
-          // Frame indices are 1-based, so use frames.length after pushing the frame.
-          (<MovieClip><any>root)._addSoundStreamBlock(frames.length, frameInfo.soundStreamBlock);
-        }
-        if (loaderInfo._file.useAVM1) {
-          avm1lib.getAVM1Object(root).addFrameActionBlocks(frames.length - 1, frameInfo);
-          if (frameInfo.exports) {
-            var exports = frameInfo.exports;
-            for (var i = 0; i < exports.length; i++) {
-              var asset = exports[i];
-              loaderInfo._avm1Context.addAsset(asset.className, asset.symbolId, null);
-            }
-          }
-        }
-        if (frames.length === 1) {
-          (<Sprite><any>root)._initializeChildren(frames[0]);
-        }
+        var frameInfo = loaderInfo.getFrame(null, rootSymbol.frames.length);
+        rootSprite._addFrame(frameInfo);
       }
     }
     onLoadComplete() {
