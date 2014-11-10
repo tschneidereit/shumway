@@ -759,6 +759,7 @@ module Shumway {
 
       if (Parser.ControlTags[tagCode]) {
         commands.push(new UnparsedTag(tagCode, stream.pos, tagLength));
+        stream.pos += tagLength;
         continue;
       }
 
