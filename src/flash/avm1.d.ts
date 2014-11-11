@@ -30,6 +30,7 @@ declare module Shumway.AVM2.AS.avm1lib {
   export class AVM1Mouse extends ASClass {}
 
   export function getAVM1Object(as3Object: any): any;
+  export function initializeAVM1Object(as3Object: any, state: Shumway.Timeline.AnimationState): any;
 }
 
 declare module Shumway.AVM1 {

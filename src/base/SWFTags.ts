@@ -181,4 +181,26 @@ module Shumway.SWF.Parser {
     OpaqueBackground  = 0x4000,
     Reserved          = 0x8000
   }
+  
+  export enum AVM1ClipEvents {
+    Load =            0x00001,
+    EnterFrame =      0x00002,
+    Unload =          0x00004,
+    MouseMove =       0x00008,
+    MouseDown =       0x00010,
+    MouseUp =         0x00020,
+    KeyDown =         0x00040,
+    KeyUp =           0x00080,
+    Data =            0x00100,
+    Initialize =      0x00200,
+    Press =           0x00400,
+    Release =         0x00800,
+    ReleaseOutside =  0x01000,
+    RollOver =        0x02000,
+    RollOut =         0x04000,
+    DragOver =        0x08000,
+    DragOut =         0x10000,
+    KeyPress =        0x20000,
+    Construct =       0x40000
+  }
 }

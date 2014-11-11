@@ -48,71 +48,7 @@ module Shumway.SWF.Parser.LowLevel {
   function placeObject($bytes, $stream, $, swfVersion, tagCode, tagEnd) {
     var flags;
     $ || ($ = {});
-    if (tagCode > SwfTag.CODE_PLACE_OBJECT) {
-      flags = $.flags = tagCode > SwfTag.CODE_PLACE_OBJECT2 ?
-                        readUi16($bytes, $stream) :
-                        readUi8($bytes, $stream);
-      $.depth = readUi16($bytes, $stream);
-      if (flags & PlaceObjectFlags.HasClassName) {
-        $.className = readString($bytes, $stream, 0);
-      }
-      if (flags & PlaceObjectFlags.HasCharacter) {
-        $.symbolId = readUi16($bytes, $stream);
-      }
-      if (flags & PlaceObjectFlags.HasMatrix) {
-        $.matrix = matrix($bytes, $stream);
-      }
-      if (flags & PlaceObjectFlags.HasColorTransform) {
-        var $1 = $.cxform = {};
-        cxform($bytes, $stream, $1, tagCode);
-      }
-      if (flags & PlaceObjectFlags.HasRatio) {
-        $.ratio = readUi16($bytes, $stream);
-      }
-      if (flags & PlaceObjectFlags.HasName) {
-        $.name = readString($bytes, $stream, 0);
-      }
-      if (flags & PlaceObjectFlags.HasClipDepth) {
-        $.clipDepth = readUi16($bytes, $stream);
-      }
-      if (flags & PlaceObjectFlags.HasFilterList) {
-        var count = readUi8($bytes, $stream);
-        var $2 = $.filters = [];
-        var $3 = count;
-        while ($3--) {
-          var $4 = {};
-          anyFilter($bytes, $stream, $4);
-          $2.push($4);
-        }
-      }
-      if (flags & PlaceObjectFlags.HasBlendMode) {
-        $.blendMode = readUi8($bytes, $stream);
-      }
-      if (flags & PlaceObjectFlags.HasCacheAsBitmap) {
-        $.bmpCache = readUi8($bytes, $stream);
-      }
-      if (flags & PlaceObjectFlags.HasClipActions) {
-        var reserved = readUi16($bytes, $stream);
-        if (swfVersion >= 6) {
-          var allFlags = readUi32($bytes, $stream);
-        }
-        else {
-          var allFlags = readUi16($bytes, $stream);
-        }
-        var $28 = $.events = [];
-        do {
-          var $29 = {};
-          var eoe = events($bytes, $stream, $29, swfVersion, tagCode);
-          $28.push($29);
-        } while (!eoe);
-      }
-      if (flags & PlaceObjectFlags.OpaqueBackground) {
-        $.backgroundColor = argb($bytes, $stream);
-      }
-      if (flags & PlaceObjectFlags.HasVisible) {
-        $.visibility = readUi8($bytes, $stream);
-      }
-    } else {
+    if (tagCode === SwfTag.CODE_PLACE_OBJECT) {
       $.symbolId = readUi16($bytes, $stream);
       $.depth = readUi16($bytes, $stream);
       $.flags |= PlaceObjectFlags.HasMatrix;
@@ -122,6 +58,77 @@ module Shumway.SWF.Parser.LowLevel {
         var $31 = $.cxform = {};
         cxform($bytes, $stream, $31, tagCode);
       }
+      return $;
+    }
+    flags = $.flags = tagCode > SwfTag.CODE_PLACE_OBJECT2 ?
+                      readUi16($bytes, $stream) :
+                      readUi8($bytes, $stream);
+    $.depth = readUi16($bytes, $stream);
+    if (flags & PlaceObjectFlags.HasClassName) {
+      $.className = readString($bytes, $stream, 0);
+    }
+    if (flags & PlaceObjectFlags.HasCharacter) {
+      $.symbolId = readUi16($bytes, $stream);
+    }
+    if (flags & PlaceObjectFlags.HasMatrix) {
+      $.matrix = matrix($bytes, $stream);
+    }
+    if (flags & PlaceObjectFlags.HasColorTransform) {
+      var $1 = $.cxform = {};
+      cxform($bytes, $stream, $1, tagCode);
+    }
+    if (flags & PlaceObjectFlags.HasRatio) {
+      $.ratio = readUi16($bytes, $stream);
+    }
+    if (flags & PlaceObjectFlags.HasName) {
+      $.name = readString($bytes, $stream, 0);
+    }
+    if (flags & PlaceObjectFlags.HasClipDepth) {
+      $.clipDepth = readUi16($bytes, $stream);
+    }
+    if (flags & PlaceObjectFlags.HasFilterList) {
+      var count = readUi8($bytes, $stream);
+      var $2 = $.filters = [];
+      var $3 = count;
+      while ($3--) {
+        var $4 = {};
+        anyFilter($bytes, $stream, $4);
+        $2.push($4);
+      }
+    }
+    if (flags & PlaceObjectFlags.HasBlendMode) {
+      $.blendMode = readUi8($bytes, $stream);
+    }
+    if (flags & PlaceObjectFlags.HasCacheAsBitmap) {
+      $.bmpCache = readUi8($bytes, $stream);
+    }
+    if (flags & PlaceObjectFlags.HasVisible) {
+      $.visibility = readUi8($bytes, $stream);
+    }
+    if (flags & PlaceObjectFlags.OpaqueBackground) {
+      $.backgroundColor = argb($bytes, $stream);
+    }
+    if (flags & PlaceObjectFlags.HasClipActions) {
+      var reserved = readUi16($bytes, $stream);
+      if (swfVersion >= 6) {
+        var allFlags = readUi32($bytes, $stream);
+      }
+      else {
+        var allFlags = readUi16($bytes, $stream);
+      }
+      var $28 = $.events = [];
+      do {
+        var $29 = {};
+        if (events($bytes, $stream, $29, swfVersion)) {
+          break;
+        }
+        if ($stream.pos > tagEnd) {
+          Debug.warning('PlaceObject handler attempted to read clip events beyond tag end');
+          $stream.pos = tagEnd;
+          break;
+        }
+        $28.push($29);
+      } while (true);
     }
     return $;
   }
@@ -1049,45 +1056,25 @@ module Shumway.SWF.Parser.LowLevel {
     }
   }
 
-  function events($bytes, $stream, $, swfVersion, tagCode) {
-    var flags = swfVersion >= 6 ? readUi32($bytes, $stream) : readUi16($bytes, $stream);
-    var eoe = $.eoe = !flags;
-    var keyPress = 0;
-    $.onKeyUp = flags >> 7 & 1;
-    $.onKeyDown = flags >> 6 & 1;
-    $.onMouseUp = flags >> 5 & 1;
-    $.onMouseDown = flags >> 4 & 1;
-    $.onMouseMove = flags >> 3 & 1;
-    $.onUnload = flags >> 2 & 1;
-    $.onEnterFrame = flags >> 1 & 1;
-    $.onLoad = flags & 1;
-    if (swfVersion >= 6) {
-      $.onDragOver = flags >> 15 & 1;
-      $.onRollOut = flags >> 14 & 1;
-      $.onRollOver = flags >> 13 & 1;
-      $.onReleaseOutside = flags >> 12 & 1;
-      $.onRelease = flags >> 11 & 1;
-      $.onPress = flags >> 10 & 1;
-      $.onInitialize = flags >> 9 & 1;
-      $.onData = flags >> 8 & 1;
-      if (swfVersion >= 7) {
-        $.onConstruct = flags >> 18 & 1;
-      } else {
-        $.onConstruct = 0;
-      }
-      keyPress = $.keyPress = flags >> 17 & 1;
-      $.onDragOut = flags >> 16 & 1;
+  function events($bytes, $stream, $, swfVersion) {
+    var flags = $.flags = swfVersion >= 6 ? readUi32($bytes, $stream) : readUi16($bytes, $stream);
+    if (!flags) {
+      // `true` means this is the EndOfEvents marker.
+      return true;
     }
-    if (!eoe) {
-      var length = $.length = readUi32($bytes, $stream);
-      if (keyPress) {
-        $.keyCode = readUi8($bytes, $stream);
-      }
-      var end = $stream.pos + length - keyPress;
-      $.actionsData = $bytes.subarray($stream.pos, end);
-      $stream.pos = end;
+    // The Construct event is only allowed in 7+. It can't be set in < 6, so mask it out for 6.
+    if (swfVersion === 6) {
+      flags = flags & ~AVM1ClipEvents.Construct;
     }
-    return eoe;
+    var length = $.length = readUi32($bytes, $stream);
+    if (flags & AVM1ClipEvents.KeyPress) {
+      $.keyCode = readUi8($bytes, $stream);
+      length--;
+    }
+    var end = $stream.pos + length;
+    $.actionsData = $bytes.subarray($stream.pos, end);
+    $stream.pos = end;
+    return false;
   }
 
   function kerning($bytes, $stream, $, wide) {

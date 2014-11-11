@@ -627,7 +627,7 @@ module Shumway.Timeline {
             var matrix: flash.geom.Matrix = null;
             var colorTransform: flash.geom.ColorTransform = null;
             var filters: flash.filters.BitmapFilter[] = null;
-            var events: any[] = null;
+            var events: any[] = loaderInfo._allowCodeExecution ? cmd.events : 0;
             if (cmd.symbolId) {
               symbol = <DisplaySymbol>loaderInfo.getSymbolById(cmd.symbolId);
               if (!symbol) {
@@ -659,43 +659,6 @@ module Shumway.Timeline {
                 }
                 release || assert (filter, "Unknown filter type.");
                 filters.push(filter);
-              }
-            }
-            if ((cmd.flags & PlaceObjectFlags.HasClipActions) &&
-                loaderInfo._allowCodeExecution &&
-                loaderInfo._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2) {
-              var swfEvents = cmd.events;
-              events = [];
-              for (var j = 0; j < swfEvents.length; j++) {
-                var swfEvent = swfEvents[j];
-                if (swfEvent.eoe) {
-                  break;
-                }
-                var actionsData = new AVM1.AVM1ActionsData(swfEvent.actionsData,
-                                                           's' + cmd.symbolId + 'e' + j);
-                var fn = (function (actionsData, loaderInfo) {
-                  return function() {
-                    var avm1Context = loaderInfo._avm1Context;
-                    var avm1Object = Shumway.AVM2.AS.avm1lib.getAVM1Object(this);
-                    return avm1Context.executeActions(actionsData, avm1Object);
-                  };
-                })(actionsData, loaderInfo);
-                var eventNames = [];
-                for (var eventName in swfEvent) {
-                  if (eventName.indexOf("on") !== 0 || !swfEvent[eventName]) {
-                    continue;
-                  }
-                  var avm2EventName = eventName[2].toLowerCase() + eventName.substring(3);
-                  if (avm2EventName === 'enterFrame') {
-                    avm2EventName = 'frameConstructed';
-                  }
-                  eventNames.push(avm2EventName);
-                }
-                events.push({
-                  eventNames: eventNames,
-                  handler: fn,
-                  keyPress: swfEvent.keyPress
-                });
               }
             }
             var state = new Timeline.AnimationState (

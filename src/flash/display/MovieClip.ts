@@ -162,7 +162,6 @@ module Shumway.AVM2.AS.flash.display {
         }
         self._frames = symbol.frames;
         if (symbol.isAVM1Object) {
-          self._mouseEnabled = false;
           if (symbol.frameScripts) {
             var avm1MovieClip = avm1lib.getAVM1Object(this);
             avm1MovieClip.context = symbol.avm1Context;
@@ -545,7 +544,7 @@ module Shumway.AVM2.AS.flash.display {
             var character = this.createAnimatedDisplayObject(state, false);
             this.addTimelineObjectAtDepth(character, state.depth);
             if (state.symbol.isAVM1Object) {
-              this._initAvm1Bindings(character, state);
+              avm1lib.initializeAVM1Object(character, state);
             }
           }
         }
