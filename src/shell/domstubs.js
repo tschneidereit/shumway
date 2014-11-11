@@ -84,6 +84,28 @@ var document = {
   }
 };
 
+var Image = function () {};
+
+Image.prototype = {
+
+}
+
+var URL = function () {};
+
+URL.prototype = {
+
+}
+
+URL.createObjectURL = function createObjectURL() {
+  return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAACWCAYAAABkW7XSAAABmUlEQVR4nO3UQQ3EABDEsOVPukdhflGvthQKubt7/iTgA+rRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYwq0djWMCsHo1hAbN6NIYFzOrRGBYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMBL/AD3pLrEjL8D4QAAAABJRU5ErkJggg==";
+};
+
+var Blob = function () {};
+
+Blob.prototype = {
+
+}
+
 var XMLHttpRequest = function () {};
 XMLHttpRequest.prototype = {
   open: function (method, url, async) {
