@@ -518,44 +518,34 @@ module Shumway.SWF.Parser {
 
     moveTo(x: number, y: number) {
       this.commands.writeUnsignedByte(PathCommand.MoveTo);
-      this.data.writeInt(x);
-      this.data.writeInt(y);
+      this.data.write2Ints(x, y);
     }
 
     morphMoveTo(x: number, y: number, mx: number, my: number) {
       this.moveTo(x, y);
-      this.morphData.writeInt(mx);
-      this.morphData.writeInt(my);
+      this.morphData.write2Ints(mx, my);
     }
 
     lineTo(x: number, y: number) {
       this.commands.writeUnsignedByte(PathCommand.LineTo);
-      this.data.writeInt(x);
-      this.data.writeInt(y);
+      this.data.write2Ints(x, y);
     }
 
     morphLineTo(x: number, y: number, mx: number, my: number) {
       this.lineTo(x, y);
-      this.morphData.writeInt(mx);
-      this.morphData.writeInt(my);
+      this.morphData.write2Ints(mx, my);
     }
 
     curveTo(cpx: number, cpy: number, x: number, y: number) {
       this.commands.writeUnsignedByte(PathCommand.CurveTo);
-      this.data.writeInt(cpx);
-      this.data.writeInt(cpy);
-      this.data.writeInt(x);
-      this.data.writeInt(y);
+      this.data.write4Ints(cpx, cpy, x, y);
     }
 
     morphCurveTo(cpx: number, cpy: number, x: number, y: number,
             mcpx: number, mcpy: number, mx: number, my: number)
     {
       this.curveTo(cpx, cpy, x, y);
-      this.morphData.writeInt(mcpx);
-      this.morphData.writeInt(mcpy);
-      this.morphData.writeInt(mx);
-      this.morphData.writeInt(my);
+      this.morphData.write4Ints(mcpx, mcpy, mx, my);
     }
 
     /**
