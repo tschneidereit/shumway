@@ -222,8 +222,16 @@ module Shumway.AVM2.AS.avm1lib {
     //var stageListeners = [];
     for (var j = 0; j < events.length; j++) {
       var swfEvent = events[j];
-      var actionsData = new AVM1.AVM1ActionsData(swfEvent.actionsData,
-                                                 's' + state.symbolId + 'e' + j);
+      var actionsData;
+      if (swfEvent.actionsData) {
+        actionsData = new AVM1.AVM1ActionsData(swfEvent.actionsData,
+                                               's' + state.symbolId + 'e' + j);
+        swfEvent.actionsData = null;
+        swfEvent.compiled = actionsData;
+      } else {
+        actionsData = swfEvent.compiled;
+      }
+      release || Debug.assert(actionsData);
       var handler = clipEventHandler.bind(null, actionsData, instanceAVM1);
       var flags = swfEvent.flags;
       for (var eventFlag in ClipEventMappings) {
