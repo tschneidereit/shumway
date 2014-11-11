@@ -143,6 +143,7 @@ module Shumway.Shell {
   var parseForDatabaseOption: Option;
   var disassembleOption: Option;
   var verboseOption: Option;
+  var profileOption: Option;
   var releaseOption: Option;
   var executeOption: Option;
   var interpreterOption: Option;
@@ -161,6 +162,7 @@ module Shumway.Shell {
     parseForDatabaseOption = shellOptions.register(new Option("po", "parseForDatabase", "boolean", false, "Parse File(s)"));
     disassembleOption = shellOptions.register(new Option("d", "disassemble", "boolean", false, "Disassemble File(s)"));
     verboseOption = shellOptions.register(new Option("v", "verbose", "boolean", false, "Verbose"));
+    profileOption = shellOptions.register(new Option("o", "profile", "boolean", false, "Profile"));
     releaseOption = shellOptions.register(new Option("r", "release", "boolean", false, "Release mode"));
     executeOption = shellOptions.register(new Option("x", "execute", "boolean", false, "Execute File(s)"));
     interpreterOption = shellOptions.register(new Option("i", "interpreter", "boolean", false, "Interpreter Only"));
@@ -210,6 +212,7 @@ module Shumway.Shell {
       console.info = console.log = console.warn = console.error = function () {};
     }
 
+    profile = profileOption.value;
     release = releaseOption.value;
     verbose = verboseOption.value;
 
@@ -228,10 +231,12 @@ module Shumway.Shell {
       files.forEach(function (file) {
         var start = dateNow();
         writer.debugLn("Parsing: " + file);
+        profile && SWF.timelineBuffer.reset();
         parseFile(file, parseForDatabaseOption.value, symbolFilterOption.value.split(","));
         var elapsed = dateNow() - start;
         if (verbose) {
-          verbose && writer.writeLn("Total Parse Time: " + (elapsed).toFixed(4));
+          verbose && writer.writeLn("Total Parse Time: " + (elapsed).toFixed(2) + " ms.");
+          profile && SWF.timelineBuffer.createSnapshot().trace(writer);
         }
       });
     }
