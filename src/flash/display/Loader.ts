@@ -346,7 +346,6 @@ module Shumway.AVM2.AS.flash.display {
 
       var avm1Context = this._contentLoaderInfo._avm1Context;
       avm1Context.root = as2Object;
-      as2Object.context = avm1Context;
       root.addEventListener('frameConstructed',
                             avm1Context.flushPendingScripts.bind(avm1Context),
                             false,

@@ -322,7 +322,10 @@ module Shumway.AVM2.AS.flash.display {
       if (!symbol) {
         symbol = new Timeline.SpriteSymbol({id: 0, className: this._file.symbolClassesMap[0]}, this);
         symbol.isRoot = true;
-        symbol.isAVM1Object = this._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2;
+        if (this._actionScriptVersion === ActionScriptVersion.ACTIONSCRIPT2) {
+          symbol.isAVM1Object = true;
+          symbol.avm1Context = this._avm1Context;
+        }
         symbol.numFrames = this._file.frameCount;
         this.registerSymbol(symbol);
       }
