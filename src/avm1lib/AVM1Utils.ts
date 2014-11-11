@@ -111,6 +111,55 @@ module Shumway.AVM2.AS.avm1lib {
         configurable: false
       });
     }
+
+    static addEventHandlerProxy(obj: ASObject, propertyName: string, eventName: string,
+                                argsConverter?: Function) {
+
+      var currentHandler: Function = null;
+      var handlerRunner: Function = null;
+
+      function getter(): Function {
+        return currentHandler;
+      }
+
+      function setter(newHandler: Function) {
+        if (!this._as3Object) { // prototype/class ?
+          var defaultListeners = this._as2DefaultListeners || (this._as2DefaultListeners = []);
+          defaultListeners.push({setter: setter, value: newHandler});
+          // see also initDefaultListeners()
+          return;
+        }
+        // AVM1 MovieClips don't receive roll/release events by default until they set one of the
+        // following properties. This behaviour gets triggered whenever those properties are set,
+        // despite of the actual value they are set to.
+        if (propertyName === 'onRelease' ||
+            propertyName === 'onReleaseOutside' ||
+            propertyName === 'onRollOut' ||
+            propertyName === 'onRollOver') {
+          this._as3Object.mouseEnabled = true;
+          this._as3Object.buttonMode = true;
+        }
+        if (currentHandler === newHandler) {
+          return;
+        }
+        if (currentHandler != null) {
+          this._as3Object.removeEventListener(eventName, handlerRunner);
+        }
+        currentHandler = newHandler;
+        if (currentHandler != null) {
+          handlerRunner = (function (obj: Object, handler: Function) {
+            return function handlerRunner() {
+              var args = argsConverter != null ? argsConverter(arguments) : null;
+              return handler.apply(obj, args);
+            };
+          })(this, currentHandler);
+          this._as3Object.addEventListener(eventName, handlerRunner);
+        } else {
+          handlerRunner = null;
+        }
+      }
+      AVM1Utils.addProperty(obj, propertyName, getter, setter, false);
+    }
   }
 
   export function initDefaultListeners(thisArg) {
