@@ -97,6 +97,12 @@ module Shumway.AVM2.AS.flash.display {
       var queue = Loader._loadQueue;
       for (var i = 0; i < queue.length; i++) {
         var instance = queue[i];
+        var queuedUpdates = instance._queuedLoadUpdates;
+        for (var j = 0; j < queuedUpdates.length; j++) {
+          instance._applyLoadUpdate(queuedUpdates[j]);
+        }
+        instance._queuedLoadUpdates.length = 0;
+
         var loaderInfo = instance._contentLoaderInfo;
         var bytesLoaded = loaderInfo._bytesLoaded;
         var bytesTotal = loaderInfo._bytesTotal;
@@ -137,6 +143,7 @@ module Shumway.AVM2.AS.flash.display {
             }
             break;
           case LoadStatus.Complete:
+            instance._queuedLoadUpdates = null;
             queue.splice(i--, 1);
             break;
           default:
@@ -243,28 +250,30 @@ module Shumway.AVM2.AS.flash.display {
       this.close();
       // TODO: clean up contentloaderInfo.
       this._contentLoaderInfo._url = request.url;
-      this._applyLoaderContext(context, request);
+      this._applyLoaderContext(context);
       this._loadingType = LoadingType.External;
       this._fileLoader = new FileLoader(this);
       this._fileLoader.loadFile(request._toFileRequest());
 
       // TODO: Only do this if a load wasn't in progress.
+      this._queuedLoadUpdates = [];
       Loader._loadQueue.push(this);
     }
 
     loadBytes(data: flash.utils.ByteArray, context?: LoaderContext) {
+      this.close();
       // TODO: properly coerce object arguments to their types.
       // In case this is the initial root loader, we won't have a loaderInfo object. That should
       // only happen in the inspector when a file is loaded from a Blob, though.
       this._contentLoaderInfo._url = (this.loaderInfo ? this.loaderInfo._url : '') +
                                      '/[[DYNAMIC]]/' + (++Loader._embeddedContentLoadCount);
-      this._applyLoaderContext(context, null);
+      this._applyLoaderContext(context);
       this._loadingType = LoadingType.Bytes;
-      this.close();
       this._fileLoader = new FileLoader(this);
       // Just passing in the bytes won't do, because the buffer can contain slop at the end.
       this._fileLoader.loadBytes(new Uint8Array((<any>data).bytes, 0, data.length));
 
+      this._queuedLoadUpdates = [];
       Loader._loadQueue.push(this);
     }
 
@@ -294,7 +303,7 @@ module Shumway.AVM2.AS.flash.display {
       this._unload(true, !!gc);
     }
 
-    private _applyLoaderContext(context: LoaderContext, request: flash.net.URLRequest) {
+    private _applyLoaderContext(context: LoaderContext) {
       var parameters = {};
       if (context && context.parameters) {
         var contextParameters = context.parameters;
@@ -308,43 +317,42 @@ module Shumway.AVM2.AS.flash.display {
         }
       }
       if (context && context.applicationDomain) {
-        this._contentLoaderInfo._applicationDomain =
-        new ApplicationDomain(ApplicationDomain.currentDomain);
+        var domain = new ApplicationDomain(ApplicationDomain.currentDomain);
+        this._contentLoaderInfo._applicationDomain = domain;
       }
       this._contentLoaderInfo._parameters = parameters;
     }
 
     onLoadOpen(file: SWFFile) {
-      if (file.useAVM1 && !AVM2.instance.avm1Loaded) {
-        var self = this;
-        this._initAvm1().then(function () {
-          self.onFileStartupReady(file);
-        });
-        this._queuedLoadUpdates = [];
-      } else {
-        this.onFileStartupReady(file);
-      }
-    }
-    private onFileStartupReady(file: SWFFile) {
       this._contentLoaderInfo.setFile(file);
-      if (this === Loader.getRootLoader()) {
-        Loader.runtimeStartTime = Date.now();
-      }
-      var queuedUpdates = this._queuedLoadUpdates;
-      if (queuedUpdates) {
-        this._queuedLoadUpdates = null;
-        for (var i = 0; i < queuedUpdates.length; i++) {
-          this.onLoadProgress(queuedUpdates[i]);
-        }
-      }
+    }
+
+    private onFileStartupReady() {
+      // The first frames have been loaded, kick off event loop.
+      this._startPromise.resolve(null);
+      // The very first update is applied immediately, as that creates the root content,
+      // which the player expects to exist at this point.
+      this._applyLoadUpdate(this._queuedLoadUpdates.shift());
+      Loader.runtimeStartTime = Date.now();
     }
 
     onLoadProgress(update: LoadProgressUpdate) {
-      var loaderInfo = this._contentLoaderInfo;
-      if (this._queuedLoadUpdates) {
-        this._queuedLoadUpdates.push(update);
+      this._queuedLoadUpdates.push(update);
+      if (this._content || this !== Loader.getRootLoader()) {
         return;
       }
+      if (this._contentLoaderInfo._file.useAVM1 && !AVM2.instance.avm1Loaded) {
+        var self = this;
+        this._initAvm1().then(function () {
+          self.onFileStartupReady();
+        });
+      } else {
+        this.onFileStartupReady();
+      }
+    }
+
+    private _applyLoadUpdate(update: LoadProgressUpdate) {
+      var loaderInfo = this._contentLoaderInfo;
       var abcBlocksLoadedDelta = update.abcBlocksLoaded - loaderInfo._abcBlocksLoaded;
       if (loaderInfo._allowCodeExecution && abcBlocksLoadedDelta > 0) {
         var appDomain = AVM2.instance.applicationDomain;
@@ -367,10 +375,6 @@ module Shumway.AVM2.AS.flash.display {
       var framesLoadedDelta = update.framesLoaded - rootSymbol.frames.length;
       if (framesLoadedDelta === 0) {
         return;
-      }
-      if (rootSymbol.frames.length === 0) {
-        // The first frames have been loaded, kick off event loop.
-        this._startPromise.resolve(null);
       }
       var root = this._content;
       if (!root) {
