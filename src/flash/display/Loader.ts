@@ -271,10 +271,10 @@ module Shumway.AVM2.AS.flash.display {
       this._applyLoaderContext(context);
       this._loadingType = LoadingType.Bytes;
       this._fileLoader = new FileLoader(this);
+      this._queuedLoadUpdates = [];
       // Just passing in the bytes won't do, because the buffer can contain slop at the end.
       this._fileLoader.loadBytes(new Uint8Array((<any>data).bytes, 0, data.length));
 
-      this._queuedLoadUpdates = [];
       Loader._loadQueue.push(this);
     }
 
@@ -354,23 +354,40 @@ module Shumway.AVM2.AS.flash.display {
 
     private _applyLoadUpdate(update: LoadProgressUpdate) {
       var loaderInfo = this._contentLoaderInfo;
-      var abcBlocksLoadedDelta = update.abcBlocksLoaded - loaderInfo._abcBlocksLoaded;
-      if (loaderInfo._allowCodeExecution && abcBlocksLoadedDelta > 0) {
+
+      if (loaderInfo._allowCodeExecution) {
         var appDomain = AVM2.instance.applicationDomain;
-        for (var i = loaderInfo._abcBlocksLoaded; i < update.abcBlocksLoaded; i++) {
-          var abcBlock = loaderInfo._file.abcBlocks[i];
-          var abc = new AbcFile(abcBlock.data, abcBlock.name);
-          if (abcBlock.flags) {
-            // kDoAbcLazyInitializeFlag = 1 Indicates that the ABC block should not be executed
-            // immediately.
-            appDomain.loadAbc(abc);
-          } else {
-            // TODO: probably delay execution until playhead reaches the frame.
-            appDomain.executeAbc(abc);
+
+        var abcBlocksLoadedDelta = update.abcBlocksLoaded - loaderInfo._abcBlocksLoaded;
+        if (abcBlocksLoadedDelta > 0) {
+          for (var i = loaderInfo._abcBlocksLoaded; i < update.abcBlocksLoaded; i++) {
+            var abcBlock = loaderInfo._file.abcBlocks[i];
+            var abc = new AbcFile(abcBlock.data, abcBlock.name);
+            if (abcBlock.flags) {
+              // kDoAbcLazyInitializeFlag = 1 Indicates that the ABC block should not be executed
+              // immediately.
+              appDomain.loadAbc(abc);
+            } else {
+              // TODO: probably delay execution until playhead reaches the frame.
+              appDomain.executeAbc(abc);
+            }
           }
-          loaderInfo._abcBlocksLoaded++;
+          loaderInfo._abcBlocksLoaded = update.abcBlocksLoaded;
+        }
+
+        var mappedSymbolsLoadedDelta = update.mappedSymbolsLoaded - loaderInfo._mappedSymbolsLoaded;
+        if (mappedSymbolsLoadedDelta > 0) {
+          for (var i = loaderInfo._mappedSymbolsLoaded; i < update.mappedSymbolsLoaded; i++) {
+            var symbolMapping = loaderInfo._file.symbolClassesList[i];
+            var symbolClass = appDomain.getClass(symbolMapping.className);
+            Object.defineProperty(symbolClass, "defaultInitializerArgument",
+                                  {get: loaderInfo.getSymbolResolver(symbolMapping.id),
+                                   configurable: true});
+          }
+          loaderInfo._mappedSymbolsLoaded = update.mappedSymbolsLoaded;
         }
       }
+
       var rootSymbol = loaderInfo.getRootSymbol();
       loaderInfo.bytesLoaded = update.bytesLoaded;
       var framesLoadedDelta = update.framesLoaded - rootSymbol.frames.length;

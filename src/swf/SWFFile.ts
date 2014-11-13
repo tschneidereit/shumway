@@ -49,6 +49,7 @@ module Shumway.SWF {
     dictionary: DictionaryEntry[];
 
     symbolClassesMap: string[];
+    symbolClassesList: {id: number; className: string}[];
     eagerlyParsedSymbols: EagerlyParsedDictionaryEntry[];
     pendingSymbolsPromise: Promise<any>;
 
@@ -98,6 +99,7 @@ module Shumway.SWF {
       this.dictionary = [];
 
       this.symbolClassesMap = [];
+      this.symbolClassesList = [];
       this.eagerlyParsedSymbols = [];
       this.pendingSymbolsPromise = null;
       this.jpegTables = null;
@@ -372,6 +374,7 @@ module Shumway.SWF {
             var symbolId = Parser.readUi16(this.data, stream);
             var symbolClassName = Parser.readString(this.data, stream, 0);
             this.symbolClassesMap[symbolId] = symbolClassName;
+            this.symbolClassesList.push({id: symbolId, className: symbolClassName});
           }
           // Make sure we move to end of tag even if the content is invalid.
           stream.pos = tagEnd;

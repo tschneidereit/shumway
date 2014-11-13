@@ -69,6 +69,7 @@ module Shumway.AVM2.AS.flash.display {
       this._allowCodeExecution = true;
       this._dictionary = [];
       this._abcBlocksLoaded = 0;
+      this._mappedSymbolsLoaded = 0;
       this._avm1Context = null;
 
       this._colorRGBA = 0xFFFFFFFF;
@@ -123,6 +124,7 @@ module Shumway.AVM2.AS.flash.display {
     _content: flash.display.DisplayObject;
     _bytes: flash.utils.ByteArray;
     _abcBlocksLoaded: number;
+    _mappedSymbolsLoaded: number;
     _uncaughtErrorEvents: flash.events.UncaughtErrorEvents;
 
     /**
@@ -260,6 +262,10 @@ module Shumway.AVM2.AS.flash.display {
       notImplemented("public flash.display.LoaderInfo::_setUncaughtErrorEvents"); return;
     }
 
+    getSymbolResolver(symbolId: number): () => any {
+      return this.ensureClassSymbol.bind(this, symbolId);
+    }
+
     getSymbolById(id: number): Shumway.Timeline.Symbol {
       var symbol = this._dictionary[id];
       if (symbol) {
@@ -346,6 +352,18 @@ module Shumway.AVM2.AS.flash.display {
         exports: frame.exports,
         frameDelta: new Timeline.FrameDelta(this, frame.displayListCommands)
       };
+    }
+
+    // TODO: To prevent leaking LoaderInfo instances, those instances should be stored weakly,
+    // with support for retrieving the instances based on a numeric id, which would be passed here.
+    private ensureClassSymbol(symbolId: number) {
+      var symbol = this.getSymbolById(symbolId);
+      if (!symbol) {
+        Debug.warning("Attempt to resolve symbol for AVM2 class failed: Symbol " +
+                      symbolId + " not found.")
+      } else {
+        return symbol.symbolClass.defaultInitializerArgument;
+      }
     }
   }
 }

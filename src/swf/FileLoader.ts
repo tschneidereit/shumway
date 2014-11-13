@@ -22,7 +22,8 @@ module Shumway {
   export class LoadProgressUpdate {
     constructor(public bytesLoaded: number,
                 public framesLoaded: number,
-                public abcBlocksLoaded: number) {
+                public abcBlocksLoaded: number,
+                public mappedSymbolsLoaded: number) {
     }
   }
   export interface ILoadListener {
@@ -62,7 +63,9 @@ module Shumway {
       // TODO: implement
     }
     loadBytes(bytes: Uint8Array) {
-      this._file = createFileInstanceForHeader(bytes, bytes.length);
+      var file = this._file = createFileInstanceForHeader(bytes, bytes.length);
+      this._listener.onLoadOpen(file);
+      this.processSWFFileUpdate(file);
     }
     processLoadOpen() {
       release || assert(!this._file);
@@ -75,9 +78,22 @@ module Shumway {
       } else {
         file.appendLoadedData(data);
       }
-      var update = new LoadProgressUpdate(progressInfo.bytesLoaded,
+      this.processSWFFileUpdate(file);
+    }
+    processError(error) {
+      Debug.warning('Loading error encountered:', error);
+    }
+    processLoadClose() {
+      if (this._file.bytesLoaded !== this._file.bytesTotal) {
+        Debug.warning("Not Implemented: processing loadClose when loading was aborted");
+      }
+    }
+
+    private processSWFFileUpdate(file: SWFFile) {
+      var update = new LoadProgressUpdate(file.bytesLoaded,
                                           file.frames.length,
-                                          file.abcBlocks.length);
+                                          file.abcBlocks.length,
+                                          file.symbolClassesList.length);
       if (!(file.pendingSymbolsPromise || this._delayedUpdatesPromise)) {
         this._listener.onLoadProgress(update);
         return;
@@ -90,14 +106,6 @@ module Shumway {
           self._delayedUpdatesPromise = null;
         }
       });
-    }
-    processError(error) {
-      Debug.warning('Loading error encountered:', error);
-    }
-    processLoadClose() {
-      if (this._file.bytesLoaded !== this._file.bytesTotal) {
-        Debug.warning("Not Implemented: processing loadClose when loading was aborted");
-      }
     }
   }
 
