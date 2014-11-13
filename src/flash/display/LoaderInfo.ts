@@ -21,6 +21,8 @@ module Shumway.AVM2.AS.flash.display {
   import asCoerceString = Shumway.AVM2.Runtime.asCoerceString;
 
   import ActionScriptVersion = flash.display.ActionScriptVersion;
+  import SWFFile = Shumway.SWF.SWFFile;
+  import SWFFrame = Shumway.SWF.SWFFrame;
 
   export class LoaderInfo extends flash.events.EventDispatcher {
 

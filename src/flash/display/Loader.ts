@@ -29,6 +29,7 @@ module Shumway.AVM2.AS.flash.display {
   import FileLoader = Shumway.FileLoader;
   import ILoadListener = Shumway.ILoadListener;
   import AbcFile = Shumway.AVM2.ABC.AbcFile;
+  import SWFFile = Shumway.SWF.SWFFile;
 
   enum LoadStatus {
     Unloaded    = 0,

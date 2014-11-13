@@ -21,4 +21,5 @@
 ///<reference path='parser/references.ts' />
 ///<reference path='jpeg.ts' />
 ///<reference path='stream.ts' />
+///<reference path='SWFFile.ts' />
 ///<reference path='FileLoader.ts' />
