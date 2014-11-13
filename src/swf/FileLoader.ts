@@ -27,16 +27,17 @@ module Shumway {
     }
   }
   export interface ILoadListener {
-    onLoadOpen: (SWFFile) => void;
+    onLoadOpen: (any) => void;
     onLoadProgress: (update: LoadProgressUpdate) => void;
     onLoadComplete: () => void;
     onLoadError: () => void;
   }
 
   export class FileLoader {
+    _file: any;
+
     private _listener: ILoadListener;
     private _loadingServiceSession: FileLoadingSession;
-    private _file: SWFFile;
     private _delayedUpdates: LoadProgressUpdate[];
     private _delayedUpdatesPromise: Promise<any>;
 
@@ -78,7 +79,14 @@ module Shumway {
       } else {
         file.appendLoadedData(data);
       }
-      this.processSWFFileUpdate(file);
+      if (file instanceof SWFFile) {
+        this.processSWFFileUpdate(file);
+      } else {
+        release || assert(file instanceof ImageFile);
+        if (progressInfo.bytesLoaded === progressInfo.bytesTotal) {
+          <ImageFile>file.decodingPromise.then(this._listener.onLoadComplete.bind(this._listener));
+        }
+      }
     }
     processError(error) {
       Debug.warning('Loading error encountered:', error);
@@ -109,27 +117,27 @@ module Shumway {
     }
   }
 
-  function createFileInstanceForHeader(header: Uint8Array, fileLength: number) {
-    var magic1 = header[0];
-    var magic2 = header[1];
-    var magic3 = header[2];
+  function createFileInstanceForHeader(header: Uint8Array, fileLength: number): any {
+    var magic = (header[0] << 16) | (header[1] << 8) | header[2];
 
-    // check for SWF
-    if (magic2 === 87 && magic3 === 83) {
+    if ((magic & 0xffff) === FileTypeMagicHeaderBytes.SWF /* SWF */) {
       return new SWFFile(header, fileLength);
     }
 
-    // check for JPG
-    if (magic1 === 0xff && magic2 === 0xd8 && magic3 === 0xff) {
-      //return new JPEGFile(header);
+    if (magic === FileTypeMagicHeaderBytes.JPG) {
+      return new ImageFile(header, fileLength);
     }
-
-    // check for JPG
-    if (magic1 === 0x89 && magic2 === 0x50 && magic3 === 0x4e) {
-      //return new PNGFile(header);
+    if (magic === FileTypeMagicHeaderBytes.PNG) {
+      return new ImageFile(header, fileLength);
     }
 
     // TODO: throw instead of returning null? Perhaps?
     return null;
+  }
+
+  enum FileTypeMagicHeaderBytes {
+    SWF = 0x5753,
+    JPG = 0xffd8ff,
+    PNG = 0x89504e
   }
 }

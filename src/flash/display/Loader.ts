@@ -324,17 +324,10 @@ module Shumway.AVM2.AS.flash.display {
       this._contentLoaderInfo._parameters = parameters;
     }
 
-    onLoadOpen(file: SWFFile) {
-      this._contentLoaderInfo.setFile(file);
-    }
-
-    private onFileStartupReady() {
-      // The first frames have been loaded, kick off event loop.
-      this._startPromise.resolve(null);
-      // The very first update is applied immediately, as that creates the root content,
-      // which the player expects to exist at this point.
-      this._applyLoadUpdate(this._queuedLoadUpdates.shift());
-      Loader.runtimeStartTime = Date.now();
+    onLoadOpen(file: any) {
+      if (file instanceof SWFFile) {
+        this._contentLoaderInfo.setFile(file);
+      }
     }
 
     onLoadProgress(update: LoadProgressUpdate) {
@@ -411,10 +404,25 @@ module Shumway.AVM2.AS.flash.display {
       }
     }
     onLoadComplete() {
-      // Go away, TSLint.
+      var file = this._fileLoader._file;
+      if (file instanceof ImageFile) {
+        var bitmapData = flash.display.BitmapData.initializeFrom(file);
+        flash.display.BitmapData.instanceConstructorNoInitialize.call(bitmapData);
+        this._content = new flash.display.Bitmap(bitmapData);
+        this.addTimelineObjectAtDepth(this._content, 0);
+      }
     }
     onLoadError() {
       // Go away, TSLint.
+    }
+
+    private onFileStartupReady() {
+      // The first frames have been loaded, kick off event loop.
+      this._startPromise.resolve(null);
+      // The very first update is applied immediately, as that creates the root content,
+      // which the player expects to exist at this point.
+      this._applyLoadUpdate(this._queuedLoadUpdates.shift());
+      Loader.runtimeStartTime = Date.now();
     }
 
     private createContentRoot(symbol: Timeline.SpriteSymbol, sceneData) {
