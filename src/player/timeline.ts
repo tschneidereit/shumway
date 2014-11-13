@@ -47,7 +47,6 @@ module Shumway.Timeline {
         try {
           var symbolClass = appDomain.getClass(data.className);
           this.symbolClass = symbolClass;
-          Object.defineProperty(symbolClass, "defaultInitializerArgument", {value: this});
         } catch (e) {
           warning ("Symbol " + data.id + " bound to non-existing class " + data.className);
           this.symbolClass = symbolDefaultClass;

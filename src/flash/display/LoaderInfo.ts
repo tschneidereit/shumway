@@ -262,8 +262,8 @@ module Shumway.AVM2.AS.flash.display {
       notImplemented("public flash.display.LoaderInfo::_setUncaughtErrorEvents"); return;
     }
 
-    getSymbolResolver(symbolId: number): () => any {
-      return this.ensureClassSymbol.bind(this, symbolId);
+    getSymbolResolver(classDefinition: ASClass, symbolId: number): () => any {
+      return this.resolveClassSymbol.bind(this, classDefinition, symbolId);
     }
 
     getSymbolById(id: number): Shumway.Timeline.Symbol {
@@ -356,13 +356,14 @@ module Shumway.AVM2.AS.flash.display {
 
     // TODO: To prevent leaking LoaderInfo instances, those instances should be stored weakly,
     // with support for retrieving the instances based on a numeric id, which would be passed here.
-    private ensureClassSymbol(symbolId: number) {
+    private resolveClassSymbol(classDefinition: ASClass, symbolId: number) {
       var symbol = this.getSymbolById(symbolId);
       if (!symbol) {
         Debug.warning("Attempt to resolve symbol for AVM2 class failed: Symbol " +
                       symbolId + " not found.");
       } else {
-        return symbol.symbolClass.defaultInitializerArgument;
+        Object.defineProperty(classDefinition, "defaultInitializerArgument", {value: symbol});
+        return symbol;
       }
     }
   }

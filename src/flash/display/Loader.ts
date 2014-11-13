@@ -374,7 +374,7 @@ module Shumway.AVM2.AS.flash.display {
             var symbolMapping = loaderInfo._file.symbolClassesList[i];
             var symbolClass = appDomain.getClass(symbolMapping.className);
             Object.defineProperty(symbolClass, "defaultInitializerArgument",
-                                  {get: loaderInfo.getSymbolResolver(symbolMapping.id),
+                                  {get: loaderInfo.getSymbolResolver(symbolClass, symbolMapping.id),
                                    configurable: true});
           }
           loaderInfo._mappedSymbolsLoaded = update.mappedSymbolsLoaded;
