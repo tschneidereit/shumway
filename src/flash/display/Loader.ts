@@ -105,7 +105,7 @@ module Shumway.AVM2.AS.flash.display {
         instance._queuedLoadUpdates.length = 0;
 
         var loaderInfo = instance._contentLoaderInfo;
-        var bytesLoaded = loaderInfo._bytesLoaded;
+        var bytesLoaded = loaderInfo._newBytesLoaded;
         var bytesTotal = loaderInfo._bytesTotal;
         switch (instance._loadStatus) {
           case LoadStatus.Unloaded:
@@ -117,35 +117,41 @@ module Shumway.AVM2.AS.flash.display {
               loaderInfo.dispatchEvent(events.Event.getInstance(events.Event.OPEN));
             }
 
-            // The first time any progress is made at all, a progress event with bytesLoaded = 0
-            // is dispatched.
-            loaderInfo.dispatchEvent(new events.ProgressEvent(events.ProgressEvent.PROGRESS,
-                                                              false, false, 0, bytesTotal));
+            // Except when loading the root SWF, the first time any progress is made at all,
+            // a progress event with bytesLoaded = 0 is dispatched.
+            if (instance !== Loader.getRootLoader()) {
+              loaderInfo.dispatchEvent(new events.ProgressEvent(events.ProgressEvent.PROGRESS,
+                                                                false, false, 0, bytesTotal));
+            }
             instance._loadStatus = LoadStatus.Opened;
             // Fallthrough
           case LoadStatus.Opened:
-            if (loaderInfo._bytesLoadedChanged) {
-              loaderInfo._bytesLoadedChanged = false;
-              loaderInfo.dispatchEvent(new events.ProgressEvent(events.ProgressEvent.PROGRESS,
-                                                                false, false, bytesLoaded,
-                                                                bytesTotal));
-            }
             if (!(instance._content &&
                   instance._content._hasFlags(DisplayObjectFlags.Constructed))) {
+              if (loaderInfo._newBytesLoaded > loaderInfo._bytesLoaded) {
+                loaderInfo._bytesLoaded = loaderInfo._newBytesLoaded;
+                loaderInfo.dispatchEvent(new events.ProgressEvent(events.ProgressEvent.PROGRESS,
+                                                                  false, false, bytesLoaded,
+                                                                  bytesTotal));
+              }
               break;
             }
             instance._loadStatus = LoadStatus.Initialized;
             loaderInfo.dispatchEvent(events.Event.getInstance(events.Event.INIT));
             // Fallthrough
           case LoadStatus.Initialized:
+            if (loaderInfo._newBytesLoaded > loaderInfo._bytesLoaded) {
+              loaderInfo._bytesLoaded = loaderInfo._newBytesLoaded;
+              loaderInfo.dispatchEvent(new events.ProgressEvent(events.ProgressEvent.PROGRESS,
+                                                                false, false, bytesLoaded,
+                                                                bytesTotal));
+            }
             if (bytesLoaded === bytesTotal) {
               instance._loadStatus = LoadStatus.Complete;
+              instance._queuedLoadUpdates = null;
+              queue.splice(i--, 1);
               loaderInfo.dispatchEvent(events.Event.getInstance(events.Event.COMPLETE));
             }
-            break;
-          case LoadStatus.Complete:
-            instance._queuedLoadUpdates = null;
-            queue.splice(i--, 1);
             break;
           default:
             assertUnreachable("Mustn't encounter unhandled status in Loader queue.");
@@ -207,7 +213,7 @@ module Shumway.AVM2.AS.flash.display {
     private _fileLoader: FileLoader;
     private _loadStatus: LoadStatus;
     private _loadingType: LoadingType;
-    private _queuedLoadUpdates: LoadProgressUpdate[];
+    private _queuedLoadUpdates: SWFLoadProgressUpdate[];
 
     /**
      * Resolved when the root Loader has loaded the first frame(s) of the main SWF.
@@ -327,25 +333,32 @@ module Shumway.AVM2.AS.flash.display {
     onLoadOpen(file: any) {
       if (file instanceof SWFFile) {
         this._contentLoaderInfo.setFile(file);
+      } else {
+        release || assert(file instanceof ImageFile);
+        this._contentLoaderInfo._bytesTotal = file.bytesTotal;
       }
     }
 
     onLoadProgress(update: LoadProgressUpdate) {
-      this._queuedLoadUpdates.push(update);
-      if (this._content || this !== Loader.getRootLoader()) {
-        return;
-      }
-      if (this._contentLoaderInfo._file.useAVM1 && !AVM2.instance.avm1Loaded) {
-        var self = this;
-        this._initAvm1().then(function () {
-          self.onFileStartupReady();
-        });
+      if (update instanceof SWFLoadProgressUpdate) {
+        this._queuedLoadUpdates.push(update);
+        if (this._content || this !== Loader.getRootLoader()) {
+          return;
+        }
+        if (this._contentLoaderInfo._file.useAVM1 && !AVM2.instance.avm1Loaded) {
+          var self = this;
+          this._initAvm1().then(function () {
+            self.onFileStartupReady();
+          });
+        } else {
+          this.onFileStartupReady();
+        }
       } else {
-        this.onFileStartupReady();
+        this._contentLoaderInfo.bytesLoaded = update.bytesLoaded;
       }
     }
 
-    private _applyLoadUpdate(update: LoadProgressUpdate) {
+    private _applyLoadUpdate(update: SWFLoadProgressUpdate) {
       var loaderInfo = this._contentLoaderInfo;
 
       if (loaderInfo._allowCodeExecution) {
@@ -389,6 +402,11 @@ module Shumway.AVM2.AS.flash.display {
       }
       var root = this._content;
       if (!root) {
+        if (Loader.getRootLoader() === this) {
+          // For the root loader, make sure that the real bytesLoaded value is set before any
+          // script runs.
+          loaderInfo._bytesLoaded = update.bytesLoaded;
+        }
         root = this.createContentRoot(loaderInfo.getRootSymbol(),
                                       loaderInfo._file.sceneAndFrameLabelData);
       }
@@ -409,6 +427,8 @@ module Shumway.AVM2.AS.flash.display {
         var bitmapData = flash.display.BitmapData.initializeFrom(file);
         flash.display.BitmapData.instanceConstructorNoInitialize.call(bitmapData);
         this._content = new flash.display.Bitmap(bitmapData);
+        this._contentLoaderInfo._width = this._content.width;
+        this._contentLoaderInfo._height = this._content.height;
         this.addTimelineObjectAtDepth(this._content, 0);
       }
     }
@@ -510,26 +530,6 @@ module Shumway.AVM2.AS.flash.display {
       }
 
       return avm1Movie;
-    }
-
-    private _commitImage(data: any): void {
-      var symbol = Timeline.BitmapSymbol.FromData(data.props);
-      var b = flash.display.BitmapData.initializeFrom(symbol);
-      flash.display.BitmapData.instanceConstructorNoInitialize.call(b);
-
-      this._content = new flash.display.Bitmap(b);
-      this.addTimelineObjectAtDepth(this._content, 0);
-
-      var loaderInfo = this._contentLoaderInfo;
-      loaderInfo._width = symbol.width;
-      loaderInfo._height = symbol.height;
-
-      // Complete load process manually here to avoid any additional progress events to be fired.
-      this._loadStatus = LoadStatus.Initialized;
-      loaderInfo.dispatchEvent(events.Event.getInstance(events.Event.INIT));
-      this._loadStatus = LoadStatus.Complete;
-      loaderInfo.dispatchEvent(events.Event.getInstance(events.Event.COMPLETE));
-      this._loadStatus = LoadStatus.Complete;
     }
   }
 }

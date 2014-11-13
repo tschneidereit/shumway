@@ -20,10 +20,15 @@ module Shumway {
   import SWFFile = Shumway.SWF.SWFFile;
 
   export class LoadProgressUpdate {
-    constructor(public bytesLoaded: number,
+    constructor(public bytesLoaded: number) {
+    }
+  }
+  export class SWFLoadProgressUpdate extends LoadProgressUpdate {
+    constructor(bytesLoaded: number,
                 public framesLoaded: number,
                 public abcBlocksLoaded: number,
                 public mappedSymbolsLoaded: number) {
+      super(bytesLoaded);
     }
   }
   export interface ILoadListener {
@@ -83,6 +88,7 @@ module Shumway {
         this.processSWFFileUpdate(file);
       } else {
         release || assert(file instanceof ImageFile);
+        this._listener.onLoadProgress(new LoadProgressUpdate(progressInfo.bytesLoaded));
         if (progressInfo.bytesLoaded === progressInfo.bytesTotal) {
           <ImageFile>file.decodingPromise.then(this._listener.onLoadComplete.bind(this._listener));
         }
@@ -98,10 +104,10 @@ module Shumway {
     }
 
     private processSWFFileUpdate(file: SWFFile) {
-      var update = new LoadProgressUpdate(file.bytesLoaded,
-                                          file.frames.length,
-                                          file.abcBlocks.length,
-                                          file.symbolClassesList.length);
+      var update = new SWFLoadProgressUpdate(file.bytesLoaded,
+                                             file.frames.length,
+                                             file.abcBlocks.length,
+                                             file.symbolClassesList.length);
       if (!(file.pendingSymbolsPromise || this._delayedUpdatesPromise)) {
         this._listener.onLoadProgress(update);
         return;

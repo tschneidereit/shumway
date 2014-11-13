@@ -48,6 +48,10 @@ module Shumway {
       this.processLoadedData();
     }
 
+    get bytesTotal() {
+      return this.data.length;
+    }
+
     appendLoadedData(data: Uint8Array) {
       this.data.set(data, this.bytesLoaded);
       this.bytesLoaded += data.length;
