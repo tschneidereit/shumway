@@ -71,7 +71,7 @@ module Shumway.AVM2.AS.flash.display {
     }
 
     static reset() {
-      Loader._loadQueue.forEach(function(loader) {loader.unload()});
+      Loader._loadQueue.forEach(function(loader) { loader.unload(); });
       Loader.classInitializer();
     }
 

@@ -360,7 +360,7 @@ module Shumway.AVM2.AS.flash.display {
       var symbol = this.getSymbolById(symbolId);
       if (!symbol) {
         Debug.warning("Attempt to resolve symbol for AVM2 class failed: Symbol " +
-                      symbolId + " not found.")
+                      symbolId + " not found.");
       } else {
         return symbol.symbolClass.defaultInitializerArgument;
       }
