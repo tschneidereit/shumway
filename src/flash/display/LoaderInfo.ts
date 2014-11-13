@@ -260,10 +260,6 @@ module Shumway.AVM2.AS.flash.display {
       notImplemented("public flash.display.LoaderInfo::_setUncaughtErrorEvents"); return;
     }
 
-    registerSymbol(symbol: Shumway.Timeline.Symbol): void {
-      this._dictionary[symbol.id] = symbol;
-    }
-
     getSymbolById(id: number): Shumway.Timeline.Symbol {
       var symbol = this._dictionary[id];
       if (symbol) {
@@ -329,7 +325,7 @@ module Shumway.AVM2.AS.flash.display {
           symbol.avm1Context = this._avm1Context;
         }
         symbol.numFrames = this._file.frameCount;
-        this.registerSymbol(symbol);
+        this._dictionary[0] = symbol;
       }
       return symbol;
     }
