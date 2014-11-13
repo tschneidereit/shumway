@@ -105,23 +105,21 @@ module Shumway.AVM2.AS {
       static initializer = function (source: any) {
         var self: ByteArray = this;
 
-        // Unsafe reference to BinarySymbol, we don't want to create an unnecessary dependence just for
-        // this once use case.
-        var BinarySymbol = (<any>Shumway).Timeline.BinarySymbol;
-        release || assert (BinarySymbol);
-
         var buffer: ArrayBuffer;
         var length = 0;
         if (source) {
           if (source instanceof ArrayBuffer) {
             buffer = source.slice();
           } else if (Array.isArray(source)) {
-            buffer = new Uint8Array(buffer).buffer;
-          } else if (source instanceof BinarySymbol) {
-            buffer = new Uint8Array(source.buffer).buffer.slice();
+            buffer = new Uint8Array(source).buffer;
           } else if ('buffer' in source) {
-            release || assert (source.buffer instanceof ArrayBuffer);
-            buffer = source.buffer.slice();
+            if (source.buffer instanceof Uint8Array) {
+              var begin = source.buffer.byteOffset;
+              buffer = source.buffer.buffer.slice(begin, begin + source.buffer.length);
+            } else {
+              release || assert(source.buffer instanceof ArrayBuffer);
+              buffer = source.buffer.slice();
+            }
           } else {
             Debug.unexpected("Source type.");
           }
