@@ -198,7 +198,7 @@ module Shumway.Player {
           }
 
           self._enterLoops();
-        });
+        }, null);
       }
       var context = this.createLoaderContext();
       if (buffer) {

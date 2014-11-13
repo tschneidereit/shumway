@@ -422,9 +422,9 @@ module Shumway.Shell {
       try {
         var buffer = read(file, "binary");
         var startSWF = dateNow();
-        var swfFile: Shumway.SWFFile;
+        var swfFile: Shumway.SWF.SWFFile;
         var loadListener: ILoadListener = {
-          onLoadOpen: function(file: Shumway.SWFFile) {
+          onLoadOpen: function(file: Shumway.SWF.SWFFile) {
             swfFile = file;
           },
           onLoadProgress: function(update: LoadProgressUpdate) {
