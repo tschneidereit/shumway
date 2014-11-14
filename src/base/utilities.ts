@@ -48,16 +48,8 @@ if (!jsGlobal.performance.now) {
   jsGlobal.performance.now = typeof dateNow !== 'undefined' ? dateNow : Date.now;
 }
 
-function log(message?: any, ...optionalParams: any[]): void {
-  jsGlobal.print.apply(jsGlobal, arguments);
-}
-
-function warn(message?: any, ...optionalParams: any[]): void {
-  jsGlobal.print(Shumway.IndentingWriter.RED + message + Shumway.IndentingWriter.ENDC);
-}
-if (inBrowser) {
-  jsGlobal.warn = console.warn.bind(console);
-}
+var log = console.log.bind(console);
+var warn = console.warn.bind(console);
 
 interface String {
   padRight(c: string, n: number): string;
@@ -261,11 +253,7 @@ module Shumway {
     }
 
     export function error(message: string) {
-      if (!inBrowser) {
-        warn(message + "\n\nStack Trace:\n" + Debug.backtrace());
-      } else {
-        warn(message);
-      }
+      console.error(message);
       throw new Error(message);
     }
 
@@ -296,10 +284,6 @@ module Shumway {
 
     export function warning(...messages: any[]) {
       release || warn.apply(window, messages);
-    }
-
-    if (inBrowser) {
-      Debug.warning = console.warn.bind(console);
     }
 
     export function notUsed(message: string) {
@@ -1732,8 +1716,8 @@ module Shumway {
 
     public static logLevel: LogLevel = LogLevel.All;
 
-    private static _consoleOut = inBrowser ? console.info.bind(console) : print;
-    private static _consoleOutNoNewline = inBrowser ? console.info.bind(console) : putstr;
+    private static _consoleOut = console.info.bind(console);
+    private static _consoleOutNoNewline = console.info.bind(console);
 
     private _tab: string;
     private _padding: string;
