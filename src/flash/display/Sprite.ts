@@ -75,11 +75,6 @@ module Shumway.AVM2.AS.flash.display {
     _hitTarget: flash.display.Sprite;
 
     _addFrame(frameInfo: any) {
-      //var frameScripts = rootSymbol.frameScripts || (rootSymbol.frameScripts = []);
-      //if (frameInfo.scripts && frameInfo.scripts.length) {
-      //  frameScripts.push(i);
-      //  frameScripts.push.apply(frameScripts, frameInfo.scripts);
-      //}
       var frames = (<Timeline.SpriteSymbol><any>this._symbol).frames;
       frames.push(frameInfo.frameDelta);
       if (frames.length === 1) {

@@ -190,7 +190,6 @@ module Shumway.AVM1 {
       }
       var symbol = this.assetsSymbols[symbolId];
       if (!symbol) {
-
         symbol = this.loaderInfo.getSymbolById(symbolId);
         if (!symbol) {
           Debug.warning("Symbol " + symbolId + " is not defined.");

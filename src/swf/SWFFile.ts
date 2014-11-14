@@ -53,22 +53,22 @@ module Shumway.SWF {
     eagerlyParsedSymbols: EagerlyParsedDictionaryEntry[];
     pendingSymbolsPromise: Promise<any>;
 
-    private uncompressedLength: number;
-    private uncompressedLoadedLength: number;
-    private data: Uint8Array;
-    private dataView: DataView;
-    private dataStream: Stream;
-    private decompressor: Inflate;
-    private jpegTables: any;
-    private endTagEncountered: boolean;
+    private _uncompressedLength: number;
+    private _uncompressedLoadedLength: number;
+    private _data: Uint8Array;
+    private _dataView: DataView;
+    private _dataStream: Stream;
+    private _decompressor: Inflate;
+    private _jpegTables: any;
+    private _endTagEncountered: boolean;
 
-    private currentFrameLabel: string;
-    private currentSoundStreamHead: Parser.SoundStream;
-    private currentSoundStreamBlock: Uint8Array;
-    private currentDisplayListCommands: UnparsedTag[];
-    private currentActionBlocks: Uint8Array[];
-    private currentInitActionBlocks: InitActionBlock[];
-    private currentExports: SymbolExport[];
+    private _currentFrameLabel: string;
+    private _currentSoundStreamHead: Parser.SoundStream;
+    private _currentSoundStreamBlock: Uint8Array;
+    private _currentDisplayListCommands: UnparsedTag[];
+    private _currentActionBlocks: Uint8Array[];
+    private _currentInitActionBlocks: InitActionBlock[];
+    private _currentExports: SymbolExport[];
 
     constructor(initialBytes: Uint8Array, length: number) {
       // TODO: cleanly abort loading/parsing instead of just asserting here.
@@ -102,16 +102,16 @@ module Shumway.SWF {
       this.symbolClassesList = [];
       this.eagerlyParsedSymbols = [];
       this.pendingSymbolsPromise = null;
-      this.jpegTables = null;
+      this._jpegTables = null;
 
-      this.currentFrameLabel = null;
-      this.currentSoundStreamHead = null;
-      this.currentSoundStreamBlock = null;
-      this.currentDisplayListCommands = null;
-      this.currentActionBlocks = null;
-      this.currentInitActionBlocks = null;
-      this.currentExports = null;
-      this.endTagEncountered = false;
+      this._currentFrameLabel = null;
+      this._currentSoundStreamHead = null;
+      this._currentSoundStreamBlock = null;
+      this._currentDisplayListCommands = null;
+      this._currentActionBlocks = null;
+      this._currentInitActionBlocks = null;
+      this._currentExports = null;
+      this._endTagEncountered = false;
       this.readHeaderAndInitialize(initialBytes);
     }
 
@@ -126,7 +126,7 @@ module Shumway.SWF {
       var symbol;
       if (unparsed.tagCode === SWFTag.CODE_DEFINE_SPRITE) {
         // TODO: replace this whole silly `type` business with tagCode checking.
-        symbol = parseSpriteTimeline(unparsed, this.data, this.dataStream, this.dataView,
+        symbol = parseSpriteTimeline(unparsed, this._data, this._dataStream, this._dataView,
                                      this.useAVM1);
       } else {
         symbol = this.getParsedTag(unparsed);
@@ -137,20 +137,20 @@ module Shumway.SWF {
 
     getParsedTag(unparsed: UnparsedTag): any {
       SWF.enterTimeline('Parse tag ' + SWFTag[unparsed.tagCode]);
-      this.dataStream.align();
-      this.dataStream.pos = unparsed.byteOffset;
+      this._dataStream.align();
+      this._dataStream.pos = unparsed.byteOffset;
       var tag: any = {code: unparsed.tagCode};
       var handler = Parser.LowLevel.tagHandlers[unparsed.tagCode];
       var tagEnd = unparsed.byteOffset + unparsed.byteLength;
-      handler(this.data, this.dataStream, tag, this.swfVersion, unparsed.tagCode, tagEnd);
-      var finalPos = this.dataStream.pos;
+      handler(this._data, this._dataStream, tag, this.swfVersion, unparsed.tagCode, tagEnd);
+      var finalPos = this._dataStream.pos;
       release || assert(finalPos <= tagEnd);
       if (finalPos < tagEnd) {
         var consumedBytes = finalPos - unparsed.byteOffset;
         Debug.warning('Scanning ' + SWFTag[unparsed.tagCode] + ' at offset ' +
                       unparsed.byteOffset + ' consumed ' + consumedBytes + ' of ' +
                       unparsed.byteLength + ' bytes. (' + (tagEnd - finalPos) + ' left)');
-        this.dataStream.pos = tagEnd;
+        this._dataStream.pos = tagEnd;
       }
       var symbol = defineSymbol(tag, this.dictionary);
       SWF.leaveTimeline();
@@ -163,11 +163,11 @@ module Shumway.SWF {
       this.bytesLoaded += bytes.length;
       release || assert(this.bytesLoaded <= this.bytesTotal);
       // Tags after the end tag are simply ignored, so we don't even have to scan them.
-      if (this.endTagEncountered) {
+      if (this._endTagEncountered) {
         return;
       }
       if (this.isCompressed) {
-        this.decompressor.push(bytes, true);
+        this._decompressor.push(bytes, true);
       } else {
         this.processDecompressedData(bytes);
       }
@@ -180,37 +180,37 @@ module Shumway.SWF {
       SWF.enterTimeline('Initialize SWFFile');
       this.isCompressed = initialBytes[0] === 67;
       this.swfVersion = initialBytes[3];
-      this.uncompressedLength = readSWFLength(initialBytes);
+      this._uncompressedLength = readSWFLength(initialBytes);
       // TODO: only report decoded or sync-decodable bytes as loaded.
       this.bytesLoaded = initialBytes.length;
-      this.data = new Uint8Array(this.uncompressedLength);
-      this.dataStream = new Stream(this.data.buffer);
-      this.dataStream.pos = 8;
-      this.dataView = <DataView><any>this.dataStream;
+      this._data = new Uint8Array(this._uncompressedLength);
+      this._dataStream = new Stream(this._data.buffer);
+      this._dataStream.pos = 8;
+      this._dataView = <DataView><any>this._dataStream;
 
       if (this.isCompressed) {
-        this.data.set(initialBytes.subarray(0, 8));
-        this.uncompressedLoadedLength = 8;
-        this.decompressor = new Inflate(true);
+        this._data.set(initialBytes.subarray(0, 8));
+        this._uncompressedLoadedLength = 8;
+        this._decompressor = new Inflate(true);
         var self = this;
         // Parts of the header are compressed. Get those out of the way before starting tag parsing.
-        this.decompressor.onData = function(data: Uint32Array) {
-          self.data.set(data, self.uncompressedLoadedLength);
-          self.uncompressedLoadedLength += data.length;
+        this._decompressor.onData = function(data: Uint32Array) {
+          self._data.set(data, self._uncompressedLoadedLength);
+          self._uncompressedLoadedLength += data.length;
           // TODO: clean up second part of header parsing.
-          var obj = Parser.LowLevel.readHeader(self.data, self.dataStream);
+          var obj = Parser.LowLevel.readHeader(self._data, self._dataStream);
           self.bounds = obj.bounds;
           self.frameRate = obj.frameRate;
           self.frameCount = obj.frameCount;
-          self.decompressor.onData = self.processDecompressedData.bind(self);
+          self._decompressor.onData = self.processDecompressedData.bind(self);
         };
-        this.decompressor.push(initialBytes.subarray(8), true);
+        this._decompressor.push(initialBytes.subarray(8), true);
       } else {
-        this.data.set(initialBytes);
-        this.uncompressedLoadedLength = initialBytes.length;
-        this.decompressor = null;
+        this._data.set(initialBytes);
+        this._uncompressedLoadedLength = initialBytes.length;
+        this._decompressor = null;
         // TODO: clean up second part of header parsing.
-        var obj = Parser.LowLevel.readHeader(this.data, this.dataStream);
+        var obj = Parser.LowLevel.readHeader(this._data, this._dataStream);
         this.bounds = obj.bounds;
         this.frameRate = obj.frameRate;
         this.frameCount = obj.frameCount;
@@ -222,51 +222,51 @@ module Shumway.SWF {
     }
 
     private processDecompressedData(data: Uint8Array) {
-      this.data.set(data, this.uncompressedLoadedLength);
-      this.uncompressedLoadedLength += data.length;
-      if (this.uncompressedLoadedLength === this.uncompressedLength) {
-        this.decompressor = null;
+      this._data.set(data, this._uncompressedLoadedLength);
+      this._uncompressedLoadedLength += data.length;
+      if (this._uncompressedLoadedLength === this._uncompressedLength) {
+        this._decompressor = null;
       }
     }
 
     private scanLoadedData() {
       // `parsePos` is always at the start of a tag at this point, because it only gets updated
       // when a tag has been fully parsed.
-      while (this.dataStream.pos < this.uncompressedLoadedLength - 1) {
-        var position = this.dataStream.pos;
-        var tagCodeAndLength = this.dataView.getUint16(position, true);
+      while (this._dataStream.pos < this._uncompressedLoadedLength - 1) {
+        var position = this._dataStream.pos;
+        var tagCodeAndLength = this._dataView.getUint16(position, true);
         position += 2;
         var tagCode = tagCodeAndLength >> 6;
         var tagLength = tagCodeAndLength & 0x3f;
         var extendedLength = tagLength === 0x3f;
         if (extendedLength) {
-          if (position + 4 > this.uncompressedLoadedLength) {
+          if (position + 4 > this._uncompressedLoadedLength) {
             return;
           }
-          tagLength = this.dataView.getUint32(position, true);
+          tagLength = this._dataView.getUint32(position, true);
           position += 4;
         }
-        if (position + tagLength > this.uncompressedLoadedLength) {
+        if (position + tagLength > this._uncompressedLoadedLength) {
           return;
         }
-        this.dataStream.pos = position;
+        this._dataStream.pos = position;
         this.scanTag(tagCode, tagLength);
-        release || assert(this.dataStream.pos <= position + tagLength);
-        if (this.dataStream.pos < position + tagLength) {
-          var consumedBytes = this.dataStream.pos - position;
+        release || assert(this._dataStream.pos <= position + tagLength);
+        if (this._dataStream.pos < position + tagLength) {
+          var consumedBytes = this._dataStream.pos - position;
           Debug.warning('Scanning ' + SWFTag[tagCode] + ' at offset ' + position + ' consumed ' +
                         consumedBytes + ' of ' + tagLength + ' bytes. (' +
                         (tagLength - consumedBytes) + ' left)');
-          this.dataStream.pos = position + tagLength;
+          this._dataStream.pos = position + tagLength;
         }
-        if (this.endTagEncountered) {
+        if (this._endTagEncountered) {
           return;
         }
       }
     }
 
     private scanTag(tagCode: number, tagLength: number): void {
-      var stream: Stream = this.dataStream;
+      var stream: Stream = this._dataStream;
       var byteOffset = stream.pos;
 
       if (tagCode === SWFTag.CODE_DEFINE_SPRITE) {
@@ -281,13 +281,13 @@ module Shumway.SWF {
         var spriteTagEnd = byteOffset + tagLength;
         stream.pos += 4; // Jump over symbol ID and frameCount.
         while (stream.pos < spriteTagEnd) {
-          var tagCodeAndLength = this.dataView.getUint16(stream.pos, true);
+          var tagCodeAndLength = this._dataView.getUint16(stream.pos, true);
           var tagCode = tagCodeAndLength >> 6;
           var tagLength = tagCodeAndLength & 0x3f;
           var extendedLength = tagLength === 0x3f;
           stream.pos += 2;
           if (extendedLength) {
-            tagLength = this.dataView.getUint32(stream.pos, true);
+            tagLength = this._dataView.getUint32(stream.pos, true);
             stream.pos += 4;
           }
           if (stream.pos + tagLength > spriteTagEnd) {
@@ -335,14 +335,14 @@ module Shumway.SWF {
           this.setSceneAndFrameLabelData(tagLength);
           break;
         case SWFTag.CODE_SET_BACKGROUND_COLOR:
-          this.backgroundColor = Parser.LowLevel.rgb(this.data, this.dataStream);
+          this.backgroundColor = Parser.LowLevel.rgb(this._data, this._dataStream);
           break;
         case SWFTag.CODE_JPEG_TABLES:
           // Only use the first JpegTables tag, ignore any following.
-          if (!this.jpegTables) {
-            this.jpegTables = tagLength === 0 ?
+          if (!this._jpegTables) {
+            this._jpegTables = tagLength === 0 ?
                               new Uint8Array(0) :
-                              this.data.subarray(stream.pos, stream.pos + tagLength - 2);
+                              this._data.subarray(stream.pos, stream.pos + tagLength - 2);
           }
           this.jumpToNextTag(tagLength);
           break;
@@ -352,14 +352,14 @@ module Shumway.SWF {
             var tagEnd = byteOffset + tagLength;
             var abcBlock = new ABCBlock();
             if (tagCode === SWFTag.CODE_DO_ABC) {
-              abcBlock.flags = Parser.readUi32(this.data, stream);
-              abcBlock.name = Parser.readString(this.data, stream, 0);
+              abcBlock.flags = Parser.readUi32(this._data, stream);
+              abcBlock.name = Parser.readString(this._data, stream, 0);
             }
             else {
               abcBlock.flags = 0;
               abcBlock.name = "";
             }
-            abcBlock.data = this.data.subarray(stream.pos, tagEnd);
+            abcBlock.data = this._data.subarray(stream.pos, tagEnd);
             this.abcBlocks.push(abcBlock);
             stream.pos = tagEnd;
           } else {
@@ -368,11 +368,11 @@ module Shumway.SWF {
           break;
         case SWFTag.CODE_SYMBOL_CLASS:
           var tagEnd = byteOffset + tagLength;
-          var symbolCount = Parser.readUi16(this.data, stream);
+          var symbolCount = Parser.readUi16(this._data, stream);
           // TODO: check if symbols can be reassociated after instances have been created.
           while (symbolCount--) {
-            var symbolId = Parser.readUi16(this.data, stream);
-            var symbolClassName = Parser.readString(this.data, stream, 0);
+            var symbolId = Parser.readUi16(this._data, stream);
+            var symbolClassName = Parser.readString(this._data, stream, 0);
             this.symbolClassesMap[symbolId] = symbolClassName;
             this.symbolClassesList.push({id: symbolId, className: symbolClassName});
           }
@@ -381,32 +381,32 @@ module Shumway.SWF {
           break;
         case SWFTag.CODE_DO_INIT_ACTION:
           if (this.useAVM1) {
-            var initActionBlocks = this.currentInitActionBlocks ||
-                                   (this.currentInitActionBlocks = []);
-            var spriteId = this.dataView.getUint16(stream.pos, true);
-            var actionsData = this.data.subarray(byteOffset + 2, byteOffset + tagLength);
+            var initActionBlocks = this._currentInitActionBlocks ||
+                                   (this._currentInitActionBlocks = []);
+            var spriteId = this._dataView.getUint16(stream.pos, true);
+            var actionsData = this._data.subarray(byteOffset + 2, byteOffset + tagLength);
             initActionBlocks.push({spriteId: spriteId, actionsData: actionsData});
           }
           this.jumpToNextTag(tagLength);
           break;
         case SWFTag.CODE_DO_ACTION:
           if (this.useAVM1) {
-            var actionBlocks = this.currentActionBlocks || (this.currentActionBlocks = []);
-            actionBlocks.push(this.data.subarray(stream.pos, stream.pos + tagLength));
+            var actionBlocks = this._currentActionBlocks || (this._currentActionBlocks = []);
+            actionBlocks.push(this._data.subarray(stream.pos, stream.pos + tagLength));
           }
           this.jumpToNextTag(tagLength);
           break;
         case SWFTag.CODE_SOUND_STREAM_HEAD:
         case SWFTag.CODE_SOUND_STREAM_HEAD2:
-          var soundStreamTag = Parser.LowLevel.soundStreamHead(this.data, this.dataStream);
-          this.currentSoundStreamHead = Parser.SoundStream.FromTag(soundStreamTag);
+          var soundStreamTag = Parser.LowLevel.soundStreamHead(this._data, this._dataStream);
+          this._currentSoundStreamHead = Parser.SoundStream.FromTag(soundStreamTag);
           break;
         case SWFTag.CODE_SOUND_STREAM_BLOCK:
-          this.currentSoundStreamBlock = this.data.subarray(stream.pos, stream.pos += tagLength);
+          this._currentSoundStreamBlock = this._data.subarray(stream.pos, stream.pos += tagLength);
           break;
         case SWFTag.CODE_FRAME_LABEL:
           var tagEnd = stream.pos + tagLength;
-          this.currentFrameLabel = Parser.readString(this.data, stream, 0);
+          this._currentFrameLabel = Parser.readString(this._data, stream, 0);
           // TODO: support SWF6+ anchors.
           stream.pos = tagEnd;
           break;
@@ -415,15 +415,15 @@ module Shumway.SWF {
           break;
         // TODO: Support this grab-bag of tags.
         case SWFTag.CODE_END:
-          this.endTagEncountered = true;
+          this._endTagEncountered = true;
           return;
         case SWFTag.CODE_EXPORT_ASSETS:
           var tagEnd = stream.pos + tagLength;
-          var exportsCount = Parser.readUi16(this.data, stream);
-          var exports = this.currentExports || (this.currentExports = []);
+          var exportsCount = Parser.readUi16(this._data, stream);
+          var exports = this._currentExports || (this._currentExports = []);
           while (exportsCount--) {
-            var symbolId = Parser.readUi16(this.data, stream);
-            var className = Parser.readString(this.data, stream, 0);
+            var symbolId = Parser.readUi16(this._data, stream);
+            var className = Parser.readString(this._data, stream, 0);
             if (stream.pos > tagEnd) {
               stream.pos = tagEnd;
               break;
@@ -482,27 +482,27 @@ module Shumway.SWF {
     }
 
     private jumpToNextTag(currentTagLength: number) {
-      this.dataStream.pos += currentTagLength;
+      this._dataStream.pos += currentTagLength;
     }
 
     private finishFrame() {
       if (this.framesLoaded === this.frames.length) {
         this.framesLoaded++;
       }
-      this.frames.push(new SWFFrame(this.currentFrameLabel,
-                                    this.currentDisplayListCommands,
-                                    this.currentSoundStreamHead,
-                                    this.currentSoundStreamBlock,
-                                    this.currentActionBlocks,
-                                    this.currentInitActionBlocks,
-                                    this.currentExports));
-      this.currentFrameLabel = null;
-      this.currentDisplayListCommands = null;
-      this.currentSoundStreamHead = null;
-      this.currentSoundStreamBlock = null;
-      this.currentActionBlocks = null;
-      this.currentInitActionBlocks = null;
-      this.currentExports = null;
+      this.frames.push(new SWFFrame(this._currentFrameLabel,
+                                    this._currentDisplayListCommands,
+                                    this._currentSoundStreamHead,
+                                    this._currentSoundStreamBlock,
+                                    this._currentActionBlocks,
+                                    this._currentInitActionBlocks,
+                                    this._currentExports));
+      this._currentFrameLabel = null;
+      this._currentDisplayListCommands = null;
+      this._currentSoundStreamHead = null;
+      this._currentSoundStreamBlock = null;
+      this._currentActionBlocks = null;
+      this._currentInitActionBlocks = null;
+      this._currentExports = null;
     }
 
     private setFileAttributes(tagLength: number) {
@@ -510,8 +510,8 @@ module Shumway.SWF {
       if (this.attributes) {
         this.jumpToNextTag(tagLength);
       }
-      var bits = this.data[this.dataStream.pos];
-      this.dataStream.pos += 4;
+      var bits = this._data[this._dataStream.pos];
+      this._dataStream.pos += 4;
       this.attributes = {
         network: bits & 0x1,
         relativeUrls: bits & 0x2,
@@ -528,17 +528,17 @@ module Shumway.SWF {
       if (this.sceneAndFrameLabelData) {
         this.jumpToNextTag(tagLength);
       }
-      this.sceneAndFrameLabelData = Parser.LowLevel.defineScene(this.data, this.dataStream, null);
+      this.sceneAndFrameLabelData = Parser.LowLevel.defineScene(this._data, this._dataStream, null);
     }
 
     private addControlTag(tagCode: number, byteOffset: number, tagLength: number) {
-      var commands = this.currentDisplayListCommands || (this.currentDisplayListCommands = []);
+      var commands = this._currentDisplayListCommands || (this._currentDisplayListCommands = []);
       commands.push(new UnparsedTag(tagCode, byteOffset, tagLength));
       this.jumpToNextTag(tagLength);
 
     }
     private addLazySymbol(tagCode: number, byteOffset: number, tagLength: number) {
-      var id = this.dataStream.getUint16(this.dataStream.pos, true);
+      var id = this._dataStream.getUint16(this._dataStream.pos, true);
       var symbol = new DictionaryEntry(id, tagCode, byteOffset, tagLength);
       this.dictionary[id] = symbol;
       return symbol;
@@ -549,10 +549,10 @@ module Shumway.SWF {
       var symbol = new EagerlyParsedDictionaryEntry(definition.id, unparsed, 'font', definition);
       this.eagerlyParsedSymbols[symbol.id] = symbol;
       // Only register fonts with embedded glyphs.
-      if (!definition.data) {
+      if (!definition._data) {
         return;
       }
-      Shumway.registerCSSFont(definition.id, definition.data);
+      Shumway.registerCSSFont(definition.id, definition._data);
       // Firefox decodes fonts synchronously, so we don't need to delay other processing until it's
       // done. For other browsers, delay for a time that should be enough in all cases.
       setTimeout(this.markSymbolAsDecoded.bind(this, symbol), 400);

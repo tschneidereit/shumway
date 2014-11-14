@@ -136,7 +136,7 @@ module Shumway.AVM2.AS.flash.events {
     }
 
     add(type: string, target: EventDispatcher) {
-         release || assert (Event.isBroadcastEventType(type), "Can only register broadcast events.");
+      release || assert (Event.isBroadcastEventType(type), "Can only register broadcast events.");
       var queue = this._queues[type] || (this._queues[type] = []);
       if (queue.indexOf(target) >= 0) {
         return;

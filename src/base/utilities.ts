@@ -16,7 +16,8 @@
 
 ///<reference path='references.ts' />
 var jsGlobal = (function() { return this || (1, eval)('this'); })();
-var inBrowser = 'plugins' in window.document;
+// Our polyfills for some DOM things make testing this slightly more onerous than it ought to be.
+var inBrowser = typeof window !=='undefined' && 'document' in window && 'plugins' in window.document;
 
 declare var putstr;
 // declare var print;

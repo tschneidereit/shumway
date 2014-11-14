@@ -552,7 +552,7 @@ module Shumway.AVM2.AS.flash.display {
         if (soundStarts) {
           this._registerStartSounds(i + 1, soundStarts);
         }
-        }
+      }
 
       if (this._frameScripts[nextFrame]) {
         this._setFlags(DisplayObjectFlags.HasFrameScriptPending);
@@ -732,7 +732,7 @@ module Shumway.AVM2.AS.flash.display {
     }
 
     _addSoundStreamBlock(frameNum: number, streamBlock: any) {
-        this._sounds.addSoundStreamBlock(frameNum, streamBlock);
+      this._sounds.addSoundStreamBlock(frameNum, streamBlock);
     }
 
     private _syncSounds(frameNum: number) {
