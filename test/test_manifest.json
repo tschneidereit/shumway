@@ -1,6 +1,6 @@
 [
     {  "id": "acid-bitmapData-copyPixels",
-       "frames": [1, 5, 10],
+       "frames": [1],
        "swf": "swfs/acid/acid-bitmapData-copyPixels.swf",
        "type": "eq"
     },
