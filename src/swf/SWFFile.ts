@@ -126,8 +126,7 @@ module Shumway.SWF {
       var symbol;
       if (unparsed.tagCode === SWFTag.CODE_DEFINE_SPRITE) {
         // TODO: replace this whole silly `type` business with tagCode checking.
-        symbol = parseSpriteTimeline(unparsed, this._data, this._dataStream, this._dataView,
-                                     this.useAVM1);
+        symbol = this.parseSpriteTimeline(unparsed);
       } else {
         symbol = this.getParsedTag(unparsed);
       }
@@ -232,32 +231,21 @@ module Shumway.SWF {
     private scanLoadedData() {
       // `parsePos` is always at the start of a tag at this point, because it only gets updated
       // when a tag has been fully parsed.
+      var tempTag = new UnparsedTag(0, 0, 0);
       while (this._dataStream.pos < this._uncompressedLoadedLength - 1) {
-        var position = this._dataStream.pos;
-        var tagCodeAndLength = this._dataView.getUint16(position, true);
-        position += 2;
-        var tagCode = tagCodeAndLength >> 6;
-        var tagLength = tagCodeAndLength & 0x3f;
-        var extendedLength = tagLength === 0x3f;
-        if (extendedLength) {
-          if (position + 4 > this._uncompressedLoadedLength) {
-            return;
-          }
-          tagLength = this._dataView.getUint32(position, true);
-          position += 4;
-        }
-        if (position + tagLength > this._uncompressedLoadedLength) {
+        this.parseNextTagHeader(tempTag);
+        var tagEnd = tempTag.byteOffset + tempTag.byteLength;
+        if (tagEnd > this._uncompressedLoadedLength) {
           return;
         }
-        this._dataStream.pos = position;
-        this.scanTag(tagCode, tagLength);
-        release || assert(this._dataStream.pos <= position + tagLength);
-        if (this._dataStream.pos < position + tagLength) {
-          var consumedBytes = this._dataStream.pos - position;
-          Debug.warning('Scanning ' + SWFTag[tagCode] + ' at offset ' + position + ' consumed ' +
-                        consumedBytes + ' of ' + tagLength + ' bytes. (' +
-                        (tagLength - consumedBytes) + ' left)');
-          this._dataStream.pos = position + tagLength;
+        this.scanTag(tempTag);
+        release || assert(this._dataStream.pos <= tagEnd);
+        if (this._dataStream.pos < tagEnd) {
+          var consumedBytes = this._dataStream.pos - tempTag.byteOffset;
+          Debug.warning('Scanning ' + SWFTag[tempTag.tagCode] + ' at offset ' + tempTag.byteOffset +
+                        ' consumed ' + consumedBytes + ' of ' + tempTag.byteLength + ' bytes. (' +
+                        (tempTag.byteLength - consumedBytes) + ' left)');
+          this._dataStream.pos = tagEnd;
         }
         if (this._endTagEncountered) {
           return;
@@ -265,9 +253,36 @@ module Shumway.SWF {
       }
     }
 
-    private scanTag(tagCode: number, tagLength: number): void {
+    /**
+     * Parses tag header information at the current seek offset and stores it in the given object.
+     *
+     * Public so it can be used by tools to parse through entire SWFs.
+     */
+    parseNextTagHeader(target: UnparsedTag) {
+      var position = this._dataStream.pos;
+      var tagCodeAndLength = this._dataView.getUint16(position, true);
+      position += 2;
+      target.tagCode = tagCodeAndLength >> 6;
+      var tagLength = tagCodeAndLength & 0x3f;
+      var extendedLength = tagLength === 0x3f;
+      if (extendedLength) {
+        if (position + 4 > this._uncompressedLoadedLength) {
+          return;
+        }
+        tagLength = this._dataView.getUint32(position, true);
+        position += 4;
+      }
+      this._dataStream.pos = position;
+      target.byteOffset = position;
+      target.byteLength = tagLength;
+    }
+
+    private scanTag(tempTag: UnparsedTag): void {
       var stream: Stream = this._dataStream;
       var byteOffset = stream.pos;
+      release || assert(byteOffset === tempTag.byteOffset);
+      var tagCode = tempTag.tagCode;
+      var tagLength = tempTag.byteLength;
 
       if (tagCode === SWFTag.CODE_DEFINE_SPRITE) {
         // According to Chapter 13 of the SWF format spec, no nested definition tags are
@@ -280,28 +295,21 @@ module Shumway.SWF {
         this.addLazySymbol(tagCode, byteOffset, tagLength);
         var spriteTagEnd = byteOffset + tagLength;
         stream.pos += 4; // Jump over symbol ID and frameCount.
+        var spriteContentTag = new UnparsedTag(0, 0, 0);
         while (stream.pos < spriteTagEnd) {
-          var tagCodeAndLength = this._dataView.getUint16(stream.pos, true);
-          var tagCode = tagCodeAndLength >> 6;
-          var tagLength = tagCodeAndLength & 0x3f;
-          var extendedLength = tagLength === 0x3f;
-          stream.pos += 2;
-          if (extendedLength) {
-            tagLength = this._dataView.getUint32(stream.pos, true);
-            stream.pos += 4;
-          }
-          if (stream.pos + tagLength > spriteTagEnd) {
+          this.parseNextTagHeader(spriteContentTag);
+          if (stream.pos + spriteContentTag.byteLength > spriteTagEnd) {
             Debug.warning("DefineSprite child tags exceed DefineSprite tag length and are dropped");
             stream.pos = spriteTagEnd;
             return;
           }
-          if (DefinitionTags[tagCode]) {
-            this.addLazySymbol(tagCode, stream.pos, tagLength);
-          } else if (tagCode = SWFTag.CODE_END) {
+          if (DefinitionTags[spriteContentTag.tagCode]) {
+            this.addLazySymbol(spriteContentTag.tagCode, stream.pos, spriteContentTag.byteLength);
+          } else if (spriteContentTag.tagCode = SWFTag.CODE_END) {
             stream.pos = spriteTagEnd;
             return;
           }
-          this.jumpToNextTag(tagLength);
+          this.jumpToNextTag(spriteContentTag.byteLength);
         }
         return;
       }
@@ -481,6 +489,96 @@ module Shumway.SWF {
       }
     }
 
+    parseSpriteTimeline(spriteTag: DictionaryEntry) {
+      SWF.enterTimeline("parseSpriteTimeline");
+      var data = this._data;
+      var stream = this._dataStream;
+      var dataView = this._dataView;
+      var timeline: any = {
+        id: spriteTag.id,
+        type: 'sprite',
+        frames: []
+      }
+      var spriteTagEnd = spriteTag.byteOffset + spriteTag.byteLength;
+      var frames = timeline.frames;
+      var label: string = null;
+      var commands: UnparsedTag[] = [];
+      var soundStreamHead: Parser.SoundStream = null;
+      var soundStreamBlock: Uint8Array = null;
+      var actionBlocks: Uint8Array[] = null;
+      var initActionBlocks:  {spriteId: number; actionsData: Uint8Array}[] = null;
+      // Skip ID.
+      stream.pos = spriteTag.byteOffset + 2;
+      // TODO: check if numFrames or the real number of ShowFrame tags wins. (Probably the former.)
+      timeline.frameCount = dataView.getUint16(stream.pos, true);
+      stream.pos += 2;
+      var spriteContentTag = new UnparsedTag(0, 0, 0);
+      while (stream.pos < spriteTagEnd) {
+        this.parseNextTagHeader(spriteContentTag);
+        var tagLength = spriteContentTag.byteLength;
+        var tagCode = spriteContentTag.tagCode;
+        if (stream.pos + tagLength > spriteTagEnd) {
+          Debug.warning("DefineSprite child tags exceed DefineSprite tag length and are dropped");
+          break;
+        }
+
+        if (Parser.ControlTags[tagCode]) {
+          commands.push(new UnparsedTag(tagCode, stream.pos, tagLength));
+          stream.pos += tagLength;
+          continue;
+        }
+
+        switch (tagCode) {
+          case SWFTag.CODE_DO_ACTION:
+            if (this.useAVM1) {
+              if (!actionBlocks) {
+                actionBlocks = [];
+              }
+              actionBlocks.push(data.subarray(stream.pos, stream.pos + tagLength));
+            }
+            break;
+          case SWFTag.CODE_DO_INIT_ACTION:
+            if (this.useAVM1) {
+              if (!initActionBlocks) {
+                initActionBlocks = [];
+              }
+              var spriteId = dataView.getUint16(stream.pos, true);
+              stream.pos += 2;
+              var actionsData = data.subarray(stream.pos, stream.pos + tagLength);
+              initActionBlocks.push({spriteId: spriteId, actionsData: actionsData});
+            }
+            break;
+          case SWFTag.CODE_FRAME_LABEL:
+            var tagEnd = stream.pos + tagLength;
+            label = Parser.readString(data, stream, 0);
+            // TODO: support SWF6+ anchors.
+            stream.pos = tagEnd;
+            tagLength = 0;
+            break;
+          case SWFTag.CODE_SHOW_FRAME:
+            frames.push(new SWFFrame(label, commands, soundStreamHead, soundStreamBlock,
+                                     actionBlocks, initActionBlocks, null));
+            label = null;
+            commands = [];
+            soundStreamHead = null;
+            soundStreamBlock = null;
+            actionBlocks = null;
+            initActionBlocks = null;
+            break;
+          case SWFTag.CODE_END:
+            stream.pos = spriteTagEnd;
+            tagLength = 0;
+            break;
+          default:
+          // Ignore other tags.
+        }
+        stream.pos += tagLength;
+        release || assert(stream.pos <= spriteTagEnd);
+      }
+      SWF.leaveTimeline();
+      return timeline;
+    }
+
     private jumpToNextTag(currentTagLength: number) {
       this._dataStream.pos += currentTagLength;
     }
@@ -584,99 +682,6 @@ module Shumway.SWF {
       image.onload = resolve;
       image.onerror = resolve;
     }).then(oncomplete);
-  }
-
-  function parseSpriteTimeline(unparsed: DictionaryEntry, data: Uint8Array, stream: Stream,
-                               dataView: DataView, useAVM1: boolean) {
-    SWF.enterTimeline("parseSpriteTimeline");
-    var timeline: any = {
-      id: unparsed.id,
-      type: 'sprite',
-      frames: []
-    }
-    var spriteTagEnd = unparsed.byteOffset + unparsed.byteLength;
-    var frames = timeline.frames;
-    var label: string = null;
-    var commands: UnparsedTag[] = [];
-    var soundStreamHead: Parser.SoundStream = null;
-    var soundStreamBlock: Uint8Array = null;
-    var actionBlocks: Uint8Array[] = null;
-    var initActionBlocks:  {spriteId: number; actionsData: Uint8Array}[] = null;
-    // Skip ID.
-    stream.pos = unparsed.byteOffset + 2;
-    // TODO: check if numFrames or the real number of ShowFrame tags wins. (Probably the former.)
-    timeline.frameCount = dataView.getUint16(stream.pos, true);
-    stream.pos += 2;
-    while (stream.pos < spriteTagEnd) {
-      var tagCodeAndLength = dataView.getUint16(stream.pos, true);
-      var tagCode = tagCodeAndLength >> 6;
-      var tagLength = tagCodeAndLength & 0x3f;
-      var extendedLength = tagLength === 0x3f;
-      stream.pos += 2;
-      if (extendedLength) {
-        tagLength = dataView.getUint32(stream.pos, true);
-        stream.pos += 4;
-      }
-      if (stream.pos + tagLength > spriteTagEnd) {
-        Debug.warning("DefineSprite child tags exceed DefineSprite tag length and are dropped");
-        break;
-      }
-
-      if (Parser.ControlTags[tagCode]) {
-        commands.push(new UnparsedTag(tagCode, stream.pos, tagLength));
-        stream.pos += tagLength;
-        continue;
-      }
-
-      switch (tagCode) {
-        case SWFTag.CODE_DO_ACTION:
-          if (useAVM1) {
-            if (!actionBlocks) {
-              actionBlocks = [];
-            }
-            actionBlocks.push(data.subarray(stream.pos, stream.pos + tagLength));
-          }
-          break;
-        case SWFTag.CODE_DO_INIT_ACTION:
-          if (useAVM1) {
-            if (!initActionBlocks) {
-              initActionBlocks = [];
-            }
-            var spriteId = dataView.getUint16(stream.pos, true);
-            stream.pos += 2;
-            var actionsData = data.subarray(stream.pos, stream.pos + tagLength);
-            initActionBlocks.push({spriteId: spriteId, actionsData: actionsData});
-          }
-          break;
-        case SWFTag.CODE_FRAME_LABEL:
-          var tagEnd = stream.pos + tagLength;
-          label = Parser.readString(data, stream, 0);
-          // TODO: support SWF6+ anchors.
-          stream.pos = tagEnd;
-          tagLength = 0;
-          break;
-        case SWFTag.CODE_SHOW_FRAME:
-          frames.push(new SWFFrame(label, commands, soundStreamHead, soundStreamBlock,
-                                   actionBlocks, initActionBlocks, null));
-          label = null;
-          commands = [];
-          soundStreamHead = null;
-          soundStreamBlock = null;
-          actionBlocks = null;
-          initActionBlocks = null;
-          break;
-        case SWFTag.CODE_END:
-          stream.pos = spriteTagEnd;
-          tagLength = 0;
-          break;
-        default:
-        // Ignore other tags.
-      }
-      stream.pos += tagLength;
-      release || assert(stream.pos <= spriteTagEnd);
-    }
-    SWF.leaveTimeline();
-    return timeline;
   }
 
   export class SWFFrame {
