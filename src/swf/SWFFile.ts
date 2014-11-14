@@ -229,26 +229,29 @@ module Shumway.SWF {
     }
 
     private scanLoadedData() {
+      this.scanTagsToOffset(this._uncompressedLoadedLength, true);
+    }
+
+    private scanTagsToOffset(endOffset: number, rootTimelineMode: boolean) {
       // `parsePos` is always at the start of a tag at this point, because it only gets updated
       // when a tag has been fully parsed.
       var tempTag = new UnparsedTag(0, 0, 0);
-      while (this._dataStream.pos < this._uncompressedLoadedLength - 1) {
+      while (this._dataStream.pos < endOffset - 1) {
         this.parseNextTagHeader(tempTag);
-        var tagEnd = tempTag.byteOffset + tempTag.byteLength;
-        if (tagEnd > this._uncompressedLoadedLength) {
+        if (tempTag.tagCode === SWFTag.CODE_END) {
+          if (rootTimelineMode) {
+            this._endTagEncountered = true;
+          }
           return;
         }
-        this.scanTag(tempTag);
+        var tagEnd = tempTag.byteOffset + tempTag.byteLength;
+        if (tagEnd > endOffset) {
+          return;
+        }
+        this.scanTag(tempTag, rootTimelineMode);
         release || assert(this._dataStream.pos <= tagEnd);
         if (this._dataStream.pos < tagEnd) {
-          var consumedBytes = this._dataStream.pos - tempTag.byteOffset;
-          Debug.warning('Scanning ' + SWFTag[tempTag.tagCode] + ' at offset ' + tempTag.byteOffset +
-                        ' consumed ' + consumedBytes + ' of ' + tempTag.byteLength + ' bytes. (' +
-                        (tempTag.byteLength - consumedBytes) + ' left)');
-          this._dataStream.pos = tagEnd;
-        }
-        if (this._endTagEncountered) {
-          return;
+          this.emitTagSlopWarning(tempTag, tagEnd);
         }
       }
     }
@@ -277,12 +280,16 @@ module Shumway.SWF {
       target.byteLength = tagLength;
     }
 
-    private scanTag(tempTag: UnparsedTag): void {
+    private scanTag(tag: UnparsedTag, rootTimelineMode: boolean): void {
       var stream: Stream = this._dataStream;
       var byteOffset = stream.pos;
-      release || assert(byteOffset === tempTag.byteOffset);
-      var tagCode = tempTag.tagCode;
-      var tagLength = tempTag.byteLength;
+      release || assert(byteOffset === tag.byteOffset);
+      var tagCode = tag.tagCode;
+      var tagLength = tag.byteLength;
+      if (!release && traceLevel.value > 1) {
+        console.info("Scanning tag " + SWFTag[tagCode] + " (start: " + byteOffset +
+                     ", end: " + byteOffset + tagLength + ")");
+      }
 
       if (tagCode === SWFTag.CODE_DEFINE_SPRITE) {
         // According to Chapter 13 of the SWF format spec, no nested definition tags are
@@ -295,21 +302,10 @@ module Shumway.SWF {
         this.addLazySymbol(tagCode, byteOffset, tagLength);
         var spriteTagEnd = byteOffset + tagLength;
         stream.pos += 4; // Jump over symbol ID and frameCount.
-        var spriteContentTag = new UnparsedTag(0, 0, 0);
-        while (stream.pos < spriteTagEnd) {
-          this.parseNextTagHeader(spriteContentTag);
-          if (stream.pos + spriteContentTag.byteLength > spriteTagEnd) {
-            Debug.warning("DefineSprite child tags exceed DefineSprite tag length and are dropped");
-            stream.pos = spriteTagEnd;
-            return;
-          }
-          if (DefinitionTags[spriteContentTag.tagCode]) {
-            this.addLazySymbol(spriteContentTag.tagCode, stream.pos, spriteContentTag.byteLength);
-          } else if (spriteContentTag.tagCode = SWFTag.CODE_END) {
-            stream.pos = spriteTagEnd;
-            return;
-          }
-          this.jumpToNextTag(spriteContentTag.byteLength);
+        this.scanTagsToOffset(spriteTagEnd, false);
+        if (this._dataStream.pos < tagEnd) {
+          this.emitTagSlopWarning(tag, tagEnd);
+          stream.pos = spriteTagEnd;
         }
         return;
       }
@@ -330,6 +326,13 @@ module Shumway.SWF {
         this.jumpToNextTag(tagLength);
         return;
       }
+
+      if (!rootTimelineMode &&
+          !(tagCode === SWFTag.CODE_SYMBOL_CLASS || tagCode === SWFTag.CODE_EXPORT_ASSETS)) {
+        this.jumpToNextTag(tagLength);
+        return;
+      }
+
       if (ControlTags[tagCode]) {
         this.addControlTag(tagCode, byteOffset, tagLength);
         return;
@@ -421,9 +424,7 @@ module Shumway.SWF {
         case SWFTag.CODE_SHOW_FRAME:
           this.finishFrame();
           break;
-        // TODO: Support this grab-bag of tags.
         case SWFTag.CODE_END:
-          this._endTagEncountered = true;
           return;
         case SWFTag.CODE_EXPORT_ASSETS:
           var tagEnd = stream.pos + tagLength;
@@ -583,6 +584,14 @@ module Shumway.SWF {
       this._dataStream.pos += currentTagLength;
     }
 
+    private emitTagSlopWarning(tag: UnparsedTag, tagEnd: number) {
+      var consumedBytes = this._dataStream.pos - tag.byteOffset;
+      Debug.warning('Scanning ' + SWFTag[tag.tagCode] + ' at offset ' + tag.byteOffset +
+                    ' consumed ' + consumedBytes + ' of ' + tag.byteLength + ' bytes. (' +
+                    (tag.byteLength - consumedBytes) + ' left)');
+      this._dataStream.pos = tagEnd;
+    }
+
     private finishFrame() {
       if (this.framesLoaded === this.frames.length) {
         this.framesLoaded++;
@@ -639,6 +648,9 @@ module Shumway.SWF {
       var id = this._dataStream.getUint16(this._dataStream.pos, true);
       var symbol = new DictionaryEntry(id, tagCode, byteOffset, tagLength);
       this.dictionary[id] = symbol;
+      if (!release && traceLevel.value > 0) {
+        console.info("Registering symbol " + id + " of type " + SWFTag[tagCode]);
+      }
       return symbol;
     }
 
