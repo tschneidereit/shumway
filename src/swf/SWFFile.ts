@@ -288,7 +288,7 @@ module Shumway.SWF {
       var tagLength = tag.byteLength;
       if (!release && traceLevel.value > 1) {
         console.info("Scanning tag " + SWFTag[tagCode] + " (start: " + byteOffset +
-                     ", end: " + byteOffset + tagLength + ")");
+                     ", end: " + (byteOffset + tagLength) + ")");
       }
 
       if (tagCode === SWFTag.CODE_DEFINE_SPRITE) {
@@ -657,6 +657,11 @@ module Shumway.SWF {
     private decodeEmbeddedFont(unparsed: UnparsedTag) {
       var definition = this.getParsedTag(unparsed);
       var symbol = new EagerlyParsedDictionaryEntry(definition.id, unparsed, 'font', definition);
+      if (!release && traceLevel.value > 0) {
+        console.info("Decoding embedded font " + definition.id + " of type " +
+                     SWFTag[unparsed.tagCode] + " (start: " + unparsed.byteOffset +
+                     ", end: " + (unparsed.byteOffset + unparsed.byteLength) + ")", definition);
+      }
       this.eagerlyParsedSymbols[symbol.id] = symbol;
       // Only register fonts with embedded glyphs.
       if (!definition._data) {
@@ -670,6 +675,11 @@ module Shumway.SWF {
 
     private decodeEmbeddedImage(unparsed: UnparsedTag) {
       var definition = this.getParsedTag(unparsed);
+      if (!release && traceLevel.value > 0) {
+        console.info("Decoding embedded image " + definition.id + " of type " +
+                     SWFTag[unparsed.tagCode] + " (start: " + unparsed.byteOffset +
+                     ", end: " + (unparsed.byteOffset + unparsed.byteLength) + ")");
+      }
       var symbol = new EagerlyParsedDictionaryEntry(definition.id, unparsed, 'image', definition);
       this.eagerlyParsedSymbols[symbol.id] = symbol;
       var promise = decodeImage(definition, this.markSymbolAsDecoded.bind(this, symbol));
