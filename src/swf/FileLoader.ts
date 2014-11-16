@@ -23,14 +23,6 @@ module Shumway {
     constructor(public bytesLoaded: number) {
     }
   }
-  export class SWFLoadProgressUpdate extends LoadProgressUpdate {
-    constructor(bytesLoaded: number,
-                public framesLoaded: number,
-                public abcBlocksLoaded: number,
-                public mappedSymbolsLoaded: number) {
-      super(bytesLoaded);
-    }
-  }
   export interface ILoadListener {
     onLoadOpen: (any) => void;
     onLoadProgress: (update: LoadProgressUpdate) => void;
@@ -104,10 +96,7 @@ module Shumway {
     }
 
     private processSWFFileUpdate(file: SWFFile) {
-      var update = new SWFLoadProgressUpdate(file.bytesLoaded,
-                                             file.frames.length,
-                                             file.abcBlocks.length,
-                                             file.symbolClassesList.length);
+      var update = new LoadProgressUpdate(file.bytesLoaded);
       if (!(file.pendingSymbolsPromise || this._delayedUpdatesPromise)) {
         this._listener.onLoadProgress(update);
         return;

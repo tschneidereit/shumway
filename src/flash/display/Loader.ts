@@ -213,7 +213,7 @@ module Shumway.AVM2.AS.flash.display {
     private _fileLoader: FileLoader;
     private _loadStatus: LoadStatus;
     private _loadingType: LoadingType;
-    private _queuedLoadUpdates: SWFLoadProgressUpdate[];
+    private _queuedLoadUpdates: LoadProgressUpdate[];
 
     /**
      * Resolved when the root Loader has loaded the first frame(s) of the main SWF.
@@ -340,12 +340,13 @@ module Shumway.AVM2.AS.flash.display {
     }
 
     onLoadProgress(update: LoadProgressUpdate) {
-      if (update instanceof SWFLoadProgressUpdate) {
+      var file = this._contentLoaderInfo._file;
+      if (file instanceof SWFFile) {
         this._queuedLoadUpdates.push(update);
         if (this._content || this !== Loader.getRootLoader()) {
           return;
         }
-        if (this._contentLoaderInfo._file.useAVM1 && !AVM2.instance.avm1Loaded) {
+        if (file.useAVM1 && !AVM2.instance.avm1Loaded) {
           var self = this;
           this._initAvm1().then(function () {
             self.onFileStartupReady();
@@ -358,16 +359,18 @@ module Shumway.AVM2.AS.flash.display {
       }
     }
 
-    private _applyLoadUpdate(update: SWFLoadProgressUpdate) {
+    private _applyLoadUpdate(update: LoadProgressUpdate) {
       var loaderInfo = this._contentLoaderInfo;
+      var file = loaderInfo._file;
 
       if (loaderInfo._allowCodeExecution) {
         var appDomain = AVM2.instance.applicationDomain;
 
-        var abcBlocksLoadedDelta = update.abcBlocksLoaded - loaderInfo._abcBlocksLoaded;
+        var abcBlocksLoaded = file.abcBlocks.length;
+        var abcBlocksLoadedDelta = abcBlocksLoaded - loaderInfo._abcBlocksLoaded;
         if (abcBlocksLoadedDelta > 0) {
-          for (var i = loaderInfo._abcBlocksLoaded; i < update.abcBlocksLoaded; i++) {
-            var abcBlock = loaderInfo._file.abcBlocks[i];
+          for (var i = loaderInfo._abcBlocksLoaded; i < abcBlocksLoaded; i++) {
+            var abcBlock = file.abcBlocks[i];
             var abc = new AbcFile(abcBlock.data, abcBlock.name);
             if (abcBlock.flags) {
               // kDoAbcLazyInitializeFlag = 1 Indicates that the ABC block should not be executed
@@ -378,25 +381,26 @@ module Shumway.AVM2.AS.flash.display {
               appDomain.executeAbc(abc);
             }
           }
-          loaderInfo._abcBlocksLoaded = update.abcBlocksLoaded;
+          loaderInfo._abcBlocksLoaded = abcBlocksLoaded;
         }
 
-        var mappedSymbolsLoadedDelta = update.mappedSymbolsLoaded - loaderInfo._mappedSymbolsLoaded;
+        var mappedSymbolsLoaded = file.symbolClassesList.length;
+        var mappedSymbolsLoadedDelta = mappedSymbolsLoaded - loaderInfo._mappedSymbolsLoaded;
         if (mappedSymbolsLoadedDelta > 0) {
-          for (var i = loaderInfo._mappedSymbolsLoaded; i < update.mappedSymbolsLoaded; i++) {
-            var symbolMapping = loaderInfo._file.symbolClassesList[i];
+          for (var i = loaderInfo._mappedSymbolsLoaded; i < mappedSymbolsLoaded; i++) {
+            var symbolMapping = file.symbolClassesList[i];
             var symbolClass = appDomain.getClass(symbolMapping.className);
             Object.defineProperty(symbolClass, "defaultInitializerArgument",
                                   {get: loaderInfo.getSymbolResolver(symbolClass, symbolMapping.id),
                                    configurable: true});
           }
-          loaderInfo._mappedSymbolsLoaded = update.mappedSymbolsLoaded;
+          loaderInfo._mappedSymbolsLoaded = mappedSymbolsLoaded;
         }
       }
 
       var rootSymbol = loaderInfo.getRootSymbol();
       loaderInfo.bytesLoaded = update.bytesLoaded;
-      var framesLoadedDelta = update.framesLoaded - rootSymbol.frames.length;
+      var framesLoadedDelta = file.framesLoaded - rootSymbol.frames.length;
       if (framesLoadedDelta === 0) {
         return;
       }
@@ -408,7 +412,7 @@ module Shumway.AVM2.AS.flash.display {
           loaderInfo._bytesLoaded = update.bytesLoaded;
         }
         root = this.createContentRoot(loaderInfo.getRootSymbol(),
-                                      loaderInfo._file.sceneAndFrameLabelData);
+                                      file.sceneAndFrameLabelData);
       }
       // For AVM1 SWFs directly loaded into AVM2 ones (or as the top-level SWF), unwrap the
       // contained MovieClip here to correctly initialize frame data.
