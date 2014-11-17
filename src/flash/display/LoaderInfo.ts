@@ -70,6 +70,7 @@ module Shumway.AVM2.AS.flash.display {
       this._dictionary = [];
       this._abcBlocksLoaded = 0;
       this._mappedSymbolsLoaded = 0;
+      this._fontsLoaded = 0;
       this._avm1Context = null;
 
       this._colorRGBA = 0xFFFFFFFF;
@@ -125,6 +126,7 @@ module Shumway.AVM2.AS.flash.display {
     _bytes: flash.utils.ByteArray;
     _abcBlocksLoaded: number;
     _mappedSymbolsLoaded: number;
+    _fontsLoaded: number;
     _uncaughtErrorEvents: flash.events.UncaughtErrorEvents;
 
     /**

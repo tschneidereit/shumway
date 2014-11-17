@@ -633,11 +633,13 @@ module Shumway.AVM2.AS.flash.text {
         // Font symbols without any glyphs describe device fonts.
         self._fontType = metrics ? FontType.EMBEDDED : FontType.DEVICE;
 
-        if (!Font._fontsBySymbolId[symbol.id]) {
-          Font._fontsBySymbolId[symbol.id] = self;
-          Font._fontsByName[symbol.name.toLowerCase()] = self;
+        var fontProp = Object.getOwnPropertyDescriptor(Font._fontsBySymbolId, symbol.id + '');
+        // Define mapping or replace lazy getter with value.
+        if (!fontProp || !fontProp.value) {
+          Object.defineProperty(Font._fontsBySymbolId, symbol.id + '', {value: self});
+          Object.defineProperty(Font._fontsByName, symbol.name.toLowerCase(), {value: self});
           if (self._fontType === FontType.EMBEDDED) {
-            Font._fontsByName['swffont' + symbol.id] = self;
+            Object.defineProperty(Font._fontsByName, 'swffont' + symbol.id, {value: self});
           }
         }
       }
@@ -737,6 +739,17 @@ module Shumway.AVM2.AS.flash.text {
 
     static registerFont(font: ASClass): void {
       somewhatImplemented('Font.registerFont');
+    }
+
+    static registerLazyFont(fontMapping: {name: string; id: number},
+                            loaderInfo: flash.display.LoaderInfo): void {
+      var resolverProp = {
+        get: loaderInfo.getSymbolById.bind(loaderInfo, fontMapping.id),
+        configurable: true
+      };
+      Object.defineProperty(Font._fontsByName, fontMapping.name.toLowerCase(), resolverProp);
+      Object.defineProperty(Font._fontsByName, 'swffont' + fontMapping.id, resolverProp);
+      Object.defineProperty(Font._fontsBySymbolId, fontMapping.id + '', resolverProp);
     }
 
     get fontName(): string {

@@ -200,20 +200,6 @@ module Shumway.Remoting.Player {
       }
     }
 
-    writeFont(font: flash.text.Font) {
-      // Device fonts can be skipped, they obviously should exist on the device.
-      if (font.fontType === 'embedded') {
-        writer && writer.writeLn("Sending Font: " + font._id);
-        var symbol = font._symbol;
-        release || assert(symbol);
-        this.output.writeInt(MessageTag.RegisterFont);
-        this.output.writeInt(font._id);
-        this.output.writeBoolean(symbol.bold);
-        this.output.writeBoolean(symbol.italic);
-        this._writeAsset(symbol.data);
-      }
-    }
-
     /**
      * Writes the number of display objects this display object clips.
      */

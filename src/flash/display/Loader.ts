@@ -260,6 +260,9 @@ module Shumway.AVM2.AS.flash.display {
       this._applyLoaderContext(context);
       this._loadingType = LoadingType.External;
       this._fileLoader = new FileLoader(this);
+      if (!release && traceLoaderOption.value) {
+        console.info("Load start: " + request.url);
+      }
       this._fileLoader.loadFile(request._toFileRequest());
 
       // TODO: Only do this if a load wasn't in progress.
@@ -398,6 +401,15 @@ module Shumway.AVM2.AS.flash.display {
         }
       }
 
+      var fontsLoaded = file.fonts.length;
+      var fontsLoadedDelta = fontsLoaded - loaderInfo._fontsLoaded;
+      if (fontsLoadedDelta > 0) {
+        for (var i = loaderInfo._fontsLoaded; i < fontsLoaded; i++) {
+          flash.text.Font.registerLazyFont(file.fonts[i], loaderInfo);
+        }
+        loaderInfo._fontsLoaded = fontsLoaded;
+      }
+
       var rootSymbol = loaderInfo.getRootSymbol();
       loaderInfo.bytesLoaded = update.bytesLoaded;
       var framesLoadedDelta = file.framesLoaded - rootSymbol.frames.length;
@@ -443,10 +455,15 @@ module Shumway.AVM2.AS.flash.display {
     private onFileStartupReady() {
       // The first frames have been loaded, kick off event loop.
       this._startPromise.resolve(null);
+      if (this === Loader.getRootLoader()) {
+        if (!release && traceLoaderOption.value) {
+          console.info("Initial frames loaded, starting main runtime event loop.");
+        }
+        Loader.runtimeStartTime = Date.now();
+      }
       // The very first update is applied immediately, as that creates the root content,
       // which the player expects to exist at this point.
       this._applyLoadUpdate(this._queuedLoadUpdates.shift());
-      Loader.runtimeStartTime = Date.now();
     }
 
     private createContentRoot(symbol: Timeline.SpriteSymbol, sceneData) {

@@ -3343,7 +3343,7 @@ module Shumway {
     export var instance: IFileLoadingService;
   }
 
-  export function registerCSSFont(id: number, buffer: ArrayBuffer) {
+  export function registerCSSFont(id: number, buffer: ArrayBuffer, forceFontInit: boolean) {
     if (!inBrowser) {
       Debug.warning('Cannot register CSS font outside the browser');
       return;
@@ -3351,10 +3351,22 @@ module Shumway {
     var head = document.head;
     head.insertBefore(document.createElement('style'), head.firstChild);
     var style = <CSSStyleSheet>document.styleSheets[0];
-    var rule = '@font-face{font-family:swffont' + id + ';' +
-               'src:url(data:font/opentype;base64,' +
+    var rule = '@font-face{font-family:swffont' + id + ';src:url(data:font/opentype;base64,' +
                Shumway.StringUtilities.base64ArrayBuffer(buffer) + ')' + '}';
     style.insertRule(rule, style.cssRules.length);
+    // In at least Chrome, the browser only decodes a font once it's used in the page at all.
+    // Because it still does so asynchronously, we create a with some text using the font, take
+    // some measurement from it (which will turn out wrong because the font isn't yet available),
+    // and then remove the node again. Then, magic happens. After a bit of time for said magic to
+    // take hold, the font is available for actual use on canvas.
+    if (forceFontInit) {
+      var node = document.createElement('div');
+      node.style.fontFamily = 'swffont' + id;
+      node.innerHTML = 'hello';
+      document.body.appendChild(node);
+      var dummyHeight = node.clientHeight;
+      document.body.removeChild(node);
+    }
   }
 
   export interface IExternalInterfaceService {

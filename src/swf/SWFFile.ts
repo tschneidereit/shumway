@@ -47,6 +47,7 @@ module Shumway.SWF {
     frames: SWFFrame[];
     abcBlocks: ABCBlock[];
     dictionary: DictionaryEntry[];
+    fonts: {name: string; id: number}[];
 
     symbolClassesMap: string[];
     symbolClassesList: {id: number; className: string}[];
@@ -97,6 +98,7 @@ module Shumway.SWF {
       this.frames = [];
       this.abcBlocks = [];
       this.dictionary = [];
+      this.fonts = [];
 
       this.symbolClassesMap = [];
       this.symbolClassesList = [];
@@ -318,7 +320,11 @@ module Shumway.SWF {
       }
       if (FontDefinitionTags[tagCode]) {
         var unparsed = this.addLazySymbol(tagCode, byteOffset, tagLength);
-        this.decodeEmbeddedFont(unparsed);
+        if (!inFirefox) {
+          this.decodeEmbeddedFont(unparsed);
+        } else {
+          this.registerEmbeddedFont(unparsed);
+        }
         return;
       }
       if (DefinitionTags[tagCode]) {
@@ -658,29 +664,51 @@ module Shumway.SWF {
       var definition = this.getParsedTag(unparsed);
       var symbol = new EagerlyParsedDictionaryEntry(definition.id, unparsed, 'font', definition);
       if (!release && traceLevel.value > 0) {
-        console.info("Decoding embedded font " + definition.id + " of type " +
-                     SWFTag[unparsed.tagCode] + " (start: " + unparsed.byteOffset +
-                     ", end: " + (unparsed.byteOffset + unparsed.byteLength) + ")", definition);
+        console.info("Decoding embedded font " + definition.id + " with name '" +
+                     definition.name + "'", definition);
       }
       this.eagerlyParsedSymbols[symbol.id] = symbol;
       // Only register fonts with embedded glyphs.
       if (!definition.data) {
         return;
       }
-      Shumway.registerCSSFont(definition.id, definition.data);
+      this.fonts.push({name: definition.name, id: definition.id});
       // Firefox decodes fonts synchronously, so we don't need to delay other processing until it's
       // done. For other browsers, delay for a time that should be enough in all cases.
-      setTimeout(this.markSymbolAsDecoded.bind(this, symbol), 400);
+      var promise = new Promise((resolve, reject) => setTimeout(resolve, 400));
+      promise.then(this.markSymbolAsDecoded.bind(this, symbol));
+      var currentPromise = this.pendingSymbolsPromise;
+      this.pendingSymbolsPromise = currentPromise ?
+                                   Promise.all([currentPromise, promise]) :
+                                   promise;
+    }
+
+    private registerEmbeddedFont(unparsed: UnparsedTag) {
+      // DefineFont only specifies a symbol ID, no font name, so we don't have to do anything here.
+      if (unparsed.tagCode === SWFTag.CODE_DEFINE_FONT) {
+        return;
+      }
+      var stream = this._dataStream;
+      var id = stream.getUint16(stream.pos, true);
+      // Skip flags and language code.
+      var nameLength = this._data[stream.pos + 4];
+      stream.pos += 5;
+      var name = Parser.readString(this._data, stream, nameLength);
+      this.fonts.push({name: name, id: id});
+      if (!release && traceLevel.value > 0) {
+        console.info("Registering embedded font " + id + " with name '" + name + "'");
+      }
+      stream.pos = unparsed.byteOffset + unparsed.byteLength;
     }
 
     private decodeEmbeddedImage(unparsed: UnparsedTag) {
       var definition = this.getParsedTag(unparsed);
+      var symbol = new EagerlyParsedDictionaryEntry(definition.id, unparsed, 'image', definition);
       if (!release && traceLevel.value > 0) {
         console.info("Decoding embedded image " + definition.id + " of type " +
                      SWFTag[unparsed.tagCode] + " (start: " + unparsed.byteOffset +
                      ", end: " + (unparsed.byteOffset + unparsed.byteLength) + ")");
       }
-      var symbol = new EagerlyParsedDictionaryEntry(definition.id, unparsed, 'image', definition);
       this.eagerlyParsedSymbols[symbol.id] = symbol;
       var promise = decodeImage(definition, this.markSymbolAsDecoded.bind(this, symbol));
       var currentPromise = this.pendingSymbolsPromise;
@@ -691,6 +719,9 @@ module Shumway.SWF {
 
     private markSymbolAsDecoded(symbol: EagerlyParsedDictionaryEntry, event?: any) {
       symbol.ready = true;
+      if (!release && traceLevel.value > 0) {
+        console.info("Marking symbol " + symbol.id + " as decoded.", symbol);
+      }
       if (event && event.type === 'error') {
         Debug.warning("Decoding of image symbol failed", symbol, event);
       }
@@ -806,6 +837,7 @@ module Shumway.SWF {
       case SWFTag.CODE_DEFINE_FONT3:
       case SWFTag.CODE_DEFINE_FONT4:
         symbol = Shumway.SWF.Parser.defineFont(swfTag);
+        Shumway.registerCSSFont(symbol.id, symbol.data, !inFirefox);
         break;
       case SWFTag.CODE_DEFINE_MORPH_SHAPE:
       case SWFTag.CODE_DEFINE_MORPH_SHAPE2:
@@ -842,7 +874,6 @@ module Shumway.SWF {
       return {command: 'error', message: 'unknown symbol type: ' + swfTag.code};
     }
 
-    symbol.isSymbol = true;
     return symbol;
   }
 }
