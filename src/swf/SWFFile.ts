@@ -668,7 +668,7 @@ module Shumway.SWF {
                      definition.name + "'", definition);
       }
       this.eagerlyParsedSymbols[symbol.id] = symbol;
-      // Only register fonts with embedded glyphs.
+      // Nothing more to do for glyph-less fonts.
       if (!definition.data) {
         return;
       }
@@ -837,7 +837,10 @@ module Shumway.SWF {
       case SWFTag.CODE_DEFINE_FONT3:
       case SWFTag.CODE_DEFINE_FONT4:
         symbol = Shumway.SWF.Parser.defineFont(swfTag);
-        Shumway.registerCSSFont(symbol.id, symbol.data, !inFirefox);
+        // Only register fonts with embedded glyphs.
+        if (symbol.data) {
+          Shumway.registerCSSFont(symbol.id, symbol.data, !inFirefox);
+        }
         break;
       case SWFTag.CODE_DEFINE_MORPH_SHAPE:
       case SWFTag.CODE_DEFINE_MORPH_SHAPE2:
