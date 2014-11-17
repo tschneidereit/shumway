@@ -256,7 +256,7 @@ module Shumway.SWF.Parser.LowLevel {
   function defineBinaryData($bytes, $stream, $, swfVersion, tagCode, tagEnd) {
     $ || ($ = {});
     $.id = readUi16($bytes, $stream);
-    var reserved = readUi32($bytes, $stream);
+    readUi32($bytes, $stream); // Reserved
     $.data = $bytes.subarray($stream.pos, tagEnd);
     $stream.pos = tagEnd;
     return $;

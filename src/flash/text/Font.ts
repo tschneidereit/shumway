@@ -594,6 +594,7 @@ module Shumway.AVM2.AS.flash.text {
     static initializer: any = function (symbol: Shumway.Timeline.FontSymbol) {
       var self: Font = this;
 
+      // TODO: give fonts proper inter-SWF IDs, so multiple SWFs' fonts don't collide.
       self._id = symbol.data.id;
 
       self._fontName = null;
@@ -741,6 +742,14 @@ module Shumway.AVM2.AS.flash.text {
       somewhatImplemented('Font.registerFont');
     }
 
+    /**
+     * Registers an embedded font as available in the system without it being decoded.
+     *
+     * Firefox decodes fonts synchronously, allowing us to do the decoding upon first actual use.
+     * All we need to do here is let the system know about the family name and ID, so that both
+     * TextFields/Labels referring to the font's symbol ID as well as HTML text specifying a font
+     * face can resolve the font.
+     */
     static registerLazyFont(fontMapping: {name: string; id: number},
                             loaderInfo: flash.display.LoaderInfo): void {
       var resolverProp = {

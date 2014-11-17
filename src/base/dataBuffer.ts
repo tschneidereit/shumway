@@ -160,8 +160,8 @@ module Shumway.ArrayUtilities {
 
     /**
      * We don't want to eagerly allocate views if we won't ever need them. You must call this method
-     * before using a view of a certain type to make sure it's available. Once a view is allocated, it
-     * is not re-allocated unless the view becomes |null| as a result of a call to |resetViews|.
+     * before using a view of a certain type to make sure it's available. Once a view is allocated,
+     * it is not re-allocated unless the view becomes |null| as a result of a call to |resetViews|.
      */
     private _requestViews(flags: TypedArrayViewFlags) {
       if ((this._buffer.byteLength & 0x3) === 0) {

@@ -67,7 +67,7 @@ module Shumway.SWF.Parser {
     };
   }
 
-  export function defineSound(tag, dictionary) {
+  export function defineSound(tag) {
     var channels = tag.soundType == SOUND_TYPE_STEREO ? 2 : 1;
     var samplesCount = tag.samplesCount;
     var sampleRate = SOUND_RATES[tag.soundRate];
@@ -230,34 +230,34 @@ module Shumway.SWF.Parser {
     }
 
     static FromTag(tag): SoundStream {
-    var channels = tag.streamType == SOUND_TYPE_STEREO ? 2 : 1;
-    var samplesCount = tag.samplesCount;
-    var sampleRate = SOUND_RATES[tag.streamRate];
-    var stream = new SoundStream(samplesCount, sampleRate, channels);
+      var channels = tag.streamType == SOUND_TYPE_STEREO ? 2 : 1;
+      var samplesCount = tag.samplesCount;
+      var sampleRate = SOUND_RATES[tag.streamRate];
+      var stream = new SoundStream(samplesCount, sampleRate, channels);
 
-    switch (tag.streamCompression) {
-      case SOUND_FORMAT_PCM_BE:
-      case SOUND_FORMAT_PCM_LE:
-        stream.format = 'wave';
-        if (tag.soundSize == SOUND_SIZE_16_BIT) {
-          stream.decode = tag.streamCompression === SOUND_FORMAT_PCM_BE ?
-                          SwfSoundStream_decode_PCM_be :
-                          SwfSoundStream_decode_PCM_le;
-        } else {
-          stream.decode = SwfSoundStream_decode_PCM;
-        }
-        break;
-      case SOUND_FORMAT_MP3:
-        stream.format = 'mp3';
-        stream.decode = SwfSoundStream_decode_MP3;
-        break;
-      default:
-        Debug.warning('Unsupported audio format: ' + tag.soundFormat);
-        return null;
+      switch (tag.streamCompression) {
+        case SOUND_FORMAT_PCM_BE:
+        case SOUND_FORMAT_PCM_LE:
+          stream.format = 'wave';
+          if (tag.soundSize == SOUND_SIZE_16_BIT) {
+            stream.decode = tag.streamCompression === SOUND_FORMAT_PCM_BE ?
+                            SwfSoundStream_decode_PCM_be :
+                            SwfSoundStream_decode_PCM_le;
+          } else {
+            stream.decode = SwfSoundStream_decode_PCM;
+          }
+          break;
+        case SOUND_FORMAT_MP3:
+          stream.format = 'mp3';
+          stream.decode = SwfSoundStream_decode_MP3;
+          break;
+        default:
+          Debug.warning('Unsupported audio format: ' + tag.soundFormat);
+          return null;
+      }
+
+      return stream;
     }
-
-    return stream;
-  }
   }
 
   function SwfSoundStream_decode_PCM(data) : DecodedSound {

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 module Shumway {
   import assert = Shumway.Debug.assert;
   import SWFFile = Shumway.SWF.SWFFile;
@@ -31,7 +30,7 @@ module Shumway {
   }
 
   export class FileLoader {
-    _file: any;
+    _file: any; // {SWFFile|ImageFile}
 
     private _listener: ILoadListener;
     private _loadingServiceSession: FileLoadingSession;

@@ -235,7 +235,8 @@ module Shumway.Tools.Profiler {
     }
 
     public trace(writer: IndentingWriter) {
-      var s = (this.kind ? this.kind.name + ": " : "Profile: ") + (this.endTime - this.startTime).toFixed(2);
+      var s = (this.kind ? this.kind.name + ": " : "Profile: ") +
+              (this.endTime - this.startTime).toFixed(2);
       if (this.children && this.children.length) {
         writer.enter(s);
         for (var i = 0; i < this.children.length; i++) {

@@ -38,7 +38,7 @@ module Shumway.Player.Test {
     }
 
     addEventListener(type: string, listener: any, useCapture?: boolean): void {
-      Debug.assert(type === 'syncmessage' || type === 'message');
+      release || Debug.assert(type === 'syncmessage' || type === 'message');
       if (type !== 'syncmessage') {
         this._onmessageListeners.push(listener);
       } else {

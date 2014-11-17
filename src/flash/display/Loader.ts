@@ -310,6 +310,8 @@ module Shumway.AVM2.AS.flash.display {
       this._unload(false, false);
     }
     unloadAndStop(gc: boolean) {
+      // TODO: remove all DisplayObjects originating from the unloaded SWF from all lists and stop
+      // them.
       this._unload(true, !!gc);
     }
 

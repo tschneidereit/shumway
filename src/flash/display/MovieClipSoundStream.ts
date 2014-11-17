@@ -146,10 +146,8 @@ module Shumway.AVM2.AS.flash.display {
     public appendBlock(frameNum: number, streamBlock: Uint8Array) {
       var decodedBlock = this.decode(streamBlock);
       var streamPosition = this.position;
-      this.seekIndex[frameNum] = streamPosition +
-        decodedBlock.seek * this.data.channels;
-      this.position = streamPosition +
-        decodedBlock.samplesCount * this.data.channels;
+      this.seekIndex[frameNum] = streamPosition + decodedBlock.seek * this.data.channels;
+      this.position = streamPosition + decodedBlock.samplesCount * this.data.channels;
 
       if (this.sourceBuffer) {
         this.sourceBuffer.appendBuffer(decodedBlock.data);

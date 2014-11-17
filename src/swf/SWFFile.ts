@@ -81,6 +81,10 @@ module Shumway.SWF {
       release || assert(initialBytes[2] === 83);
       release || assert(initialBytes.length >= 30, "At least the header must be complete here.");
 
+      if (!release && SWF.traceLevel.value > 0) {
+        console.log('Create SWFFile');
+      }
+
       this.isCompressed = false;
       this.swfVersion = 0;
       this.useAVM1 = true;
@@ -115,6 +119,23 @@ module Shumway.SWF {
       this._currentExports = null;
       this._endTagEncountered = false;
       this.readHeaderAndInitialize(initialBytes);
+    }
+
+    appendLoadedData(bytes: Uint8Array) {
+      this.pendingSymbolsPromise = null;
+      // TODO: only report decoded or sync-decodable bytes as loaded.
+      this.bytesLoaded += bytes.length;
+      release || assert(this.bytesLoaded <= this.bytesTotal);
+      // Tags after the end tag are simply ignored, so we don't even have to scan them.
+      if (this._endTagEncountered) {
+        return;
+      }
+      if (this.isCompressed) {
+        this._decompressor.push(bytes, true);
+      } else {
+        this.processDecompressedData(bytes);
+      }
+      this.scanLoadedData();
     }
 
     getSymbol(id: number) {
@@ -158,25 +179,6 @@ module Shumway.SWF {
       return symbol;
     }
 
-    appendLoadedData(bytes: Uint8Array) {
-      this.pendingSymbolsPromise = null;
-      // TODO: only report decoded or sync-decodable bytes as loaded.
-      this.bytesLoaded += bytes.length;
-      release || assert(this.bytesLoaded <= this.bytesTotal);
-      // Tags after the end tag are simply ignored, so we don't even have to scan them.
-      if (this._endTagEncountered) {
-        return;
-      }
-      if (this.isCompressed) {
-        this._decompressor.push(bytes, true);
-      } else {
-        this.processDecompressedData(bytes);
-      }
-      SWF.enterTimeline('Scan loaded SWF file tags');
-      this.scanLoadedData();
-      SWF.leaveTimeline();
-    }
-
     private readHeaderAndInitialize(initialBytes: Uint8Array) {
       SWF.enterTimeline('Initialize SWFFile');
       this.isCompressed = initialBytes[0] === 67;
@@ -217,9 +219,7 @@ module Shumway.SWF {
         this.frameCount = obj.frameCount;
       }
       SWF.leaveTimeline();
-      SWF.enterTimeline('Scan loaded SWF file tags');
       this.scanLoadedData();
-      SWF.leaveTimeline();
     }
 
     private processDecompressedData(data: Uint8Array) {
@@ -231,7 +231,9 @@ module Shumway.SWF {
     }
 
     private scanLoadedData() {
+      SWF.enterTimeline('Scan loaded SWF file tags');
       this.scanTagsToOffset(this._uncompressedLoadedLength, true);
+      SWF.leaveTimeline();
     }
 
     private scanTagsToOffset(endOffset: number, rootTimelineMode: boolean) {
@@ -812,71 +814,53 @@ module Shumway.SWF {
   var inFirefox = typeof navigator !== 'undefined' && navigator.userAgent.indexOf('Firefox') >= 0;
 
   function defineSymbol(swfTag, symbols) {
-    var symbol;
-
     switch (swfTag.code) {
       case SWFTag.CODE_DEFINE_BITS:
       case SWFTag.CODE_DEFINE_BITS_JPEG2:
       case SWFTag.CODE_DEFINE_BITS_JPEG3:
       case SWFTag.CODE_DEFINE_BITS_JPEG4:
-        symbol = Shumway.SWF.Parser.defineImage(swfTag);
-        break;
+        return Shumway.SWF.Parser.defineImage(swfTag);
       case SWFTag.CODE_DEFINE_BITS_LOSSLESS:
       case SWFTag.CODE_DEFINE_BITS_LOSSLESS2:
-        symbol = Shumway.SWF.Parser.defineBitmap(swfTag);
-        break;
+        return Shumway.SWF.Parser.defineBitmap(swfTag);
       case SWFTag.CODE_DEFINE_BUTTON:
       case SWFTag.CODE_DEFINE_BUTTON2:
-        symbol = Shumway.SWF.Parser.defineButton(swfTag, symbols);
-        break;
+        return Shumway.SWF.Parser.defineButton(swfTag, symbols);
       case SWFTag.CODE_DEFINE_EDIT_TEXT:
-        symbol = Shumway.SWF.Parser.defineText(swfTag, symbols);
-        break;
+        return Shumway.SWF.Parser.defineText(swfTag);
       case SWFTag.CODE_DEFINE_FONT:
       case SWFTag.CODE_DEFINE_FONT2:
       case SWFTag.CODE_DEFINE_FONT3:
       case SWFTag.CODE_DEFINE_FONT4:
-        symbol = Shumway.SWF.Parser.defineFont(swfTag);
+        var symbol = Shumway.SWF.Parser.defineFont(swfTag);
         // Only register fonts with embedded glyphs.
         if (symbol.data) {
           Shumway.registerCSSFont(symbol.id, symbol.data, !inFirefox);
         }
-        break;
+        return symbol;
       case SWFTag.CODE_DEFINE_MORPH_SHAPE:
       case SWFTag.CODE_DEFINE_MORPH_SHAPE2:
       case SWFTag.CODE_DEFINE_SHAPE:
       case SWFTag.CODE_DEFINE_SHAPE2:
       case SWFTag.CODE_DEFINE_SHAPE3:
       case SWFTag.CODE_DEFINE_SHAPE4:
-        symbol = Shumway.SWF.Parser.defineShape(swfTag);
-        break;
+        return Shumway.SWF.Parser.defineShape(swfTag);
       case SWFTag.CODE_DEFINE_SOUND:
-        symbol = Shumway.SWF.Parser.defineSound(swfTag, symbols);
-        break;
+        return Shumway.SWF.Parser.defineSound(swfTag);
       case SWFTag.CODE_DEFINE_SPRITE:
         // Sprites are fully defined at this point.
-        symbol = swfTag;
-        break;
+        return swfTag;
       case SWFTag.CODE_DEFINE_BINARY_DATA:
-        symbol = {
+        return {
           type: 'binary',
           id: swfTag.id,
-          // TODO: make transferable
           data: swfTag.data
         };
-        break;
       case SWFTag.CODE_DEFINE_TEXT:
       case SWFTag.CODE_DEFINE_TEXT2:
-        symbol = Shumway.SWF.Parser.defineLabel(swfTag);
-        break;
+        return Shumway.SWF.Parser.defineLabel(swfTag);
       default:
         return swfTag;
     }
-
-    if (!symbol) {
-      return {command: 'error', message: 'unknown symbol type: ' + swfTag.code};
-    }
-
-    return symbol;
   }
 }

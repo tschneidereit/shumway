@@ -773,6 +773,9 @@ module Shumway.GFX {
         fillStyle.setTransform(fillTransform.toSVGMatrix());
       } else {
         // TODO: Wire up initially-missing textures that become available later.
+        // An invalid SWF can have shape fills refer to images that occur later in the SWF. In that
+        // case, the image only becomes available once that frame is actually reached. Before that
+        // the fill isn't drawn; it is drawn once the image becomes available, though.
         fillStyle = null;
       }
       return {style: fillStyle, smoothImage: smooth};

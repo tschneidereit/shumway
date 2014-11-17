@@ -16,11 +16,11 @@
 
 /// <reference path='references.ts'/>
 module Shumway.SWF.Parser {
-  export function defineText(tag, dictionary) {
+  export function defineText(tag) {
     var bold = false;
     var italic = false;
 
-    var props = {
+    return {
       type: 'text',
       id: tag.id,
       fillBounds: tag.bbox,
@@ -29,6 +29,5 @@ module Shumway.SWF.Parser {
       bold: bold,
       italic: italic
     };
-    return props;
   }
 }
