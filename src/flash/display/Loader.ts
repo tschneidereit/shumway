@@ -261,7 +261,7 @@ module Shumway.AVM2.AS.flash.display {
       this._loadingType = LoadingType.External;
       this._fileLoader = new FileLoader(this);
       if (!release && traceLoaderOption.value) {
-        console.info("Load start: " + request.url);
+        console.log("Load start: " + request.url);
       }
       this._fileLoader.loadFile(request._toFileRequest());
 
@@ -457,7 +457,7 @@ module Shumway.AVM2.AS.flash.display {
       this._startPromise.resolve(null);
       if (this === Loader.getRootLoader()) {
         if (!release && traceLoaderOption.value) {
-          console.info("Initial frames loaded, starting main runtime event loop.");
+          console.log("Initial frames loaded, starting main runtime event loop.");
         }
         Loader.runtimeStartTime = Date.now();
       }
