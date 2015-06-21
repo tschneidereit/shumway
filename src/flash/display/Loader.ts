@@ -675,6 +675,11 @@ module Shumway.AVMX.AS.flash.display {
         movieClipClass.frameNavigationModel = loaderInfo.swfVersion < 10 ?
                                               flash.display.FrameNavigationModel.SWF9 :
                                               flash.display.FrameNavigationModel.SWF10;
+        var projection = new this.sec.flash.geom.PerspectiveProjection();
+        // TODO: set initial focalLength, after figuring out to what.
+        projection.projectionCenter = new this.sec.flash.geom.Point(this._stage.stageWidth / 2,
+                                                                    this._stage.stageHeight / 2);
+        root._perspectiveProjection = projection;
       }
       this._content = root;
       if (this === loaderClass.getRootLoader()) {
