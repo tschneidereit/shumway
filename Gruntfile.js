@@ -416,6 +416,7 @@ module.exports = function(grunt) {
     grunt.file.mkdir(outputDir);
     var packageRefs = require('./utils/update-flash-refs.js').packageRefs;
     var license = grunt.file.read('./src/license.js');
+    grunt.file.copy('build/ts/base.js', outputDir + 'shumway.base.js');
     packageRefs(['gfx'], outputDir + 'shumway.gfx.js', license);
     packageRefs(['player'], outputDir + 'shumway.player.js', license);
   });
@@ -479,6 +480,7 @@ module.exports = function(grunt) {
     grunt.file.mkdir(outputDir);
 
     runClosureTasks([
+      [inputDir + 'shumway.base.js', outputDir + 'shumway.base.js'],
       [inputDir + 'shumway.gfx.js', outputDir + 'shumway.gfx.js'],
       [inputDir + 'shumway.player.js', outputDir + 'shumway.player.js']
     ], !!grunt.option('verbose'), this.async());

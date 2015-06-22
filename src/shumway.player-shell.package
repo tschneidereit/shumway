@@ -2,8 +2,8 @@
 
 #!inline console.time("Load Shared Dependencies");
 
+#!skipbundle build/ts/base.js
 build/version/version.js
-build/ts/base.js
 build/ts/tools.js
 
 #!inline console.timeEnd("Load Shared Dependencies");

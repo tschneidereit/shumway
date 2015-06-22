@@ -1,7 +1,11 @@
 #!inline console.time("Load Shared Dependencies");
 
+#!skipbundle build/ts/base.js
+
+#!inline /** @define {boolean} */ var release = false;
+#!inline /** @define {boolean} */ var profile = false;
+
 build/version/version.js
-build/ts/base.js
 build/ts/tools.js
 
 #!inline console.timeEnd("Load Shared Dependencies");
