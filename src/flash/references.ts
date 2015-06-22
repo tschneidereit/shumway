@@ -303,22 +303,15 @@
 ///<reference path='sensors/Accelerometer.ts' />
 ///<reference path='sensors/Geolocation.ts' />
 ///<reference path='system/ApplicationDomain.ts' />
-// ///<reference path='system/ApplicationInstaller.ts' />
-// ///<reference path='system/AuthorizedFeatures.ts' />
-// ///<reference path='system/AuthorizedFeaturesLoader.ts' />
 ///<reference path='system/Capabilities.ts' />
-// ///<reference path='system/DomainMemoryWithStage3D.ts' />
 ///<reference path='system/FSCommand.ts' />
 // ///<reference path='system/IMEConversionMode.ts' />
 ///<reference path='system/ImageDecodingPolicy.ts' />
 ///<reference path='system/LoaderContext.ts' />
 ///<reference path='system/JPEGLoaderContext.ts' />
-///<reference path='system/MessageChannel.ts' />
-///<reference path='system/MessageChannelState.ts' />
 ///<reference path='system/Security.ts' />
 ///<reference path='system/SecurityDomain.ts' />
 ///<reference path='system/SecurityPanel.ts' />
-// ///<reference path='system/SystemUpdaterType.ts' />
 ///<reference path='system/TouchscreenType.ts' />
 
 ///<reference path='text/AntiAliasType.ts' />

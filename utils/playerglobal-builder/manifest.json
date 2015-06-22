@@ -2247,65 +2247,12 @@
     ]
   },
   {
-    "name": "flash/system/ApplicationInstaller",
-    "defs": [
-      "flash.system:ApplicationInstaller"
-    ],
-    "files": [
-      "flash/system/ApplicationInstaller.as"
-    ],
-    "inherits": [
-      "flash.events:EventDispatcher"
-    ]
-  },
-  {
-    "name": "flash/system/AuthorizedFeatures",
-    "defs": [
-      "flash.system:AuthorizedFeatures"
-    ],
-    "files": [
-      "flash/system/AuthorizedFeatures.as"
-    ],
-    "refs": [
-      "flash.system:ApplicationInstaller",
-      "flash.net:URLStream"
-    ]
-  },
-  {
-    "name": "flash/system/AuthorizedFeaturesLoader",
-    "defs": [
-      "flash.system:AuthorizedFeaturesLoader"
-    ],
-    "files": [
-      "flash/system/AuthorizedFeaturesLoader.as"
-    ],
-    "inherits": [
-      "flash.events:EventDispatcher"
-    ],
-    "refs": [
-      "flash.system:AuthorizedFeatures"
-    ]
-  },
-  {
     "name": "flash/system/Capabilities",
     "defs": [
       "flash.system:Capabilities"
     ],
     "files": [
       "flash/system/Capabilities.as"
-    ]
-  },
-  {
-    "name": "flash/system/DomainMemoryWithStage3D",
-    "defs": [
-      "flash.system:DomainMemoryWithStage3D"
-    ],
-    "files": [
-      "flash/system/DomainMemoryWithStage3D.as"
-    ],
-    "refs": [
-      "flash.events:Event",
-      "flash.system:AuthorizedFeaturesLoader"
     ]
   },
   {
@@ -2384,34 +2331,6 @@
     ]
   },
   {
-    "name": "flash/system/MessageChannel",
-    "defs": [
-      "flash.system:MessageChannel"
-    ],
-    "files": [
-      "flash/system/MessageChannel.as"
-    ],
-    "inherits": [
-      "flash.events:EventDispatcher"
-    ],
-    "refs": [
-      "flash.events:Event"
-    ]
-  },
-  {
-    "name": "flash/system/MessageChannelState",
-    "defs": [
-      "flash.system:MessageChannelState"
-    ],
-    "files": [
-      "flash/system/MessageChannelState.as"
-    ],
-    "refs": [
-      "flash.events:EventDispatcher",
-      "flash.events:Event"
-    ]
-  },
-  {
     "name": "flash/system/Security",
     "defs": [
       "flash.system:Security"
@@ -2448,44 +2367,6 @@
     ],
     "refs": [
       "flash.system:IME"
-    ]
-  },
-  {
-    "name": "flash/system/SystemUpdater",
-    "defs": [
-      "flash.system:SystemUpdater"
-    ],
-    "files": [
-      "flash/system/SystemUpdater.as"
-    ],
-    "inherits": [
-      "flash.events:EventDispatcher"
-    ],
-    "refs": [
-      "flash.events:Event",
-      "flash.events:SecurityErrorEvent",
-      "flash.events:ProgressEvent",
-      "flash.system:Capabilities",
-      "flash.events:StatusEvent",
-      "flash.events:IOErrorEvent"
-    ]
-  },
-  {
-    "name": "flash/system/SystemUpdaterType",
-    "defs": [
-      "flash.system:SystemUpdaterType"
-    ],
-    "files": [
-      "flash/system/SystemUpdaterType.as"
-    ],
-    "refs": [
-      "flash.events:EventDispatcher",
-      "flash.events:Event",
-      "flash.events:SecurityErrorEvent",
-      "flash.events:ProgressEvent",
-      "flash.system:Capabilities",
-      "flash.events:StatusEvent",
-      "flash.events:IOErrorEvent"
     ]
   },
   {
