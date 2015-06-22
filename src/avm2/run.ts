@@ -194,7 +194,6 @@ module Shumway.AVMX {
   }
 
   import assert = Shumway.Debug.assert;
-  import notImplemented = Shumway.Debug.notImplemented;
 
   import defineNonEnumerableProperty = Shumway.ObjectUtilities.defineNonEnumerableProperty;
   import defineReadOnlyProperty = Shumway.ObjectUtilities.defineReadOnlyProperty;

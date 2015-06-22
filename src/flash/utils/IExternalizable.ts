@@ -15,16 +15,8 @@
  */
 // Class: IExternalizable
 module Shumway.AVMX.AS.flash.utils {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export interface IExternalizable {
-    
-    // JS -> AS Bindings
-    
     writeExternal: (output: flash.utils.IDataOutput) => void;
     readExternal: (input: flash.utils.IDataInput) => void;
-    
-    // AS -> JS Bindings
-    
   }
 }

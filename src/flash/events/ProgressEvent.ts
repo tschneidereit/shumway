@@ -15,13 +15,9 @@
  */
 // Class: ProgressEvent
 module Shumway.AVMX.AS.flash.events {
-  import notImplemented = Shumway.Debug.notImplemented;
   export class ProgressEvent extends flash.events.Event {
 
     static classInitializer: any = null;
-
-    static classSymbols: string [] = null;
-    static instanceSymbols: string [] = null;
 
     constructor(type: string, bubbles: boolean = false, cancelable: boolean = false,
                 bytesLoaded: number = 0, bytesTotal: number = 0) {
@@ -30,7 +26,6 @@ module Shumway.AVMX.AS.flash.events {
       this._bytesTotal = bytesTotal;
     }
 
-    // JS -> AS Bindings
     static PROGRESS: string = "progress";
     static SOCKET_DATA: string = "socketData";
 

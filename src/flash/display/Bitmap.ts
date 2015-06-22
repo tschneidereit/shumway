@@ -15,7 +15,6 @@
  */
 // Class: Bitmap
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   import assert = Shumway.Debug.assert;
 

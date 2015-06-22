@@ -15,14 +15,6 @@
  */
 // Class: IDrawCommand
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export interface IDrawCommand {
-    
-    // JS -> AS Bindings
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

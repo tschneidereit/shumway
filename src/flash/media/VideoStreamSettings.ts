@@ -15,24 +15,13 @@
  */
 // Class: VideoStreamSettings
 module Shumway.AVMX.AS.flash.media {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class VideoStreamSettings extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // ["width", "height", "fps", "quality", "bandwidth", "keyFrameInterval", "codec", "setMode", "setQuality", "setKeyFrameInterval"];
-    
     constructor () {
       super();
     }
-    
-    // JS -> AS Bindings
     
     width: number /*int*/;
     height: number /*int*/;
@@ -44,15 +33,5 @@ module Shumway.AVMX.AS.flash.media {
     setMode: (width: number /*int*/, height: number /*int*/, fps: number) => void;
     setQuality: (bandwidth: number /*int*/, quality: number /*int*/) => void;
     setKeyFrameInterval: (keyFrameInterval: number /*int*/) => void;
-    
-    // AS -> JS Bindings
-    
-    // _width: number /*int*/;
-    // _height: number /*int*/;
-    // _fps: number;
-    // _quality: number /*int*/;
-    // _bandwidth: number /*int*/;
-    // _keyFrameInterval: number /*int*/;
-    // _codec: string;
   }
 }

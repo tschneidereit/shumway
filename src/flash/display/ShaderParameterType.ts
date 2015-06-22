@@ -15,24 +15,14 @@
  */
 // Class: ShaderParameterType
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class ShaderParameterType extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static FLOAT: string = "float";
     static FLOAT2: string = "float2";
     static FLOAT3: string = "float3";
@@ -48,9 +38,5 @@ module Shumway.AVMX.AS.flash.display {
     static MATRIX2X2: string = "matrix2x2";
     static MATRIX3X3: string = "matrix3x3";
     static MATRIX4X4: string = "matrix4x4";
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

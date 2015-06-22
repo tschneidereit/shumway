@@ -15,7 +15,6 @@
  */
 // Class: ColorTransform
 module Shumway.AVMX.AS.flash.geom {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
 
   import toS16 = Shumway.IntegerUtilities.toS16;
@@ -29,12 +28,7 @@ module Shumway.AVMX.AS.flash.geom {
       this.FROZEN_IDENTITY_COLOR_TRANSFORM = Object.freeze(this.axConstruct([]));
       this.TEMP_COLOR_TRANSFORM = this.axConstruct([]);
     }
-    static classSymbols: string [] = null; // [];
-    static instanceSymbols: string [] = null; // ["redMultiplier", "greenMultiplier",
-                                              // "blueMultiplier", "alphaMultiplier", "redOffset",
-                                              // "greenOffset", "blueOffset", "alphaOffset",
-                                              // "color", "color", "concat", "toString"];
-    
+
     constructor(redMultiplier: number = 1, greenMultiplier: number = 1, blueMultiplier: number = 1,
                 alphaMultiplier: number = 1, redOffset: number = 0, greenOffset: number = 0,
                 blueOffset: number = 0, alphaOffset: number = 0)

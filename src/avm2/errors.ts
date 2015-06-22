@@ -651,22 +651,6 @@ module Shumway.AVMX {
     });
     return "Error #" + error.code + ": " + message;
   }
-
-  export function translateErrorMessage(error) {
-    if (error.type) {
-      switch (error.type) {
-        case "undefined_method":
-          return formatErrorMessage(Errors.CallOfNonFunctionError, "value");
-        default:
-          throw Shumway.Debug.notImplemented(error.type);
-      }
-    } else {
-      if (error.message.indexOf("is not a function") >= 0) {
-        return formatErrorMessage(Errors.CallOfNonFunctionError, "value");
-      }
-      return error.message;
-    }
-  }
 }
 
 // Errors is used in dataBuffer.ts, which is compiled way before this. Gotta break the cycle.

@@ -15,31 +15,19 @@
  */
 // Class: ColorCorrectionSupport
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class ColorCorrectionSupport extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static UNSUPPORTED: string = "unsupported";
     static DEFAULT_ON: string = "defaultOn";
     static DEFAULT_OFF: string = "defaultOff";
     
     
-    // AS -> JS Bindings
-
     static fromNumber(n: number): string {
       switch (n) {
         case 0:

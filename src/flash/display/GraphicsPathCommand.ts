@@ -15,24 +15,14 @@
  */
 // Class: GraphicsPathCommand
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class GraphicsPathCommand extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static NO_OP: number /*int*/ = undefined;
     static MOVE_TO: number /*int*/ = 1;
     static LINE_TO: number /*int*/ = 2;
@@ -40,9 +30,5 @@ module Shumway.AVMX.AS.flash.display {
     static WIDE_MOVE_TO: number /*int*/ = 4;
     static WIDE_LINE_TO: number /*int*/ = 5;
     static CUBIC_CURVE_TO: number /*int*/ = 6;
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

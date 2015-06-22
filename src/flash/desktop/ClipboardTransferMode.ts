@@ -15,31 +15,17 @@
  */
 // Class: ClipboardTransferMode
 module Shumway.AVMX.AS.flash.desktop {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class ClipboardTransferMode extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static ORIGINAL_PREFERRED: string = "originalPreferred";
     static ORIGINAL_ONLY: string = "originalOnly";
     static CLONE_PREFERRED: string = "clonePreferred";
     static CLONE_ONLY: string = "cloneOnly";
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

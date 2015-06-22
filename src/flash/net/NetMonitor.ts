@@ -17,21 +17,14 @@
 module Shumway.AVMX.AS.flash.net {
   export class NetMonitor extends flash.events.EventDispatcher {
 
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
-
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
 
     constructor () {
       super();
     }
 
     listStreams(): ASVector<any> {
-      notImplemented("public flash.net.NetMonitor::listStreams"); return;
+      Debug.notImplemented("public flash.net.NetMonitor::listStreams"); return;
     }
   }
 }

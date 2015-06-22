@@ -17,7 +17,6 @@
 module Shumway.AVMX.AS.flash.text {
   import axCoerceString = Shumway.AVMX.axCoerceString;
   import roundHalfEven = Shumway.NumberUtilities.roundHalfEven;
-  import notImplemented = Shumway.Debug.notImplemented;
 
   export class TextFormat extends ASObject {
 

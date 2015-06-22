@@ -15,8 +15,6 @@
  */
 // Class: StyleSheet
 module Shumway.AVMX.AS.flash.text {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import dummyConstructor = Shumway.Debug.dummyConstructor;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   import assert = Debug.assert;
 
@@ -39,9 +37,7 @@ module Shumway.AVMX.AS.flash.text {
 
   export class StyleSheet extends flash.events.EventDispatcher {
     static classInitializer: any = null;
-    static classSymbols: string [] = null;
-    static instanceSymbols: string [] = null;
-    
+
     constructor () {
       super();
       this.clear();

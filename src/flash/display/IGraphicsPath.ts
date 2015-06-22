@@ -15,14 +15,6 @@
  */
 // Class: IGraphicsPath
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export interface IGraphicsPath {
-    
-    // JS -> AS Bindings
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

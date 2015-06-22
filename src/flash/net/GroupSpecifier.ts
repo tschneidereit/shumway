@@ -15,25 +15,16 @@
  */
 // Class: GroupSpecifier
 module Shumway.AVMX.AS.flash.net {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   export class GroupSpecifier extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // ["encodePostingAuthorization", "encodePublishAuthorization", "encodeIPMulticastAddressSpec", "encodeBootstrapPeerIDSpec"];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // ["makeUnique", "routingEnabled", "routingEnabled", "multicastEnabled", "multicastEnabled", "objectReplicationEnabled", "objectReplicationEnabled", "postingEnabled", "postingEnabled", "peerToPeerDisabled", "peerToPeerDisabled", "ipMulticastMemberUpdatesEnabled", "ipMulticastMemberUpdatesEnabled", "setPublishPassword", "setPostingPassword", "serverChannelEnabled", "serverChannelEnabled", "addBootstrapPeer", "addIPMulticastAddress", "toString", "groupspecWithoutAuthorizations", "groupspecWithAuthorizations", "authorizations"];
-    
     constructor (name: string) {
       super();
       name = axCoerceString(name);
     }
     
-    // JS -> AS Bindings
     static encodePostingAuthorization: (password: string) => string;
     static encodePublishAuthorization: (password: string) => string;
     static encodeIPMulticastAddressSpec: (address: string, port: any = null, source: string = null) => string;
@@ -54,15 +45,5 @@ module Shumway.AVMX.AS.flash.net {
     groupspecWithoutAuthorizations: () => string;
     groupspecWithAuthorizations: () => string;
     authorizations: () => string;
-    
-    // AS -> JS Bindings
-    
-    // _routingEnabled: boolean;
-    // _multicastEnabled: boolean;
-    // _objectReplicationEnabled: boolean;
-    // _postingEnabled: boolean;
-    // _peerToPeerDisabled: boolean;
-    // _ipMulticastMemberUpdatesEnabled: boolean;
-    // _serverChannelEnabled: boolean;
   }
 }

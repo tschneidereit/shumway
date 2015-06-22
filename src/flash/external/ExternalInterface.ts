@@ -15,7 +15,6 @@
  */
 // Class: ExternalInterface
 module Shumway.AVMX.AS.flash.external {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   import Telemetry = Shumway.Telemetry;
   import ExternalInterfaceService = Shumway.ExternalInterfaceService;

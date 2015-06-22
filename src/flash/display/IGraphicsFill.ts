@@ -15,14 +15,6 @@
  */
 // Class: IGraphicsFill
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export interface IGraphicsFill {
-    
-    // JS -> AS Bindings
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

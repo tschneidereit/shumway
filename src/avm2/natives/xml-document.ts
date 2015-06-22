@@ -15,7 +15,6 @@
  */
 
 module Shumway.AVMX.AS.flash.xml {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
 
   enum XMLSpecialChars {

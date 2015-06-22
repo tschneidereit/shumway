@@ -15,24 +15,18 @@
  */
 // Class: GradientType
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
   export class GradientType extends ASObject {
     
     static classInitializer: any = null;
-    static classSymbols: string [] = null; // [];
-    static instanceSymbols: string [] = null; // [];
-    
+
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static LINEAR: string = "linear";
     static RADIAL: string = "radial";
     
     
-    // AS -> JS Bindings
-
     static fromNumber(n: number): string {
       switch (n) {
         case Shumway.GradientType.Linear:

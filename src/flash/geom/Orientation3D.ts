@@ -15,30 +15,16 @@
  */
 // Class: Orientation3D
 module Shumway.AVMX.AS.flash.geom {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class Orientation3D extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static EULER_ANGLES: string = "eulerAngles";
     static AXIS_ANGLE: string = "axisAngle";
     static QUATERNION: string = "quaternion";
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

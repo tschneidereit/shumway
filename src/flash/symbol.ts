@@ -15,7 +15,6 @@
  */
 
 module Shumway.Timeline {
-  import notImplemented = Shumway.Debug.notImplemented;
   import isInteger = Shumway.isInteger;
   import assert = Shumway.Debug.assert;
   import warning = Shumway.Debug.warning;

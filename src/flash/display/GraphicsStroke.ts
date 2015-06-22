@@ -15,20 +15,15 @@
  */
 // Class: GraphicsStroke
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   export class GraphicsStroke extends ASObject implements IGraphicsStroke, IGraphicsData {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // ["thickness", "pixelHinting", "miterLimit", "fill", "_scaleMode", "_caps", "_joints", "scaleMode", "scaleMode", "caps", "caps", "joints", "joints"];
-    
-    constructor (thickness: number = NaN, pixelHinting: boolean = false, scaleMode: string = "normal", caps: string = "none", joints: string = "round", miterLimit: number = 3, fill: flash.display.IGraphicsFill = null) {
+    constructor(thickness: number = NaN, pixelHinting: boolean = false,
+                scaleMode: string = "normal", caps: string = "none", joints: string = "round",
+                miterLimit: number = 3, fill: flash.display.IGraphicsFill = null)
+    {
       super();
       this.thickness = +thickness;
       this.pixelHinting = !!pixelHinting;
@@ -39,8 +34,6 @@ module Shumway.AVMX.AS.flash.display {
       this.fill = fill;
     }
     
-    // JS -> AS Bindings
-    
     thickness: number;
     pixelHinting: boolean;
     miterLimit: number;
@@ -48,11 +41,5 @@ module Shumway.AVMX.AS.flash.display {
     scaleMode: string;
     caps: string;
     joints: string;
-    
-    // AS -> JS Bindings
-    
-    // _scaleMode: string;
-    // _caps: string;
-    // _joints: string;
   }
 }

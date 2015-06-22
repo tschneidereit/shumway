@@ -15,8 +15,6 @@
  */
 // Class: AutomationAction
 module Shumway.AVMX.AS.flash.automation {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class AutomationAction extends ASObject {
     constructor () {
       super();

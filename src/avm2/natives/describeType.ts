@@ -16,7 +16,6 @@
 
 module Shumway.AVMX.AS {
   import assert = Shumway.Debug.assert;
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
 
   enum DescribeTypeFlags {

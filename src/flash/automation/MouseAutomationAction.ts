@@ -15,7 +15,6 @@
  */
 // Class: MouseAutomationAction
 module Shumway.AVMX.AS.flash.automation {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   export class MouseAutomationAction extends flash.automation.AutomationAction {
     constructor (type: string, stageX: number = 0, stageY: number = 0, delta: number /*int*/ = 0) {

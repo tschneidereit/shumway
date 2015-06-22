@@ -15,24 +15,13 @@
  */
 // Class: H264VideoStreamSettings
 module Shumway.AVMX.AS.flash.media {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class H264VideoStreamSettings extends flash.media.VideoStreamSettings {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // ["_profile", "_level", "codec", "profile", "level", "setProfileLevel"];
-    
     constructor () {
       super();
     }
-    
-    // JS -> AS Bindings
     
     _profile: string;
     _level: string;
@@ -40,11 +29,5 @@ module Shumway.AVMX.AS.flash.media {
     profile: string;
     level: string;
     setProfileLevel: (profile: string, level: string) => void;
-    
-    // AS -> JS Bindings
-    
-    // _codec: string;
-    // _profile: string;
-    // _level: string;
   }
 }

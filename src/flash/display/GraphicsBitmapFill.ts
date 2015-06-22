@@ -15,20 +15,12 @@
  */
 // Class: GraphicsBitmapFill
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class GraphicsBitmapFill extends ASObject implements IGraphicsFill, IGraphicsData {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // ["bitmapData", "matrix", "repeat", "smooth"];
-    
-    constructor (bitmapData: flash.display.BitmapData = null, matrix: flash.geom.Matrix = null, repeat: boolean = true, smooth: boolean = false) {
+    constructor (bitmapData: flash.display.BitmapData = null, matrix: flash.geom.Matrix = null,
+                 repeat: boolean = true, smooth: boolean = false) {
       super();
       this.bitmapData = bitmapData;
       this.matrix = matrix;
@@ -36,14 +28,9 @@ module Shumway.AVMX.AS.flash.display {
       this.smooth = !!smooth;
     }
     
-    // JS -> AS Bindings
-    
     bitmapData: flash.display.BitmapData;
     matrix: flash.geom.Matrix;
     repeat: boolean;
     smooth: boolean;
-    
-    // AS -> JS Bindings
-    
   }
 }

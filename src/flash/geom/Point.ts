@@ -15,18 +15,10 @@
  */
 // Class: Point
 module Shumway.AVMX.AS.flash.geom {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   export class Point extends ASObject {
 
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
-
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // ["interpolate", "distance", "polar"];
-
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // ["x", "y", "length", "clone", "offset", "equals", "subtract", "add", "normalize", "copyFrom", "setTo", "toString"];
 
     constructor(x: number = 0, y: number = 0) {
       super();

@@ -15,7 +15,6 @@
  */
 // Class: Transform
 module Shumway.AVMX.AS.flash.geom {
-  import notImplemented = Shumway.Debug.notImplemented;
   import somewhatImplemented = Shumway.Debug.somewhatImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   import checkNullParameter = Shumway.AVMX.checkNullParameter;

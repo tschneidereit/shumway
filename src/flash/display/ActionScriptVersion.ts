@@ -15,29 +15,15 @@
  */
 // Class: ActionScriptVersion
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class ActionScriptVersion extends ASObject {
-    
-    // Called whenever the class is initialized.
+
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static ACTIONSCRIPT2: number /*uint*/ = 2;
     static ACTIONSCRIPT3: number /*uint*/ = 3;
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

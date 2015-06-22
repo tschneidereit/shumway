@@ -15,15 +15,8 @@
  */
 // Class: IDynamicPropertyWriter
 module Shumway.AVMX.AS.flash.net {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export interface IDynamicPropertyWriter {
-    
-    // JS -> AS Bindings
-    
+
     writeDynamicProperties: (obj: ASObject, output: flash.net.IDynamicPropertyOutput) => void;
-    
-    // AS -> JS Bindings
-    
   }
 }

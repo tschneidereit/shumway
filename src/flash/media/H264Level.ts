@@ -15,24 +15,14 @@
  */
 // Class: H264Level
 module Shumway.AVMX.AS.flash.media {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class H264Level extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
-    
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
+
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static LEVEL_1: string = "1";
     static LEVEL_1B: string = "1b";
     static LEVEL_1_1: string = "1.1";
@@ -49,9 +39,5 @@ module Shumway.AVMX.AS.flash.media {
     static LEVEL_4_2: string = "4.2";
     static LEVEL_5: string = "5";
     static LEVEL_5_1: string = "5.1";
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

@@ -15,19 +15,11 @@
  */
 // Class: URLRequest
 module Shumway.AVMX.AS.flash.net {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
 
   export class URLRequest extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
-    
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-
-    // List of instance symbols to link.
-    static bindings: string [] = null;
 
     constructor (url: string = null) {
       super();
@@ -42,10 +34,6 @@ module Shumway.AVMX.AS.flash.net {
 
     _checkPolicyFile: boolean;
 
-    // JS -> AS Bindings
-    
-    // AS -> JS Bindings
-    
     private _url: string;
     private _data: ASObject;
     private _method: string;

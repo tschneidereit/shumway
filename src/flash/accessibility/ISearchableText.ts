@@ -15,8 +15,6 @@
  */
 // Class: ISearchableText
 module Shumway.AVMX.AS.flash.accessibility {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export interface ISearchableText {
     
     // JS -> AS Bindings

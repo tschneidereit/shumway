@@ -15,32 +15,18 @@
  */
 // Class: MicrophoneEnhancedMode
 module Shumway.AVMX.AS.flash.media {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class MicrophoneEnhancedMode extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static FULL_DUPLEX: string = "fullDuplex";
     static HALF_DUPLEX: string = "halfDuplex";
     static HEADSET: string = "headset";
     static SPEAKER_MUTE: string = "speakerMute";
     static OFF: string = "off";
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

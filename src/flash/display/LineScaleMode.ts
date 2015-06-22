@@ -15,32 +15,19 @@
  */
 // Class: LineScaleMode
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class LineScaleMode extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static NORMAL: string = "normal";
     static VERTICAL: string = "vertical";
     static HORIZONTAL: string = "horizontal";
     static NONE: string = "none";
     
-    
-    // AS -> JS Bindings
-
     static fromNumber(n: number): string {
       switch (n) {
         case 0:

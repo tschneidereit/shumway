@@ -15,31 +15,18 @@
  */
 // Class: JointStyle
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class JointStyle extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static ROUND: string = "round";
     static BEVEL: string = "bevel";
     static MITER: string = "miter";
     
-    
-    // AS -> JS Bindings
-
     static fromNumber(n: number): string {
       switch (n) {
         case 0:

@@ -15,24 +15,14 @@
  */
 // Class: PrintJob
 module Shumway.AVMX.AS.flash.printing {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class PrintJob extends flash.events.EventDispatcher {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // ["isSupported"];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // ["paperHeight", "paperWidth", "pageHeight", "pageWidth", "orientation", "start", "send", "addPage"];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static isSupported: boolean;
     
     paperHeight: number /*int*/;
@@ -42,15 +32,7 @@ module Shumway.AVMX.AS.flash.printing {
     orientation: string;
     start: () => boolean;
     send: () => void;
-    addPage: (sprite: flash.display.Sprite, printArea: flash.geom.Rectangle = null, options: flash.printing.PrintJobOptions = null, frameNum: number /*int*/ = 0) => void;
-    
-    // AS -> JS Bindings
-    // static _isSupported: boolean;
-    
-    // _paperHeight: number /*int*/;
-    // _paperWidth: number /*int*/;
-    // _pageHeight: number /*int*/;
-    // _pageWidth: number /*int*/;
-    // _orientation: string;
+    addPage: (sprite: flash.display.Sprite, printArea: flash.geom.Rectangle = null,
+              options: flash.printing.PrintJobOptions = null, frameNum: number /*int*/ = 0) => void;
   }
 }

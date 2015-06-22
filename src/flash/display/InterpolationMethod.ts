@@ -15,24 +15,17 @@
  */
 // Class: InterpolationMethod
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
   import GradientInterpolationMethod = Shumway.GradientInterpolationMethod;
   export class InterpolationMethod extends ASObject {
 
     static classInitializer: any = null;
-    static classSymbols: string [] = null; // [];
-    static instanceSymbols: string [] = null; // [];
 
     constructor () {
       super();
     }
 
-    // JS -> AS Bindings
     static RGB: string = "rgb";
     static LINEAR_RGB: string = "linearRGB";
-
-
-    // AS -> JS Bindings
 
     static fromNumber(n: number): string {
       switch (n) {

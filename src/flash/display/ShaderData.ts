@@ -15,19 +15,10 @@
  */
 // Class: ShaderData
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class ShaderData extends ASObject {
-    
-    // Called whenever the class is initialized.
+
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor (byteCode: flash.utils.ByteArray) {
       super();
       this.byteCode = byteCode;

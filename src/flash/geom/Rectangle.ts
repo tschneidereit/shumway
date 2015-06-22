@@ -15,7 +15,6 @@
  */
 // Class: Rectangle
 module Shumway.AVMX.AS.flash.geom {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   import ArrayWriter = Shumway.ArrayUtilities.ArrayWriter;
   import Bounds = Shumway.Bounds;
@@ -24,14 +23,7 @@ module Shumway.AVMX.AS.flash.geom {
 
     static axClass: typeof Rectangle;
 
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
-
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null;
 
     public x: number;
     public y: number;

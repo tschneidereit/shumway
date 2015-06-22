@@ -31,7 +31,6 @@
 module Shumway.AVMX.AS {
   import assert = Shumway.Debug.assert;
   import assertNotImplemented = Shumway.Debug.assertNotImplemented;
-  import notImplemented = Shumway.Debug.notImplemented;
   import defineNonEnumerableProperty = Shumway.ObjectUtilities.defineNonEnumerableProperty;
   import clamp = Shumway.NumberUtilities.clamp;
 

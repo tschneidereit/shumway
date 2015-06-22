@@ -15,7 +15,6 @@
  */
 // Class: KeyboardAutomationAction
 module Shumway.AVMX.AS.flash.automation {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   export class KeyboardAutomationAction extends flash.automation.AutomationAction {
     constructor (type: string, keyCode: number /*uint*/ = 0) {

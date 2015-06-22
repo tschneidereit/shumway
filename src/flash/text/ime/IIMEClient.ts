@@ -15,11 +15,7 @@
  */
 // Class: IIMEClient
 module Shumway.AVMX.AS.flash.text.ime {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export interface IIMEClient {
-    
-    // JS -> AS Bindings
     
     compositionStartIndex: number /*int*/;
     compositionEndIndex: number /*int*/;
@@ -31,13 +27,5 @@ module Shumway.AVMX.AS.flash.text.ime {
     getTextBounds: (startIndex: number /*int*/, endIndex: number /*int*/) => flash.geom.Rectangle;
     selectRange: (anchorIndex: number /*int*/, activeIndex: number /*int*/) => void;
     getTextInRange: (startIndex: number /*int*/, endIndex: number /*int*/) => string;
-    
-    // AS -> JS Bindings
-    
-    // _compositionStartIndex: number /*int*/;
-    // _compositionEndIndex: number /*int*/;
-    // _verticalTextLayout: boolean;
-    // _selectionAnchorIndex: number /*int*/;
-    // _selectionActiveIndex: number /*int*/;
   }
 }

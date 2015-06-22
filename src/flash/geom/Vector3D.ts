@@ -15,8 +15,6 @@
  */
 // Class: Vector3D
 module Shumway.AVMX.AS.flash.geom {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class Vector3D extends ASObject {
     static classInitializer() {
       this.X_AXIS = Object.freeze(this.Create(1, 0, 0, 0));

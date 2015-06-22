@@ -15,7 +15,6 @@
  */
 // Class: GraphicsGradientFill
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   export class GraphicsGradientFill extends ASObject implements IGraphicsFill, IGraphicsData {
 

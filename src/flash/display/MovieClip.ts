@@ -17,7 +17,6 @@
 module Shumway.AVMX.AS.flash.display {
   import assert = Shumway.Debug.assert;
   import assertUnreachable = Shumway.Debug.assertUnreachable;
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   import isNullOrUndefined = Shumway.isNullOrUndefined;
   import clamp = Shumway.NumberUtilities.clamp;

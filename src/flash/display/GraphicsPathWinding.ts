@@ -15,29 +15,15 @@
  */
 // Class: GraphicsPathWinding
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class GraphicsPathWinding extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static EVEN_ODD: string = "evenOdd";
     static NON_ZERO: string = "nonZero";
-    
-    
-    // AS -> JS Bindings
-    
   }
 }

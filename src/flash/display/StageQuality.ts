@@ -15,24 +15,14 @@
  */
 // Class: StageQuality
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   export class StageQuality extends ASObject {
     
-    // Called whenever the class is initialized.
     static classInitializer: any = null;
 
-    // List of static symbols to link.
-    static classSymbols: string [] = null; // [];
-    
-    // List of instance symbols to link.
-    static instanceSymbols: string [] = null; // [];
-    
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static LOW: string = "low";
     static MEDIUM: string = "medium";
     static HIGH: string = "high";
@@ -42,9 +32,6 @@ module Shumway.AVMX.AS.flash.display {
     static HIGH_16X16: string = "16x16";
     static HIGH_16X16_LINEAR: string = "16x16linear";
     
-    
-    // AS -> JS Bindings
-
     static fromNumber(n: number): string {
       switch (n) {
         case 0:

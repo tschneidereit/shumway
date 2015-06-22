@@ -15,7 +15,6 @@
  */
 // Class: Matrix
 module Shumway.AVMX.AS.flash.geom {
-  import notImplemented = Shumway.Debug.notImplemented;
   import axCoerceString = Shumway.AVMX.axCoerceString;
   import DataBuffer = Shumway.ArrayUtilities.DataBuffer;
   import Bounds = Shumway.Bounds;
@@ -53,14 +52,6 @@ module Shumway.AVMX.AS.flash.geom {
       this.FROZEN_IDENTITY_MATRIX = Object.freeze(this.axConstruct([]));
       this.TEMP_MATRIX = this.axConstruct([]);
     }
-    static classSymbols: string [] = null; // [];
-    static instanceSymbols: string [] = null; // ["a", "b", "c", "d", "tx", "ty", "concat",
-                                              // "invert", "identity", "createBox",
-                                              // "createGradientBox", "rotate", "translate",
-                                              // "scale", "deltaTransformPoint", "transformPoint",
-                                              // "copyFrom", "setTo", "copyRowTo", "copyColumnTo",
-                                              // "copyRowFrom", "copyColumnFrom", "clone",
-                                              // "toString"];
 
     constructor(a: number = 1, b: number = 0, c: number = 0, d: number = 1, tx: number = 0,
                 ty: number = 0)

@@ -15,7 +15,6 @@
  */
 
 module Shumway.AVMX.AS.flash.net {
-  import notImplemented = Shumway.Debug.notImplemented;
   import somewhatImplemented = Shumway.Debug.somewhatImplemented;
   import assert = Debug.assert;
   import axCoerceString = Shumway.AVMX.axCoerceString;

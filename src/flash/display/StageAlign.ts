@@ -15,21 +15,16 @@
  */
 // Class: StageAlign
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
-  import axCoerceString = Shumway.AVMX.axCoerceString;
   import StageAlignFlags = Shumway.Remoting.StageAlignFlags;
 
   export class StageAlign extends ASObject {
     
     static classInitializer: any = null;
-    static classSymbols: string [] = null; // [];
-    static instanceSymbols: string [] = null; // [];
-    
+
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static TOP: string = "T";
     static LEFT: string = "L";
     static BOTTOM: string = "B";

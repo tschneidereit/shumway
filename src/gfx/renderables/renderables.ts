@@ -27,7 +27,6 @@ module Shumway.GFX {
   import tableLookupUnpremultiplyARGB = Shumway.ColorUtilities.tableLookupUnpremultiplyARGB;
   import assert = Shumway.Debug.assert;
   import unexpected = Shumway.Debug.unexpected;
-  import notImplemented = Shumway.Debug.notImplemented;
   import pushUnique = Shumway.ArrayUtilities.pushUnique;
   import indexOf = Shumway.ArrayUtilities.indexOf;
   import VideoPlaybackEvent = Shumway.Remoting.VideoPlaybackEvent;

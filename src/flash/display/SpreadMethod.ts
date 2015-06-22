@@ -15,26 +15,19 @@
  */
 // Class: SpreadMethod
 module Shumway.AVMX.AS.flash.display {
-  import notImplemented = Shumway.Debug.notImplemented;
   import GradientSpreadMethod = Shumway.GradientSpreadMethod;
   export class SpreadMethod extends ASObject {
     
     static classInitializer: any = null;
-    static classSymbols: string [] = null; // [];
-    static instanceSymbols: string [] = null; // [];
-    
+
     constructor () {
       super();
     }
     
-    // JS -> AS Bindings
     static PAD: string = "pad";
     static REFLECT: string = "reflect";
     static REPEAT: string = "repeat";
     
-    
-    // AS -> JS Bindings
-
     static fromNumber(n: number): string {
       switch (n) {
         case GradientSpreadMethod.Pad:
