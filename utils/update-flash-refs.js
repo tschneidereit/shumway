@@ -63,8 +63,11 @@ function updateLibRefs(filePath, manifestPath, lib, onlyIncludes) {
           if (entry.indexOf('#!inline ') === 0) {
             return indent + '<script> ' + entry.substr(9).trim() + ' </script>';
           }
-          if (entry.indexOf('#!skipbundle ') === 0) {
-            return indent + '<script src="' + baseUrl + entry.substr(13).trim() + '"></script>';
+          if (entry.indexOf('#!skipbundle') === 0) {
+            var async = entry.indexOf('#!skipbundle-async ') === 0 ? ' async' : '';
+            var pathStart = entry.indexOf(' ') + 1;
+            return indent + '<script' + async + ' src="' + baseUrl +
+                   entry.substr(pathStart).trim() + '"></script>';
           }
           console.error('Skipping unknown ' + entry);
           return '';
@@ -208,7 +211,7 @@ function packageRefs(includes, output, license) {
         content += entry.substr(9).trim() + '\n';
         return;
       }
-      if (entry.indexOf('#!skipbundle ') === 0) {
+      if (entry.indexOf('#!skipbundle') === 0) {
         return;
       }
       console.error('Skipping unknown ' + entry);
