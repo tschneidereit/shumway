@@ -15,13 +15,9 @@
  */
 // Class: TextEvent
 module Shumway.AVMX.AS.flash.events {
-  import notImplemented = Shumway.Debug.notImplemented;
   export class TextEvent extends flash.events.Event {
 
     static classInitializer: any = null;
-
-    static classSymbols: string [] = null;
-    static instanceSymbols: string [] = null;
 
     constructor(type: string, bubbles: boolean, cancelable: boolean, text: string) {
       super(type, bubbles, cancelable);
@@ -43,16 +39,11 @@ module Shumway.AVMX.AS.flash.events {
     clone(): Event {
       var textEvent = new this.sec.flash.events.TextEvent(this.type, this.bubbles,
                                                                      this.cancelable, this.text);
-      //this.copyNativeData(textEvent);
       return textEvent;
     }
 
     toString(): string {
       return this.formatToString('TextEvent', 'type', 'bubbles', 'cancelable', 'text');
-    }
-
-    copyNativeData(event: flash.events.TextEvent): void {
-      notImplemented("public flash.events.TextEvent::copyNativeData");
     }
   }
 }

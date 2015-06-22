@@ -15,7 +15,6 @@
  */
 // Class: MouseEvent
 module Shumway.AVMX.AS.flash.events {
-  import notImplemented = Shumway.Debug.notImplemented;
   export class MouseEvent extends flash.events.Event {
 
     static classInitializer: any = null;
@@ -77,18 +76,7 @@ module Shumway.AVMX.AS.flash.events {
         case "mouseup":
           return MouseEvent.MOUSE_UP;
         default:
-          notImplemented(name);
-          // return MouseEvent.RELEASE_OUTSIDE;
-          // return MouseEvent.MOUSE_WHEEL;
-          // return MouseEvent.ROLL_OUT;
-          // return MouseEvent.ROLL_OVER;
-          // return MouseEvent.MIDDLE_CLICK;
-          // return MouseEvent.MIDDLE_MOUSE_DOWN;
-          // return MouseEvent.MIDDLE_MOUSE_UP;
-          // return MouseEvent.RIGHT_CLICK;
-          // return MouseEvent.RIGHT_MOUSE_DOWN;
-          // return MouseEvent.RIGHT_MOUSE_UP;
-          // return MouseEvent.CONTEXT_MENU;
+          Debug.assertUnreachable("I don't want to handle mouse events of type " + name);
       }
     }
 
