@@ -17,7 +17,6 @@
 
 module Shumway.AVM1 {
   import isNumeric = Shumway.isNumeric;
-  import notImplemented = Shumway.Debug.notImplemented;
   import Telemetry = Shumway.Telemetry;
   import assert = Shumway.Debug.assert;
 

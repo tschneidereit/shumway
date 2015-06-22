@@ -18,7 +18,6 @@
 
 module Shumway.AVM1.Lib {
   import flash = Shumway.AVMX.AS.flash;
-  import notImplemented = Shumway.Debug.notImplemented;
 
   export class AVM1TextField extends AVM1SymbolBase<flash.text.TextField> {
     static createAVM1Class(context: AVM1Context): AVM1Object  {
@@ -306,7 +305,7 @@ module Shumway.AVM1.Lib {
     }
 
     public setTextHeight(value: number) {
-      Debug.notImplemented('AVM1TextField.setTextHeight');
+      // Ignored setter.
     }
 
     public getTextWidth(): number {
@@ -314,7 +313,7 @@ module Shumway.AVM1.Lib {
     }
 
     public setTextWidth(value) {
-      Debug.notImplemented('AVM1TextField.setTextWidth');
+      // Ignored setter.
     }
 
     public getType(): string {

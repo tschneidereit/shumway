@@ -280,7 +280,7 @@ module Shumway.AVM1.Lib {
     }
 
     public set_parent(value: AVM1MovieClip) {
-      Debug.notImplemented('AVM1SymbolBase.set_parent');
+      // Ignored setter.
     }
 
     public getOpaqueBackground(): number {
