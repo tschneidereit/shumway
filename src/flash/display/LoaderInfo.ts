@@ -78,8 +78,8 @@ module Shumway.AVMX.AS.flash.display {
     }
 
     static getLoaderInfoByDefinition(object: Object): flash.display.LoaderInfo {
-      object = object;
-      notImplemented("public flash.display.LoaderInfo::static getLoaderInfoByDefinition"); return;
+      // Only returns a useful value in debugger builds, which we don't claim to be.
+      return null;
     }
 
     _url: string;
