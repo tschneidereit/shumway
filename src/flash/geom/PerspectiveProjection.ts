@@ -47,6 +47,10 @@ module Shumway.AVMX.AS.flash.geom {
     }
     set projectionCenter(p: flash.geom.Point) {
       somewhatImplemented("public flash.geom.PerspectiveProjection::set projectionCenter");
+      this._setProjectionCenterNoWarn(p);
+    }
+    // The Loader sets an initial projectionCenter, and we don't want to warn about that.
+    _setProjectionCenterNoWarn(p: flash.geom.Point) {
       this._projectionCenter = p;
     }
     get focalLength(): number {
