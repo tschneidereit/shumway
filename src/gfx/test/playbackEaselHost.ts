@@ -25,6 +25,21 @@ module Shumway.GFX.Test {
 
   var MINIMAL_TIMER_INTERVAL = 5;
 
+  export function playBase64SWFM(containerID: string, swfm: string) {
+    var container: HTMLDivElement = <HTMLDivElement>document.getElementById(containerID);
+    if (!container) {
+      throw new Error('DIV with id "' + containerID + '" not found');
+    }
+    if (!swfm || typeof swfm !== 'string') {
+      throw new Error("No base64-encoded SWFM file provided");
+    }
+    var easel = new Shumway.GFX.Easel(container);
+    var easelHost = new PlaybackEaselHost(easel);
+    easelHost.useIntrinsicSize = true;
+    easelHost.playBytes(Shumway.StringUtilities.decodeRestrictedBase64ToBytes(swfm));
+    easel.startRendering();
+  }
+
   export class PlaybackEaselHost extends EaselHost {
     private _parser: MovieRecordParser;
     private _lastTimestamp: number;
