@@ -28,12 +28,15 @@ module Shumway.GFX.Test {
   export class PlaybackEaselHost extends EaselHost {
     private _parser: MovieRecordParser;
     private _lastTimestamp: number;
+    private intrinsicSizeInitialized: boolean = false;
 
     public ignoreTimestamps: boolean = false;
+    public useIntrinsicSize: boolean = false;
     public alwaysRenderFrame: boolean = false;
     public cpuTimeUpdates: number = 0;
     public cpuTimeRendering: number = 0;
 
+    public onFrame: () => void = null;
     public onComplete: () => void = null;
 
     public constructor(easel: Easel) {
@@ -44,7 +47,11 @@ module Shumway.GFX.Test {
       return this.cpuTimeUpdates + this.cpuTimeRendering;
     }
 
-    private playUrl(url: string) {
+    public get currentPosition(): number {
+      return this._parser.position;
+    }
+
+    playUrl(url: string) {
       var xhr = new XMLHttpRequest();
       xhr.open('GET', url, true);
       xhr.responseType = 'arraybuffer';
@@ -54,7 +61,7 @@ module Shumway.GFX.Test {
       xhr.send();
     }
 
-    private playBytes(data: Uint8Array) {
+    playBytes(data: Uint8Array) {
       this._parser = new MovieRecordParser(data);
       this._lastTimestamp = 0;
       this._parseNext();
@@ -130,8 +137,8 @@ module Shumway.GFX.Test {
       }
       this.cpuTimeUpdates += performance.now() - start;
 
-      if (this._parser.currentType === MovieRecordType.Frame &&
-          this.alwaysRenderFrame) {
+
+      if (this._parser.currentType === MovieRecordType.Frame && this.alwaysRenderFrame) {
         requestAnimationFrame(this._renderFrameJustAfterRAF.bind(this));
       } else {
         this._parseNext();
@@ -144,6 +151,20 @@ module Shumway.GFX.Test {
       this.cpuTimeRendering += performance.now() - start;
 
       this._parseNext();
+    }
+
+    set fullscreen(value: boolean) {
+      // Hack: When this setter is called, the stage bounds are guaranteed to be set.
+      if (this.useIntrinsicSize && !this.intrinsicSizeInitialized) {
+        var bounds = this._content.getBounds();
+        console.log(bounds);
+        this.easel.setSize(bounds.w, bounds.h);
+        this.intrinsicSizeInitialized = true;
+      }
+    }
+
+    processFrame() {
+      this.onFrame && this.onFrame();
     }
   }
 }
